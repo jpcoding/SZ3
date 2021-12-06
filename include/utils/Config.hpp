@@ -41,6 +41,11 @@ namespace SZ {
         size_t quant_state_num = 65536;
         uint block_size, stride, pred_dim = 0;
         T eb;
+        // for qoi
+        T qoi_eb = 1;
+        T qoi_eb_base = std::numeric_limits<T>::epsilon();
+        T qoi_log_base = 2;
+        int qoi_quant_state_num = 64;
     };
 }
 

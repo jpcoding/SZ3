@@ -9,6 +9,7 @@
 #include "encoder/HuffmanEncoder.hpp"
 #include "encoder/ArithmeticEncoder.hpp"
 #include "encoder/BypassEncoder.hpp"
+#include "encoder/QoIEncoder.hpp"
 #include "lossless/Lossless_zstd.hpp"
 #include "lossless/Lossless_bypass.hpp"
 #include "utils/Verification.hpp"
@@ -95,16 +96,20 @@ float SZ_compress_build_backend(std::unique_ptr<T[]> const &data,
             return SZ_compress<T>(data, conf, frontend, SZ::HuffmanEncoder<int>(), SZ::Lossless_zstd());
         } else if (conf.encoder_op == 2) {
             return SZ_compress<T>(data, conf, frontend, SZ::ArithmeticEncoder<int>(true), SZ::Lossless_zstd());
-        } else {
+        } else if (conf.encoder_op == 3) {
             return SZ_compress<T>(data, conf, frontend, SZ::BypassEncoder<int>(), SZ::Lossless_zstd());
+        } else {
+            return SZ_compress<T>(data, conf, frontend, SZ::QoIEncoder<int>(), SZ::Lossless_zstd());
         }
     } else {
         if (conf.encoder_op == 1) {
             return SZ_compress<T>(data, conf, frontend, SZ::HuffmanEncoder<int>(), SZ::Lossless_bypass());
         } else if (conf.encoder_op == 2) {
             return SZ_compress<T>(data, conf, frontend, SZ::ArithmeticEncoder<int>(true), SZ::Lossless_bypass());
-        } else {
+        } else if (conf.encoder_op == 3){
             return SZ_compress<T>(data, conf, frontend, SZ::BypassEncoder<int>(), SZ::Lossless_bypass());
+        } else {
+            return SZ_compress<T>(data, conf, frontend, SZ::QoIEncoder<int>(), SZ::Lossless_bypass());
         }
     }
 }
