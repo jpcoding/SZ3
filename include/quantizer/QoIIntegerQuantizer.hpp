@@ -48,6 +48,10 @@ namespace SZ {
 
         // quantize the data with a prediction value, and returns the quantization index and the decompressed data
         int quantize_and_overwrite(T &data, T pred, T_eb eb) {
+            if(eb == 0){
+                unpred.push_back(data);
+                return 0;
+            }
             T diff = data - pred;
             int quant_index = (int) (fabs(diff) / eb) + 1;
             if (quant_index < this->radius * 2) {
@@ -76,6 +80,10 @@ namespace SZ {
         }
 
         int quantize_and_overwrite(T ori, T pred, T_eb eb, T &dest) {
+            if(eb == 0){
+                unpred.push_back(ori);
+                return 0;
+            }
             T diff = ori - pred;
             int quant_index = (int) (fabs(diff) / eb) + 1;
             if (quant_index < this->radius * 2) {

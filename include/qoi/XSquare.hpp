@@ -22,14 +22,11 @@ namespace SZ {
             }
 
         T interpret_eb(T data) const {
-            if (data == 0) return sqrt(tolerance);
+            if (data == 0) return std::min(sqrt(tolerance), global_eb);
             T eb = - data + sqrt(data * data + tolerance);
             if ((data < 0) && (data * data - tolerance >= 0)){
-                eb = std::min(eb, - data - sqrt(data * data - tolerance));
-            }
-            if(eb < 0){
-                printf("eb < 0");
-                exit(0);
+                if (eb > - data - sqrt(data * data - tolerance))
+                    eb = - data - sqrt(data * data - tolerance);
             }
             return std::min(eb, global_eb);
         }
