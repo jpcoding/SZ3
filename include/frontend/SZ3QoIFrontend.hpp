@@ -66,6 +66,7 @@ namespace SZ {
                     // update cumulative tolerance if needed 
                     qoi.update_tolerance(ori_data, *element);
                 }
+                qoi.postcompress_block();
             }
 
             predictor.postcompress_data(block_range->begin());

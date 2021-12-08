@@ -5,6 +5,7 @@
 #include "predictor/ComposedPredictor.hpp"
 #include "quantizer/QoIIntegerQuantizer.hpp"
 #include "qoi/XSquare.hpp"
+#include "qoi/SquaredError.hpp"
 #include "utils/FileUtil.hpp"
 #include "utils/Config.hpp"
 #include "def.hpp"
@@ -20,7 +21,8 @@ float SZ_compress_build_frontend(std::unique_ptr<T[]> const &data, const SZ::Con
     auto quantizer = SZ::VariableEBLinearQuantizer<T, T>(conf.quant_state_num / 2);
     // auto quantizer = SZ::LinearQuantizer<T>(conf.eb, conf.quant_state_num / 2);
     auto quantizer_eb = SZ::EBLogQuantizer<T>(conf.qoi_eb_base, conf.qoi_log_base, conf.qoi_quant_state_num / 2);
-    auto qoi = SZ::QoI_X_Square<T>(conf.qoi_eb, conf.num, conf.eb);
+    // auto qoi = SZ::QoI_X_Square<T>(conf.qoi_eb, conf.num, conf.eb);
+    auto qoi = SZ::QoI_SquaredError<T>(conf.qoi_eb, conf.num, conf.eb);
     std::vector<std::shared_ptr<SZ::concepts::PredictorInterface<T, N>>> predictors;
 
     int use_single_predictor =
@@ -74,10 +76,18 @@ float SZ_compress_parse_args(int argc, char **argv, int argp, std::unique_ptr<T[
     float eb = global_eb * (max - min);
 
     conf.encoder_op = 4;
-    // qoi = x^2
-    auto max_val = std::max(fabs(max), fabs(min));
-    conf.qoi_eb = max_val * max_val * qoi_eb;
     conf.eb = eb;
+    // qoi = x^2
+    // auto max_val = std::max(fabs(max), fabs(min));
+    // conf.qoi_eb = max_val * max_val * qoi_eb;
+    // std::cout << "max_val = " << max_val << ", qoi_eb = " << qoi_eb << std::endl;
+    // qoi = PSNR, input is requested psnr
+    // psnr = 20 * log10(range) - 10 * log10(mse);
+    float range = max - min;
+    double mse = pow(10, (20 * log10(range) - qoi_eb) / 10);
+    double psnr = 20 * log10(range) - 10 * log10(mse);
+    printf("mse = %.4f, psnr = %.4f\n", mse, psnr);
+    conf.qoi_eb = mse * conf.num;
 
     if (argp < argc) {
         int block_size = atoi(argv[argp++]);

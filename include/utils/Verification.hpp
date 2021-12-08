@@ -49,6 +49,7 @@ namespace SZ {
         double sum = 0, prodSum = 0, relerr = 0;
 
         double *diff = (double *) malloc(num_elements * sizeof(double));
+        double max_x_square_diff = 0;
 
         for (i = 0; i < num_elements; i++) {
             diff[i] = data[i] - ori_data[i];
@@ -61,6 +62,8 @@ namespace SZ {
                 if (maxpw_relerr < relerr)
                     maxpw_relerr = relerr;
             }
+            double x_square_diff = fabs(ori_data[i] * ori_data[i] - data[i] * data[i]);
+            if(x_square_diff > max_x_square_diff) max_x_square_diff = x_square_diff;
 
             if (diffMax < err)
                 diffMax = err;
@@ -79,10 +82,21 @@ namespace SZ {
         psnr = 20 * log10(range) - 10 * log10(mse);
         nrmse = sqrt(mse) / range;
 
+        double max_abs_val = std::max(fabs(Max), fabs(Min));
+        max_abs_val = max_abs_val * max_abs_val;
+        // for(int i=0; i<num_elements; i++){
+        //     double x_square_diff = fabs(ori_data[i] * ori_data[i] - data[i] * data[i]);
+        //     if(x_square_diff / max_abs_val > 1.1e-3){
+        //         printf("i = %d, ori_data = %.4f, data = %.4f, error = %.4f\n", i, ori_data[i], data[i], x_square_diff / max_abs_val);
+        //         exit(0);
+        //     }
+        // }
+
         printf("Min=%.20G, Max=%.20G, range=%.20G\n", Min, Max, range);
         printf("Max absolute error = %.2G\n", diffMax);
         printf("Max relative error = %.2G\n", diffMax / (Max - Min));
         printf("Max pw relative error = %.2G\n", maxpw_relerr);
+        printf("Max x^2 relative error = %.6G\n", max_x_square_diff / max_abs_val);
         printf("PSNR = %f, NRMSE= %.10G\n", psnr, nrmse);
         printf("acEff=%f\n", acEff);
         printf("errAutoCorr=%.10f\n", autocorrelation1DLag1<double>(diff, num_elements, diff_sum / num_elements));

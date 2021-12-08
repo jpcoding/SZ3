@@ -15,18 +15,18 @@ namespace SZ {
 
     public:
         QoI_X_Square(T tolerance, size_t num_elements, T global_eb) : 
-            tolerance(tolerance),
-            num_rest(num_elements),
-            global_eb(global_eb) {
-                printf("global_eb = %.4f\n", global_eb);
-            }
+                tolerance(tolerance),
+                num_rest(num_elements),
+                global_eb(global_eb) {
+            printf("global_eb = %.4f\n", global_eb);
+        }
 
         T interpret_eb(T data) const {
-            if (data == 0) {
-                if(sqrt(tolerance) < global_eb) return sqrt(tolerance);
-                return global_eb;
-            }
-            T eb = - data + sqrt(data * data + tolerance);
+            // e^2 + 2ex - t < 0
+            T x1 = - data + sqrt(data * data + tolerance);
+            T x2 = data + sqrt(data * data + tolerance);
+            T eb = std::min(x1, x2);
+            // e^2 + 2ex + t > 0
             if ((data < 0) && (data * data - tolerance >= 0)){
                 if (eb > - data - sqrt(data * data - tolerance))
                     eb = - data - sqrt(data * data - tolerance);
@@ -35,6 +35,8 @@ namespace SZ {
         }
 
         void update_tolerance(T data, T dec_data){}
+
+        void postcompress_block(){}
 
         void print(){}
 
