@@ -62,12 +62,26 @@ namespace SZ {
 
             *decData = quantizer.recover(0, quant_inds[quant_index++]);
 
+            double reduction_factor;
+            double real_eb_ratio;
+            if( interpolators[interpolator_id] == "linear")
+            {
+                reduction_factor = sqrt(27/8);
+            }
+            else 
+            {
+                reduction_factor = sqrt(4.462681);
+            }
+            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
-                if (level >= 3) {
-                    quantizer.set_eb(eb * eb_ratio);
-                } else {
-                    quantizer.set_eb(eb);
-                }
+                // if (level >= 3) {
+                //     quantizer.set_eb(eb * eb_ratio);
+                // } else {
+                //     quantizer.set_eb(eb);
+                // }
+                quantizer.set_eb(eb * real_eb_ratio);
+                real_eb_ratio *= reduction_factor;
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
                         SZ::multi_dimensional_range<T, N>>(decData,
@@ -113,12 +127,30 @@ namespace SZ {
             Timer timer;
             timer.start();
 
+            double reduction_factor;
+            double real_eb_ratio;
+            if( interpolators[interpolator_id] == "linear")
+            {
+                reduction_factor = sqrt(27/8);
+            }
+            else 
+            {
+                reduction_factor = sqrt(4.462681);
+            }
+            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
-                if (level >= 3) {
-                    quantizer.set_eb(eb * eb_ratio);
-                } else {
-                    quantizer.set_eb(eb);
-                }
+                // if (level >= 3) {
+                //     quantizer.set_eb(eb * eb_ratio);
+                // } else {
+                //     quantizer.set_eb(eb);
+                // }
+
+                quantizer.set_eb(eb * real_eb_ratio);
+                // std::cout<< "eb = " << eb <<std::endl;
+                // std::cout<< "real_eb_ratio = " << real_eb_ratio <<std::endl;
+                // std::cout<< "level" << level << std::endl; 
+                real_eb_ratio *= reduction_factor;
                 size_t stride = 1U << (level - 1);
 
                 auto inter_block_range = std::make_shared<
@@ -243,7 +275,8 @@ namespace SZ {
                         if (n < 4) {
                             quantize(d - data, *d, *(d - stride));
                         } else {
-                            quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                            quantize(d - data, *d, *(d - stride));
+                            // quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         }
                     }
                 } else {
@@ -256,7 +289,8 @@ namespace SZ {
                         if (n < 4) {
                             recover(d - data, *d, *(d - stride));
                         } else {
-                            recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                             recover(d - data, *d, *(d - stride));
+                            // recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         }
                     }
                 }
@@ -277,7 +311,8 @@ namespace SZ {
                     quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
+                        quantize(d - data, *d, *(d - stride));
+                        // quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
 
                 } else {
@@ -297,7 +332,8 @@ namespace SZ {
 
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
+                        recover(d - data, *d, *(d - stride));
+                        // recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
                 }
             }
