@@ -62,12 +62,29 @@ namespace SZ {
 
             *decData = quantizer.recover(0, quant_inds[quant_index++]);
 
+            double reduction_factor;
+            double real_eb_ratio;
+            if( interpolators[interpolator_id] == "linear")
+            {
+                reduction_factor = sqrt(19/8);
+            }
+            else 
+            {
+                reduction_factor = sqrt(4.462681);
+            }
+            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+
+            
+
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
-                if (level >= 3) {
-                    quantizer.set_eb(eb * eb_ratio);
-                } else {
-                    quantizer.set_eb(eb);
-                }
+                // if (level >= 3) {
+                //     quantizer.set_eb(eb * eb_ratio);
+                // } else {
+                //     quantizer.set_eb(eb);
+                // }
+                quantizer.set_eb(eb * real_eb_ratio);
+                real_eb_ratio *= reduction_factor;
+
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
                         SZ::multi_dimensional_range<T, N>>(decData,
@@ -113,12 +130,26 @@ namespace SZ {
             Timer timer;
             timer.start();
 
+            double reduction_factor;
+            double real_eb_ratio;
+            if( interpolators[interpolator_id] == "linear")
+            {
+                reduction_factor = sqrt(19/8);
+            }
+            else 
+            {
+                reduction_factor = sqrt(4.462681);
+            }
+            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
-                if (level >= 3) {
-                    quantizer.set_eb(eb * eb_ratio);
-                } else {
-                    quantizer.set_eb(eb);
-                }
+                // if (level >= 3) {
+                //     quantizer.set_eb(eb * eb_ratio);
+                // } else {
+                //     quantizer.set_eb(eb);
+                // }
+                quantizer.set_eb(eb * real_eb_ratio);
+                real_eb_ratio *= reduction_factor;
                 size_t stride = 1U << (level - 1);
 
                 auto inter_block_range = std::make_shared<
@@ -177,6 +208,7 @@ namespace SZ {
 //            timer.stop("Lossless");
 
             compressed_size += interp_compressed_size;
+            writefile("compressed.dat",data,num_elements);
             return lossless_data;
         }
 

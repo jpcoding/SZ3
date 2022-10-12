@@ -6,3 +6,6 @@ debug
 cmake-build-debug
 cmake-build-release
 .idea
+.vscode
+install
+testbuild
