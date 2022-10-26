@@ -209,6 +209,8 @@ namespace SZ {
 
             compressed_size += interp_compressed_size;
             writefile("compressed.dat",data,num_elements);
+            writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
+            printf("# of unpredict %ld \n", quantizer.get_unpred_idx().size());
             return lossless_data;
         }
 
@@ -268,28 +270,61 @@ namespace SZ {
                 if (pb == PB_predict_overwrite) {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
+                        if( fabs(*d)> 5 )
+                        {
+                            printf("compress unpred index = %ld \n", d -data);
+                            quantizer.insert_unpred_idx(d-data);
+                            quantizer.insert_unpred(*d);
+                        }
+                        else{
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
+                        }
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
+                        if( fabs(*d)> 5 )
+                        {
+                            quantizer.insert_unpred_idx(d-data);
+                            quantizer.insert_unpred(*d);
+                        }
+                        else{
                             quantize(d - data, *d, *(d - stride));
-                        } else {
-                            quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                            // if (n < 4) {
+                            //     quantize(d - data, *d, *(d - stride));
+                            // } else {
+                            //     quantize(d - data, *d, *(d - stride));
+                            // }
                         }
                     }
                 } else {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
-                        recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
+                        if(d -data == quantizer.current_unpred_idx())
+                        {
+                            printf("decompress unpred index = %ld \n", d -data);
+                            quantizer.recover_unpred_idx();
+                            *d= quantizer.recover_unpred();
+                        }
+                        else{
+                            recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
+                        }
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
-                            recover(d - data, *d, *(d - stride));
-                        } else {
-                            recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                        if(d-data == quantizer.current_unpred_idx())
+                        {
+                            quantizer.recover_unpred_idx();
+                            *d= quantizer.recover_unpred();
                         }
+                        else{
+                            recover(d - data, *d, *(d - stride));
+                        }
+
+                        // if (n < 4) {
+                        //     recover(d - data, *d, *(d - stride));
+                        // } else {
+                        //     recover(d - data, *d, *(d - stride));
+                        // }
                     }
                 }
             } else {
@@ -299,17 +334,48 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        quantize(d - data, *d,
+                        if( fabs(*d)> 5 )
+                        {
+                            printf("compress unpred index = %ld \n", d -data);
+                            quantizer.insert_unpred_idx(d-data);
+                            quantizer.insert_unpred(*d);
+                            // printf("compressed_data= %f \n", *d);
+                        }
+                        else{
+                            quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        }
                     }
                     d = data + begin + stride;
-                    quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+                    if( fabs(*d)> 5 )
+                    {
+                        quantizer.insert_unpred_idx(d-data);
+                        quantizer.insert_unpred(*d);
+                    }
+                    else{
+                        quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+                    }
 
                     d = data + begin + i * stride;
-                    quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+                    if( fabs(*d)> 5 )
+                    {
+                        quantizer.insert_unpred_idx(d-data);
+                        quantizer.insert_unpred(*d);
+                    }
+                    else{
+                        quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+                    }
+
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
+                        if( fabs(*d)> 5 )
+                        {
+                            quantizer.insert_unpred_idx(d-data);
+                            quantizer.insert_unpred(*d);
+                        }
+                        else{
+                            quantize(d - data, *d,  *(d - stride));
+                        }
                     }
 
                 } else {
@@ -318,18 +384,51 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        if(d -data== quantizer.current_unpred_idx())
+                        {
+                            printf("decompress unpred index = %ld \n", d -data);
+                            quantizer.recover_unpred_idx();
+                            *d = quantizer.recover_unpred();
+                            // printf("decompressed_data= %f \n", *d);
+                        }
+                        else{
+                            recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        }
                     }
                     d = data + begin + stride;
 
-                    recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+                    if(d-data == quantizer.current_unpred_idx())
+                    {
+                        quantizer.recover_unpred_idx();
+                        *d = quantizer.recover_unpred();
+                    }
+                    else{
+                        recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+                    }
 
                     d = data + begin + i * stride;
-                    recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+
+                    if(d-data == quantizer.current_unpred_idx())
+                    {
+                        quantizer.recover_unpred_idx();
+                        *d= quantizer.recover_unpred();
+                    }
+                    else{
+                        recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+                    }
 
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
+                        if(d -data == quantizer.current_unpred_idx())
+                        {
+                            quantizer.recover_unpred_idx();
+                            *d= quantizer.recover_unpred();
+                        }
+                        else{
+                            recover(d - data, *d,  *(d - stride));
+                            // recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+                        }
+                        // recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
                 }
             }

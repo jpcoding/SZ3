@@ -13,7 +13,7 @@ namespace SZ {
 
             virtual int quantize(T data, T pred) = 0;
 
-            virtual int quantize_and_overwrite(T &data, T pred) = 0;
+            virtual int quantize_and_overwrite(T &data, T pred,bool save_unpred) = 0;
 
             virtual T recover(T pred, int quant_index) = 0;
 
@@ -27,6 +27,12 @@ namespace SZ {
             virtual void load(const uchar *&c, size_t &remaining_length) = 0;
 
             virtual void precompress_data() = 0;
+
+            virtual void insert_unpred(T ori) = 0;
+
+            virtual void print_unpred() = 0;
+
+            
 
             virtual void predecompress_data() = 0;
 

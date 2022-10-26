@@ -58,7 +58,7 @@ namespace SZ {
 
         // quantize the data with a prediction value, and returns the quantization index and the decompressed data
         // int quantize(T data, T pred, T& dec_data);
-        int quantize_and_overwrite(T &data, T pred) {
+        int quantize_and_overwrite(T &data, T pred,bool save_unpred=true) {
             T diff = data - pred;
             int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
             if (quant_index < this->radius * 2) {
@@ -74,19 +74,21 @@ namespace SZ {
                 }
                 T decompressed_data = pred + quant_index * this->error_bound;
                 if (fabs(decompressed_data - data) > this->error_bound) {
-                    unpred.push_back(data);
+                    if(save_unpred)
+                        unpred.push_back(data);
                     return 0;
                 } else {
                     data = decompressed_data;
                     return quant_index_shifted;
                 }
             } else {
-                unpred.push_back(data);
+                if(save_unpred)
+                    unpred.push_back(data);
                 return 0;
             }
         }
 
-        int quantize_and_overwrite(T ori, T pred, T &dest) {
+        int quantize_and_overwrite(T ori, T pred, T &dest,bool save_unpred=true) {
             T diff = ori - pred;
             int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
             if (quant_index < this->radius * 2) {
@@ -102,7 +104,8 @@ namespace SZ {
                 }
                 T decompressed_data = pred + quant_index * this->error_bound;
                 if (fabs(decompressed_data - ori) > this->error_bound) {
-                    unpred.push_back(ori);
+                    if(save_unpred)
+                        unpred.push_back(ori);
                     dest = ori;
                     return 0;
                 } else {
@@ -110,10 +113,24 @@ namespace SZ {
                     return quant_index_shifted;
                 }
             } else {
-                unpred.push_back(ori);
+                if(save_unpred)
+                    unpred.push_back(ori);
                 dest = ori;
                 return 0;
             }
+        }
+
+        void insert_unpred(T ori){
+            unpred.push_back(ori);
+        }
+
+        void insert_unpred_idx(size_t ori){
+            unpred_idx.push_back(ori);
+        }
+
+        void print_unpred(){
+            for(auto x:unpred)
+                std::cout<<x<<std::endl;
         }
 
         // recover the data using the quantization index
@@ -126,6 +143,8 @@ namespace SZ {
         }
 
 
+
+
         T recover_pred(T pred, int quant_index) {
             return pred + 2 * (quant_index - this->radius) * this->error_bound;
         }
@@ -133,6 +152,20 @@ namespace SZ {
         T recover_unpred() {
             return unpred[index++];
         }
+
+        size_t recover_unpred_idx() {
+            return unpred_idx[idx_index++];
+        }
+
+        size_t current_unpred_idx() {
+            return unpred_idx[idx_index];
+        }
+
+        std::vector<size_t> get_unpred_idx()
+        {
+            return unpred_idx;
+        }
+
 
         size_t size_est() {
             return unpred.size() * sizeof(T);
@@ -142,6 +175,7 @@ namespace SZ {
             // std::string serialized(sizeof(uint8_t) + sizeof(T) + sizeof(int),0);
             c[0] = 0b00000010;
             c += 1;
+            // std::cout << "saving eb = " << this->error_bound << ", unpred_num = "  << unpred.size() << std::endl;
             *reinterpret_cast<double *>(c) = this->error_bound;
             c += sizeof(double);
             *reinterpret_cast<int *>(c) = this->radius;
@@ -150,6 +184,12 @@ namespace SZ {
             c += sizeof(size_t);
             memcpy(c, unpred.data(), unpred.size() * sizeof(T));
             c += unpred.size() * sizeof(T);
+            *reinterpret_cast<size_t *>(c) = unpred_idx.size();
+            c += sizeof(size_t);
+            memcpy(c, unpred_idx.data(), unpred_idx.size() * sizeof(size_t));
+            c += unpred_idx.size() * sizeof(size_t);
+
+
         };
 
         void load(const unsigned char *&c, size_t &remaining_length) {
@@ -165,9 +205,15 @@ namespace SZ {
             c += sizeof(size_t);
             this->unpred = std::vector<T>(reinterpret_cast<const T *>(c), reinterpret_cast<const T *>(c) + unpred_size);
             c += unpred_size * sizeof(T);
+
+            size_t unpred_idx_size = *reinterpret_cast<const size_t *>(c);
+            c += sizeof(size_t);
+            this->unpred_idx = std::vector<size_t>(reinterpret_cast<const size_t *>(c), reinterpret_cast<const size_t *>(c) + unpred_idx_size);
+            c += unpred_idx_size * sizeof(size_t);
             // std::cout << "loading: eb = " << this->error_bound << ", unpred_num = "  << unpred.size() << std::endl;
             // reset index
             index = 0;
+            idx_index =0;
         }
 
         void print() {
@@ -193,7 +239,9 @@ namespace SZ {
 
     private:
         std::vector<T> unpred;
+        std::vector<size_t> unpred_idx;
         size_t index = 0; // used in decompression only
+        size_t idx_index = 0; 
 
         double error_bound;
         double error_bound_reciprocal;
