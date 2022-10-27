@@ -270,55 +270,55 @@ namespace SZ {
                 if (pb == PB_predict_overwrite) {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
-                        if( fabs(*d)> 5 )
-                        {
-                            printf("compress unpred index = %ld \n", d -data);
-                            quantizer.insert_unpred_idx(d-data);
-                            quantizer.insert_unpred(*d);
-                        }
-                        else{
+                        // if( fabs(*d)> 5 )
+                        // {
+                        //     printf("compress unpred index = %ld \n", d -data);
+                        //     quantizer.insert_unpred_idx(d-data);
+                        //     quantizer.insert_unpred(*d);
+                        // }
+                        // else{
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        }
+                        // }
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        if( fabs(*d)> 5 )
-                        {
-                            quantizer.insert_unpred_idx(d-data);
-                            quantizer.insert_unpred(*d);
-                        }
-                        else{
+                        // if( fabs(*d)> 5 )
+                        // {
+                        //     quantizer.insert_unpred_idx(d-data);
+                        //     quantizer.insert_unpred(*d);
+                        // }
+                        // else{
                             quantize(d - data, *d, *(d - stride));
                             // if (n < 4) {
                             //     quantize(d - data, *d, *(d - stride));
                             // } else {
                             //     quantize(d - data, *d, *(d - stride));
                             // }
-                        }
+                        // }
                     }
                 } else {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
-                        if(d -data == quantizer.current_unpred_idx())
-                        {
-                            printf("decompress unpred index = %ld \n", d -data);
-                            quantizer.recover_unpred_idx();
-                            *d= quantizer.recover_unpred();
-                        }
-                        else{
+                        // if(d -data == quantizer.current_unpred_idx())
+                        // {
+                        //     printf("decompress unpred index = %ld \n", d -data);
+                        //     quantizer.recover_unpred_idx();
+                        //     *d= quantizer.recover_unpred();
+                        // }
+                        // else{
                             recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        }
+                        // }
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        if(d-data == quantizer.current_unpred_idx())
-                        {
-                            quantizer.recover_unpred_idx();
-                            *d= quantizer.recover_unpred();
-                        }
-                        else{
+                        // if(d-data == quantizer.current_unpred_idx())
+                        // {
+                        //     quantizer.recover_unpred_idx();
+                        //     *d= quantizer.recover_unpred();
+                        // }
+                        // else{
                             recover(d - data, *d, *(d - stride));
-                        }
+                        // }
 
                         // if (n < 4) {
                         //     recover(d - data, *d, *(d - stride));
@@ -334,48 +334,48 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        if( fabs(*d)> 5 )
-                        {
-                            printf("compress unpred index = %ld \n", d -data);
-                            quantizer.insert_unpred_idx(d-data);
-                            quantizer.insert_unpred(*d);
-                            // printf("compressed_data= %f \n", *d);
-                        }
-                        else{
+                        // if( fabs(*d)> 5 )
+                        // {
+                        //     printf("compress unpred index = %ld \n", d -data);
+                        //     quantizer.insert_unpred_idx(d-data);
+                        //     quantizer.insert_unpred(*d);
+                        //     // printf("compressed_data= %f \n", *d);
+                        // }
+                        // else{
                             quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        }
+                        // }
                     }
                     d = data + begin + stride;
-                    if( fabs(*d)> 5 )
-                    {
-                        quantizer.insert_unpred_idx(d-data);
-                        quantizer.insert_unpred(*d);
-                    }
-                    else{
+                    // if( fabs(*d)> 5 )
+                    // {
+                    //     quantizer.insert_unpred_idx(d-data);
+                    //     quantizer.insert_unpred(*d);
+                    // }
+                    // else{
                         quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-                    }
+                    // }
 
                     d = data + begin + i * stride;
-                    if( fabs(*d)> 5 )
-                    {
-                        quantizer.insert_unpred_idx(d-data);
-                        quantizer.insert_unpred(*d);
-                    }
-                    else{
+                    // if( fabs(*d)> 5 )
+                    // {
+                    //     quantizer.insert_unpred_idx(d-data);
+                    //     quantizer.insert_unpred(*d);
+                    // }
+                    // else{
                         quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    }
+                    // }
 
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        if( fabs(*d)> 5 )
-                        {
-                            quantizer.insert_unpred_idx(d-data);
-                            quantizer.insert_unpred(*d);
-                        }
-                        else{
+                        // if( fabs(*d)> 5 )
+                        // {
+                        //     quantizer.insert_unpred_idx(d-data);
+                        //     quantizer.insert_unpred(*d);
+                        // }
+                        // else{
                             quantize(d - data, *d,  *(d - stride));
-                        }
+                        // }
                     }
 
                 } else {
@@ -384,50 +384,50 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        if(d -data== quantizer.current_unpred_idx())
-                        {
-                            printf("decompress unpred index = %ld \n", d -data);
-                            quantizer.recover_unpred_idx();
-                            *d = quantizer.recover_unpred();
-                            // printf("decompressed_data= %f \n", *d);
-                        }
-                        else{
+                        // if(d -data== quantizer.current_unpred_idx())
+                        // {
+                        //     printf("decompress unpred index = %ld \n", d -data);
+                        //     quantizer.recover_unpred_idx();
+                        //     *d = quantizer.recover_unpred();
+                        //     // printf("decompressed_data= %f \n", *d);
+                        // }
+                        // else{
                             recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        }
+                        // }
                     }
                     d = data + begin + stride;
 
-                    if(d-data == quantizer.current_unpred_idx())
-                    {
-                        quantizer.recover_unpred_idx();
-                        *d = quantizer.recover_unpred();
-                    }
-                    else{
+                    // if(d-data == quantizer.current_unpred_idx())
+                    // {
+                    //     quantizer.recover_unpred_idx();
+                    //     *d = quantizer.recover_unpred();
+                    // }
+                    // else{
                         recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-                    }
+                    // }
 
                     d = data + begin + i * stride;
 
-                    if(d-data == quantizer.current_unpred_idx())
-                    {
-                        quantizer.recover_unpred_idx();
-                        *d= quantizer.recover_unpred();
-                    }
-                    else{
+                    // if(d-data == quantizer.current_unpred_idx())
+                    // {
+                    //     quantizer.recover_unpred_idx();
+                    //     *d= quantizer.recover_unpred();
+                    // }
+                    // else{
                         recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    }
+                    // }
 
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        if(d -data == quantizer.current_unpred_idx())
-                        {
-                            quantizer.recover_unpred_idx();
-                            *d= quantizer.recover_unpred();
-                        }
-                        else{
+                        // if(d -data == quantizer.current_unpred_idx())
+                        // {
+                        //     quantizer.recover_unpred_idx();
+                        //     *d= quantizer.recover_unpred();
+                        // }
+                        // else{
                             recover(d - data, *d,  *(d - stride));
                             // recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                        }
+                        // }
                         // recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
                 }
@@ -474,37 +474,64 @@ namespace SZ {
             double predict_error = 0;
             size_t stride2x = stride * 2;
             const std::array<int, N> dims = dimension_sequences[direction];
+            double tmp = quantizer.get_eb();
+            double reduction_factor = sqrt(4.462681);
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x) {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                           k * dimension_offsets[dims[2]];
+                    if (k%2==1 && j%2 !=1)
+                    {
+                        quantizer.set_eb(tmp/reduction_factor);
+                    }
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[0]] - begin[dims[0]]) *
                                                             dimension_offsets[dims[0]],
                                                             stride * dimension_offsets[dims[0]], interp_func, pb);
+                    
+                    if (k%2==1 && j%2 ==1)
+                    {
+                        quantizer.set_eb(tmp);
+                    }
                 }
             }
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
                                           k * dimension_offsets[dims[2]];
+                    if (k%2==1 && i%2 ==1)
+                    {
+                        quantizer.set_eb(tmp/reduction_factor);
+                    }
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[1]] - begin[dims[1]]) *
                                                             dimension_offsets[dims[1]],
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
+                    if (k%2==1 && i%2 ==1)
+                    {
+                        quantizer.set_eb(tmp);
+                    }
                 }
             }
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
                 for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                           begin[dims[2]] * dimension_offsets[dims[2]];
+                    if (j%2==1 && i%2 ==1)
+                    {
+                        quantizer.set_eb(tmp/reduction_factor);
+                    }
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[2]] - begin[dims[2]]) *
                                                             dimension_offsets[dims[2]],
                                                             stride * dimension_offsets[dims[2]], interp_func, pb);
+                    if (j%2==1 && i%2 ==1)
+                    {
+                        quantizer.set_eb(tmp);
+                    }
                 }
             }
             return predict_error;
