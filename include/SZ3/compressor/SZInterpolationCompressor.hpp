@@ -120,159 +120,159 @@ namespace SZ {
 
             init();
 
-            for (int i =0; i< global_dimensions.size(); i++)
-                printf("dims %ld \n", global_dimensions[i]);
+            // for (int i =0; i< global_dimensions.size(); i++)
+            //     printf("dims %ld \n", global_dimensions[i]);
 
-            std::vector<size_t> my_test_index;
-            if (N==3)
-            {
-                size_t xdim = global_dimensions[0];
-                size_t ydim = global_dimensions[1];
-                size_t zdim = global_dimensions[2];
-                size_t x_block =16;
-                size_t y_block =16;
-                size_t z_block =16;
-                size_t i, j, k;
-                int ii, jj, kk;
-                size_t x , y , z;
-                printf("dims 0 %ld \n", xdim);
-                printf("dims 1 %ld \n", ydim);
-                printf("dims 2 %ld \n", zdim);
-                size_t zy = zdim*ydim;
-                size_t current_index;
-                // printf("calculating\n");
-                size_t ioffset, joffset;
-                // printf("zy = %ld\nzdim = %ld",zy,zdim);
-                double block_avg=0;
-                double block_var=0;
-                double block_max=data[0];
-                double block_min=data[0];
-                std::vector<double> block_vars;
-                std::vector<double> block_range;
+            // std::vector<size_t> my_test_index;
+            // if (N==3)
+            // {
+            //     size_t xdim = global_dimensions[0];
+            //     size_t ydim = global_dimensions[1];
+            //     size_t zdim = global_dimensions[2];
+            //     size_t x_block =16;
+            //     size_t y_block =16;
+            //     size_t z_block =16;
+            //     size_t i, j, k;
+            //     int ii, jj, kk;
+            //     size_t x , y , z;
+            //     printf("dims 0 %ld \n", xdim);
+            //     printf("dims 1 %ld \n", ydim);
+            //     printf("dims 2 %ld \n", zdim);
+            //     size_t zy = zdim*ydim;
+            //     size_t current_index;
+            //     // printf("calculating\n");
+            //     size_t ioffset, joffset;
+            //     // printf("zy = %ld\nzdim = %ld",zy,zdim);
+            //     double block_avg=0;
+            //     double block_var=0;
+            //     double block_max=data[0];
+            //     double block_min=data[0];
+            //     std::vector<double> block_vars;
+            //     std::vector<double> block_range;
 
-                for ( i = 0; i<xdim; i+=x_block)
-                {
-                    // ioffset = i*zy;
-                    for ( j = 0; j <ydim; j+=y_block )
-                    {
-                        // joffset = j*zdim;
-                        for ( k=0; k<zdim; k+=z_block)
-                        {
-                            for(ii=0; ii<x_block; ii++)
-                            {
-                                x = (i+ii<xdim)?(i+ii):xdim-1; 
-                                ioffset = x*zy;
-                                for (jj=0; jj<y_block; jj++)
-                                {
-                                    y = (j+jj<ydim)?(j+jj):ydim-1;
-                                    joffset = y*zdim;
-                                    for(kk=0 ; kk<z_block; kk++)
-                                    {
-                                        z=(k+kk<zdim)?(k+kk):zdim-1;
-                                        current_index = ioffset+joffset+z;
-                                        block_avg+=data[current_index];
-                                        if(data[current_index]>block_max)
-                                            block_max=data[current_index];
-                                        if(data[current_index]<block_min)
-                                            block_min=data[current_index];
-                                    }
-                                }
-                            }
-                            block_range.push_back(block_max-block_min);
-                            block_avg= block_avg/(x_block*y_block*z_block);
+            //     for ( i = 0; i<xdim; i+=x_block)
+            //     {
+            //         // ioffset = i*zy;
+            //         for ( j = 0; j <ydim; j+=y_block )
+            //         {
+            //             // joffset = j*zdim;
+            //             for ( k=0; k<zdim; k+=z_block)
+            //             {
+            //                 for(ii=0; ii<x_block; ii++)
+            //                 {
+            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
+            //                     ioffset = x*zy;
+            //                     for (jj=0; jj<y_block; jj++)
+            //                     {
+            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
+            //                         joffset = y*zdim;
+            //                         for(kk=0 ; kk<z_block; kk++)
+            //                         {
+            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
+            //                             current_index = ioffset+joffset+z;
+            //                             block_avg+=data[current_index];
+            //                             if(data[current_index]>block_max)
+            //                                 block_max=data[current_index];
+            //                             if(data[current_index]<block_min)
+            //                                 block_min=data[current_index];
+            //                         }
+            //                     }
+            //                 }
+            //                 block_range.push_back(block_max-block_min);
+            //                 block_avg= block_avg/(x_block*y_block*z_block);
 
-                            for(ii=0; ii<x_block; ii++)
-                            {
-                                x = (i+ii<xdim)?(i+ii):xdim-1; 
-                                ioffset = x*zy;
-                                for (jj=0; jj<y_block; jj++)
-                                {
-                                    y = (j+jj<ydim)?(j+jj):ydim-1;
-                                    joffset = y*zdim;
-                                    for(kk=0 ; kk<z_block; kk++)
-                                    {
-                                        z=(k+kk<zdim)?(k+kk):zdim-1;
-                                        current_index = ioffset+joffset+z;
-                                        block_var+=(data[current_index]-block_avg)*(data[current_index]-block_avg);
-                                    }
-                                }
-                            }
-                            block_var=block_var/(x_block*y_block*z_block);
-                            block_vars.push_back(block_var);
+            //                 for(ii=0; ii<x_block; ii++)
+            //                 {
+            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
+            //                     ioffset = x*zy;
+            //                     for (jj=0; jj<y_block; jj++)
+            //                     {
+            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
+            //                         joffset = y*zdim;
+            //                         for(kk=0 ; kk<z_block; kk++)
+            //                         {
+            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
+            //                             current_index = ioffset+joffset+z;
+            //                             block_var+=(data[current_index]-block_avg)*(data[current_index]-block_avg);
+            //                         }
+            //                     }
+            //                 }
+            //                 block_var=block_var/(x_block*y_block*z_block);
+            //                 block_vars.push_back(block_var);
                             
-                        }
-                    }
-                }
+            //             }
+            //         }
+            //     }
                 
-                double percentile = var_percentage;
-                //  percentile = percentile*block_vars.size();
-                size_t threshold_index = size_t (percentile*block_vars.size());
-                std::vector<double> block_vars_copy;
-                for (i= 0; i<block_vars.size(); i++)
-                {
-                    block_vars_copy.push_back(block_vars[i]);
-                }
+            //     double percentile = var_percentage;
+            //     //  percentile = percentile*block_vars.size();
+            //     size_t threshold_index = size_t (percentile*block_vars.size());
+            //     std::vector<double> block_vars_copy;
+            //     for (i= 0; i<block_vars.size(); i++)
+            //     {
+            //         block_vars_copy.push_back(block_vars[i]);
+            //     }
 
-                std::sort(block_vars_copy.begin(), block_vars_copy.end());
-                double threshold = block_vars_copy[threshold_index];
-                printf("block_vars.size() = %d\n",block_vars.size());
+            //     std::sort(block_vars_copy.begin(), block_vars_copy.end());
+            //     double threshold = block_vars_copy[threshold_index];
+            //     printf("block_vars.size() = %d\n",block_vars.size());
 
-                printf("variance %2.f %% threshold = %f \n",percentile*100, threshold);
+            //     printf("variance %2.f %% threshold = %f \n",percentile*100, threshold);
 
-                my_sift_index.reserve(num_elements);
-                sift_index=0;
-               size_t ptr_block_vars=0;
-               for ( i = 0; i<xdim; i+=x_block)
-                {
-                    // ioffset = i*zy;
-                    for ( j = 0; j <ydim; j+=y_block )
-                    {
-                        // joffset = j*zdim;
-                        for ( k=0; k<zdim; k+=z_block)
-                        {
-                            block_var=block_vars[ptr_block_vars];
-                            for(ii=0; ii<x_block; ii++)
-                            {
-                                x = (i+ii<xdim)?(i+ii):xdim-1; 
-                                ioffset = x*zy;
-                                for (jj=0; jj<y_block; jj++)
-                                {
-                                    y = (j+jj<ydim)?(j+jj):ydim-1;
-                                    joffset = y*zdim;
-                                    for(kk=0 ; kk<z_block; kk++)
-                                    {
-                                        z=(k+kk<zdim)?(k+kk):zdim-1;
-                                        current_index = ioffset+joffset+z;
-                                        if (block_var>threshold)
-                                        {   my_sift_index[current_index]=1;
-                                            sift_index+=1;
-                                        }
-                                        else{
-                                            my_sift_index[current_index]=0;
-                                        }
-                                    }
-                                }
-                            }
-                            ptr_block_vars++;
-                        }
-                    }
-                }
+            //     my_sift_index.reserve(num_elements);
+            //     sift_index=0;
+            //    size_t ptr_block_vars=0;
+            //    for ( i = 0; i<xdim; i+=x_block)
+            //     {
+            //         // ioffset = i*zy;
+            //         for ( j = 0; j <ydim; j+=y_block )
+            //         {
+            //             // joffset = j*zdim;
+            //             for ( k=0; k<zdim; k+=z_block)
+            //             {
+            //                 block_var=block_vars[ptr_block_vars];
+            //                 for(ii=0; ii<x_block; ii++)
+            //                 {
+            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
+            //                     ioffset = x*zy;
+            //                     for (jj=0; jj<y_block; jj++)
+            //                     {
+            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
+            //                         joffset = y*zdim;
+            //                         for(kk=0 ; kk<z_block; kk++)
+            //                         {
+            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
+            //                             current_index = ioffset+joffset+z;
+            //                             if (block_var>threshold)
+            //                             {   my_sift_index[current_index]=1;
+            //                                 sift_index+=1;
+            //                             }
+            //                             else{
+            //                                 my_sift_index[current_index]=0;
+            //                             }
+            //                         }
+            //                     }
+            //                 }
+            //                 ptr_block_vars++;
+            //             }
+            //         }
+            //     }
 
-                // printf("done calculating\n");
-                writefile("block_vars.dat",block_vars.data(), block_vars.size());
+            //     // printf("done calculating\n");
+            //     writefile("block_vars.dat",block_vars.data(), block_vars.size());
 
-            }
-            printf("sift_index %ld = \n", sift_index);
+            // }
+            // printf("sift_index %ld = \n", sift_index);
             
             quant_inds.reserve(num_elements);
-            my_level.reserve(num_elements);
-            my_index.reserve(num_elements);
+            // my_level.reserve(num_elements);
+            // my_index.reserve(num_elements);
             size_t interp_compressed_size = 0;
 
             double eb = quantizer.get_eb();
 
             quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
-            my_level[0] = 0;
+            // my_level[0] = 0;
 
             Timer timer;
             timer.start();
@@ -356,10 +356,10 @@ namespace SZ {
 
             compressed_size += interp_compressed_size;
             writefile("compressed.dat",data,num_elements);
-            writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
-            writefile("level.dat", my_level.data(), num_elements);
-            writefile("index.dat", my_index.data(), num_elements);
-            printf("# of unpredict %ld \n", quantizer.get_unpred_idx().size());
+            // writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
+            // writefile("level.dat", my_level.data(), num_elements);
+            // writefile("index.dat", my_index.data(), num_elements);
+            // printf("# of unpredict %ld \n", quantizer.get_unpred_idx().size());
             return lossless_data;
         }
 
@@ -396,24 +396,24 @@ namespace SZ {
         }
 
         inline void quantize(size_t idx, T &d, T pred) {
-            double default_eb = quantizer.get_eb();
-            if(my_sift_index[idx] && current_level <4 )
-            {
-                quantizer.set_eb(default_eb/reduction_factor/2);
-                quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-                quantizer.set_eb(default_eb);
+            // double default_eb = quantizer.get_eb();
+            // if(my_sift_index[idx] && current_level <4 )
+            // {
+            //     quantizer.set_eb(default_eb/reduction_factor/2);
+            //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+            //     quantizer.set_eb(default_eb);
                 
-            }
+            // }
             // else if( my_sift_index[idx] )
             // {
             //     quantizer.set_eb(default_eb/reduction_factor/5);
             //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
             //     quantizer.set_eb(default_eb);
             // }
-            else{
+            // else{
                 quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-            }
-            my_level[idx] = current_level;
+            // }
+            // my_level[idx] = current_level;
             
         }
 
@@ -437,61 +437,21 @@ namespace SZ {
                 if (pb == PB_predict_overwrite) {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
-                        // if( fabs(*d)> 5 )
-                        // {
-                        //     printf("compress unpred index = %ld \n", d -data);
-                        //     quantizer.insert_unpred_idx(d-data);
-                        //     quantizer.insert_unpred(*d);
-                        // }
-                        // else{
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        // }
+
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        // if( fabs(*d)> 5 )
-                        // {
-                        //     quantizer.insert_unpred_idx(d-data);
-                        //     quantizer.insert_unpred(*d);
-                        // }
-                        // else{
                             quantize(d - data, *d, *(d - stride));
-                            // if (n < 4) {
-                            //     quantize(d - data, *d, *(d - stride));
-                            // } else {
-                            //     quantize(d - data, *d, *(d - stride));
-                            // }
-                        // }
                     }
                 } else {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
-                        // if(d -data == quantizer.current_unpred_idx())
-                        // {
-                        //     printf("decompress unpred index = %ld \n", d -data);
-                        //     quantizer.recover_unpred_idx();
-                        //     *d= quantizer.recover_unpred();
-                        // }
-                        // else{
-                            recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        // }
+                        recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
-                        // if(d-data == quantizer.current_unpred_idx())
-                        // {
-                        //     quantizer.recover_unpred_idx();
-                        //     *d= quantizer.recover_unpred();
-                        // }
-                        // else{
                             recover(d - data, *d, *(d - stride));
-                        // }
-
-                        // if (n < 4) {
-                        //     recover(d - data, *d, *(d - stride));
-                        // } else {
-                        //     recover(d - data, *d, *(d - stride));
-                        // }
                     }
                 }
             } else {
@@ -501,48 +461,19 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        // if( fabs(*d)> 5 )
-                        // {
-                        //     printf("compress unpred index = %ld \n", d -data);
-                        //     quantizer.insert_unpred_idx(d-data);
-                        //     quantizer.insert_unpred(*d);
-                        //     // printf("compressed_data= %f \n", *d);
-                        // }
-                        // else{
+
                             quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        // }
+
                     }
                     d = data + begin + stride;
-                    // if( fabs(*d)> 5 )
-                    // {
-                    //     quantizer.insert_unpred_idx(d-data);
-                    //     quantizer.insert_unpred(*d);
-                    // }
-                    // else{
-                        quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-                    // }
-
+                    quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
                     d = data + begin + i * stride;
-                    // if( fabs(*d)> 5 )
-                    // {
-                    //     quantizer.insert_unpred_idx(d-data);
-                    //     quantizer.insert_unpred(*d);
-                    // }
-                    // else{
-                        quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    // }
+                    quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
 
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        // if( fabs(*d)> 5 )
-                        // {
-                        //     quantizer.insert_unpred_idx(d-data);
-                        //     quantizer.insert_unpred(*d);
-                        // }
-                        // else{
-                            quantize(d - data, *d,  *(d - stride));
-                        // }
+                        quantize(d - data, *d,  *(d - stride));
                     }
 
                 } else {
@@ -551,51 +482,15 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
-                        // if(d -data== quantizer.current_unpred_idx())
-                        // {
-                        //     printf("decompress unpred index = %ld \n", d -data);
-                        //     quantizer.recover_unpred_idx();
-                        //     *d = quantizer.recover_unpred();
-                        //     // printf("decompressed_data= %f \n", *d);
-                        // }
-                        // else{
-                            recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        // }
+                        recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                     }
                     d = data + begin + stride;
-
-                    // if(d-data == quantizer.current_unpred_idx())
-                    // {
-                    //     quantizer.recover_unpred_idx();
-                    //     *d = quantizer.recover_unpred();
-                    // }
-                    // else{
-                        recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-                    // }
-
+                    recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
                     d = data + begin + i * stride;
-
-                    // if(d-data == quantizer.current_unpred_idx())
-                    // {
-                    //     quantizer.recover_unpred_idx();
-                    //     *d= quantizer.recover_unpred();
-                    // }
-                    // else{
-                        recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    // }
-
+                    recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
-                        // if(d -data == quantizer.current_unpred_idx())
-                        // {
-                        //     quantizer.recover_unpred_idx();
-                        //     *d= quantizer.recover_unpred();
-                        // }
-                        // else{
-                            recover(d - data, *d,  *(d - stride));
-                            // recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                        // }
-                        // recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
+                        recover(d - data, *d,  *(d - stride));
                     }
                 }
             }
@@ -652,20 +547,11 @@ namespace SZ {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                            k * dimension_offsets[dims[2]];
-                    // if (k%2==1 && j%2 !=1)
-                    // {
-                        // quantizer.set_eb(tmp/reduction_factor);
-                    // }
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[0]] - begin[dims[0]]) *
                                                             dimension_offsets[dims[0]],
                                                             stride * dimension_offsets[dims[0]], interp_func, pb);
-                    
-                    // if (k%2==1 && j%2 ==1)
-                    // {
-                    //     quantizer.set_eb(tmp);
-                    // }
                 }
             }
 
@@ -674,19 +560,11 @@ namespace SZ {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
                                           k * dimension_offsets[dims[2]];
-                    // if (k%2==1 && i%2 ==1)
-                    // {
-                    //     quantizer.set_eb(tmp/reduction_factor);
-                    // }
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[1]] - begin[dims[1]]) *
                                                             dimension_offsets[dims[1]],
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
-                    // if (k%2==1 && i%2 ==1)
-                    // {
-                    //     quantizer.set_eb(tmp);
-                    // }
                 }
             }
             quantizer.set_eb(tmp);
@@ -694,19 +572,12 @@ namespace SZ {
                 for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                           begin[dims[2]] * dimension_offsets[dims[2]];
-                    // if (j%2==1 && i%2 ==1)
-                    // {
-                    //     quantizer.set_eb(tmp/reduction_factor);
-                    // }
+
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
                                                             (end[dims[2]] - begin[dims[2]]) *
                                                             dimension_offsets[dims[2]],
                                                             stride * dimension_offsets[dims[2]], interp_func, pb);
-                    // if (j%2==1 && i%2 ==1)
-                    // {
-                    //     quantizer.set_eb(tmp);
-                    // }
                 }
             }
             return predict_error;
