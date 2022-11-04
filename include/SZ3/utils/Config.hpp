@@ -117,6 +117,7 @@ namespace SZ {
             interpBlockSize = cfg.GetInteger("AlgoSettings", "InterpolationBlockSize", interpBlockSize);
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
+            var_percentage = cfg.GetReal("AlgoSettings","var_percentage",var_percentage);
 
 
         }
@@ -202,6 +203,7 @@ namespace SZ {
         int blockSize;
         int stride; //not used now
         int pred_dim; // not used now
+        double var_percentage =0.95;
 
     };
 
