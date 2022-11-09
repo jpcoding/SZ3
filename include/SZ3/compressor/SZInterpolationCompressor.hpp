@@ -424,7 +424,7 @@ namespace SZ {
 //            timer.stop("Lossless");
 
             compressed_size += interp_compressed_size;
-            writefile("compressed.dat",data,num_elements);
+            // writefile("compressed.dat",data,num_elements);
             // writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
             // writefile("level.dat", my_level.data(), num_elements);
             // writefile("index.dat", my_index.data(), num_elements);
