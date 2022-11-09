@@ -615,13 +615,13 @@ namespace SZ {
             double predict_error = 0;
             size_t stride2x = stride * 2;
             const std::array<int, N> dims = dimension_sequences[direction];
-            // double tmp = quantizer.get_eb();
-            // // double reduction_factor = sqrt(4.4159889);
-            // double C = sqrt(4.4159889);
-            // double C1 = sqrt(1.640625);
-            // double C2 = C1*C1;
+            double tmp = quantizer.get_eb();
+            // double reduction_factor = sqrt(4.4159889);
+            double C = sqrt(4.4159889);
+            double C1 = sqrt(1.640625);
+            double C2 = C1*C1;
 
-            // quantizer.set_eb(tmp/C2);
+            quantizer.set_eb(tmp/C2);
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x) {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
@@ -634,7 +634,7 @@ namespace SZ {
                 }
             }
 
-            // quantizer.set_eb(tmp/C1);
+            quantizer.set_eb(tmp/C1);
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
@@ -646,7 +646,7 @@ namespace SZ {
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
                 }
             }
-            // quantizer.set_eb(tmp);
+            quantizer.set_eb(tmp);
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
                 for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
