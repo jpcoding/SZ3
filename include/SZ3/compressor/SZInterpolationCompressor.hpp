@@ -16,6 +16,7 @@
 #include "SZ3/utils/Config.hpp"
 #include <cstring>
 #include <cmath>
+#define BIT_PER_BYTE 8
 
 namespace SZ {
     template<class T, uint N, class Quantizer, class Encoder, class Lossless>
@@ -48,8 +49,38 @@ namespace SZ {
             read(blocksize, buffer_pos, remaining_length);
             read(interpolator_id, buffer_pos, remaining_length);
             read(direction_sequence_id, buffer_pos, remaining_length);
-
             init();
+
+            if (N==3)
+            {
+                std::vector<unsigned char> sift_index_bytes;
+                my_sift_index.reserve(num_elements);
+                size_t num_sift_index_bytes = num_elements/sizeof(unsigned char)/8+(num_elements%(sizeof(unsigned char)*BIT_PER_BYTE)!=0);
+                sift_index_bytes.reserve(num_sift_index_bytes);
+                for (size_t i =0; i< num_sift_index_bytes; i++)
+                {
+                    sift_index_bytes.push_back(0);
+                }
+                read(sift_index_bytes.data(), num_sift_index_bytes, buffer_pos,remaining_length);
+                size_t byte_index=0;
+                size_t data_index;
+                for(size_t i =0; i<num_elements; i+=sizeof(unsigned char)*BIT_PER_BYTE)
+                {
+                    for(int j =0; j<sizeof(unsigned char)*BIT_PER_BYTE; j++)
+                    {
+                         data_index = i+j;
+                         byte_index = data_index/8/sizeof(unsigned char);
+                        if(data_index==num_elements)
+                        {
+                            break;
+                        }
+                        unsigned char tmp = sift_index_bytes[byte_index]<<(j);
+                        tmp = tmp>>(sizeof(unsigned char)*BIT_PER_BYTE-1);
+                        my_sift_index[data_index] = (tmp==1);
+                    }
+                }
+                writefile("sift_index_decompressed.dat", sift_index_bytes.data(), num_sift_index_bytes);
+            }
 
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
@@ -83,6 +114,7 @@ namespace SZ {
                 // }
                 quantizer.set_eb(eb * real_eb_ratio);
                 real_eb_ratio *= reduction_factor;
+                current_level = level;
 
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
@@ -120,149 +152,151 @@ namespace SZ {
 
             init();
 
-            // for (int i =0; i< global_dimensions.size(); i++)
-            //     printf("dims %ld \n", global_dimensions[i]);
+            for (int i =0; i< global_dimensions.size(); i++)
+                printf("dims %ld \n", global_dimensions[i]);
 
-            // std::vector<size_t> my_test_index;
-            // if (N==3)
-            // {
-            //     size_t xdim = global_dimensions[0];
-            //     size_t ydim = global_dimensions[1];
-            //     size_t zdim = global_dimensions[2];
-            //     size_t x_block =16;
-            //     size_t y_block =16;
-            //     size_t z_block =16;
-            //     size_t i, j, k;
-            //     int ii, jj, kk;
-            //     size_t x , y , z;
-            //     printf("dims 0 %ld \n", xdim);
-            //     printf("dims 1 %ld \n", ydim);
-            //     printf("dims 2 %ld \n", zdim);
-            //     size_t zy = zdim*ydim;
-            //     size_t current_index;
-            //     // printf("calculating\n");
-            //     size_t ioffset, joffset;
-            //     // printf("zy = %ld\nzdim = %ld",zy,zdim);
-            //     double block_avg=0;
-            //     double block_var=0;
-            //     double block_max=data[0];
-            //     double block_min=data[0];
-            //     std::vector<double> block_vars;
-            //     std::vector<double> block_range;
+            std::vector<size_t> my_test_index;
+            if (N==3)
+            {
+                size_t xdim = global_dimensions[0];
+                size_t ydim = global_dimensions[1];
+                size_t zdim = global_dimensions[2];
+                size_t x_block =16;
+                size_t y_block =16;
+                size_t z_block =16;
+                size_t i, j, k;
+                int ii, jj, kk;
+                size_t x , y , z;
+                printf("dims 0 %ld \n", xdim);
+                printf("dims 1 %ld \n", ydim);
+                printf("dims 2 %ld \n", zdim);
+                size_t zy = zdim*ydim;
+                size_t current_index;
+                // printf("calculating\n");
+                size_t ioffset, joffset;
+                // printf("zy = %ld\nzdim = %ld",zy,zdim);
+                double block_avg=0;
+                double block_var=0;
+                double block_max=data[0];
+                double block_min=data[0];
+                std::vector<double> block_vars;
+                std::vector<double> block_range;
 
-            //     for ( i = 0; i<xdim; i+=x_block)
-            //     {
-            //         // ioffset = i*zy;
-            //         for ( j = 0; j <ydim; j+=y_block )
-            //         {
-            //             // joffset = j*zdim;
-            //             for ( k=0; k<zdim; k+=z_block)
-            //             {
-            //                 for(ii=0; ii<x_block; ii++)
-            //                 {
-            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
-            //                     ioffset = x*zy;
-            //                     for (jj=0; jj<y_block; jj++)
-            //                     {
-            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
-            //                         joffset = y*zdim;
-            //                         for(kk=0 ; kk<z_block; kk++)
-            //                         {
-            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
-            //                             current_index = ioffset+joffset+z;
-            //                             block_avg+=data[current_index];
-            //                             if(data[current_index]>block_max)
-            //                                 block_max=data[current_index];
-            //                             if(data[current_index]<block_min)
-            //                                 block_min=data[current_index];
-            //                         }
-            //                     }
-            //                 }
-            //                 block_range.push_back(block_max-block_min);
-            //                 block_avg= block_avg/(x_block*y_block*z_block);
+                for ( i = 0; i<xdim; i+=x_block)
+                {
+                    // ioffset = i*zy;
+                    for ( j = 0; j <ydim; j+=y_block )
+                    {
+                        // joffset = j*zdim;
+                        for ( k=0; k<zdim; k+=z_block)
+                        {
+                            for(ii=0; ii<x_block; ii++)
+                            {
+                                x = (i+ii<xdim)?(i+ii):xdim-1; 
+                                ioffset = x*zy;
+                                for (jj=0; jj<y_block; jj++)
+                                {
+                                    y = (j+jj<ydim)?(j+jj):ydim-1;
+                                    joffset = y*zdim;
+                                    for(kk=0 ; kk<z_block; kk++)
+                                    {
+                                        z=(k+kk<zdim)?(k+kk):zdim-1;
+                                        current_index = ioffset+joffset+z;
+                                        block_avg+=data[current_index];
+                                        if(data[current_index]>block_max)
+                                            block_max=data[current_index];
+                                        if(data[current_index]<block_min)
+                                            block_min=data[current_index];
+                                    }
+                                }
+                            }
+                            block_range.push_back(block_max-block_min);
+                            block_avg= block_avg/(x_block*y_block*z_block);
 
-            //                 for(ii=0; ii<x_block; ii++)
-            //                 {
-            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
-            //                     ioffset = x*zy;
-            //                     for (jj=0; jj<y_block; jj++)
-            //                     {
-            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
-            //                         joffset = y*zdim;
-            //                         for(kk=0 ; kk<z_block; kk++)
-            //                         {
-            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
-            //                             current_index = ioffset+joffset+z;
-            //                             block_var+=(data[current_index]-block_avg)*(data[current_index]-block_avg);
-            //                         }
-            //                     }
-            //                 }
-            //                 block_var=block_var/(x_block*y_block*z_block);
-            //                 block_vars.push_back(block_var);
+                            for(ii=0; ii<x_block; ii++)
+                            {
+                                x = (i+ii<xdim)?(i+ii):xdim-1; 
+                                ioffset = x*zy;
+                                for (jj=0; jj<y_block; jj++)
+                                {
+                                    y = (j+jj<ydim)?(j+jj):ydim-1;
+                                    joffset = y*zdim;
+                                    for(kk=0 ; kk<z_block; kk++)
+                                    {
+                                        z=(k+kk<zdim)?(k+kk):zdim-1;
+                                        current_index = ioffset+joffset+z;
+                                        block_var+=(data[current_index]-block_avg)*(data[current_index]-block_avg);
+                                    }
+                                }
+                            }
+                            block_var=block_var/(x_block*y_block*z_block);
+                            block_vars.push_back(block_var);
                             
-            //             }
-            //         }
-            //     }
+                        }
+                    }
+                }
                 
-            //     double percentile = var_percentage;
-            //     //  percentile = percentile*block_vars.size();
-            //     size_t threshold_index = size_t (percentile*block_vars.size());
-            //     std::vector<double> block_vars_copy;
-            //     for (i= 0; i<block_vars.size(); i++)
-            //     {
-            //         block_vars_copy.push_back(block_vars[i]);
-            //     }
+                double percentile = var_percentage;
+                //  percentile = percentile*block_vars.size();
+                size_t threshold_index = size_t (percentile*block_vars.size());
+                std::vector<double> block_vars_copy;
+                for (i= 0; i<block_vars.size(); i++)
+                {
+                    block_vars_copy.push_back(block_vars[i]);
+                }
 
-            //     std::sort(block_vars_copy.begin(), block_vars_copy.end());
-            //     double threshold = block_vars_copy[threshold_index];
-            //     printf("block_vars.size() = %d\n",block_vars.size());
+                std::sort(block_vars_copy.begin(), block_vars_copy.end());
+                double threshold = block_vars_copy[threshold_index];
+                std::cout<< "block_vars.size() = "<<block_vars.size()<<std::endl;
 
-            //     printf("variance %2.f %% threshold = %f \n",percentile*100, threshold);
+                printf("variance %2.f %% threshold = %f \n",percentile*100, threshold);
 
-            //     my_sift_index.reserve(num_elements);
-            //     sift_index=0;
-            //    size_t ptr_block_vars=0;
-            //    for ( i = 0; i<xdim; i+=x_block)
-            //     {
-            //         // ioffset = i*zy;
-            //         for ( j = 0; j <ydim; j+=y_block )
-            //         {
-            //             // joffset = j*zdim;
-            //             for ( k=0; k<zdim; k+=z_block)
-            //             {
-            //                 block_var=block_vars[ptr_block_vars];
-            //                 for(ii=0; ii<x_block; ii++)
-            //                 {
-            //                     x = (i+ii<xdim)?(i+ii):xdim-1; 
-            //                     ioffset = x*zy;
-            //                     for (jj=0; jj<y_block; jj++)
-            //                     {
-            //                         y = (j+jj<ydim)?(j+jj):ydim-1;
-            //                         joffset = y*zdim;
-            //                         for(kk=0 ; kk<z_block; kk++)
-            //                         {
-            //                             z=(k+kk<zdim)?(k+kk):zdim-1;
-            //                             current_index = ioffset+joffset+z;
-            //                             if (block_var>threshold)
-            //                             {   my_sift_index[current_index]=1;
-            //                                 sift_index+=1;
-            //                             }
-            //                             else{
-            //                                 my_sift_index[current_index]=0;
-            //                             }
-            //                         }
-            //                     }
-            //                 }
-            //                 ptr_block_vars++;
-            //             }
-            //         }
-            //     }
+                my_sift_index.reserve(num_elements);
+                sift_index=0;
+               size_t ptr_block_vars=0;
+               for ( i = 0; i<xdim; i+=x_block)
+                {
+                    // ioffset = i*zy;
+                    for ( j = 0; j <ydim; j+=y_block )
+                    {
+                        // joffset = j*zdim;
+                        for ( k=0; k<zdim; k+=z_block)
+                        {
+                            block_var=block_vars[ptr_block_vars];
+                            for(ii=0; ii<x_block; ii++)
+                            {
+                                x = (i+ii<xdim)?(i+ii):xdim-1; 
+                                ioffset = x*zy;
+                                for (jj=0; jj<y_block; jj++)
+                                {
+                                    y = (j+jj<ydim)?(j+jj):ydim-1;
+                                    joffset = y*zdim;
+                                    for(kk=0 ; kk<z_block; kk++)
+                                    {
+                                        z=(k+kk<zdim)?(k+kk):zdim-1;
+                                        current_index = ioffset+joffset+z;
+                                        if (block_var>threshold)
+                                        {   my_sift_index[current_index]=1;
+                                            sift_index+=1;
+                                        }
+                                        else{
+                                            my_sift_index[current_index]=0;
+                                        }
+                                    }
+                                }
+                            }
+                            ptr_block_vars++;
+                        }
+                    }
+                }
 
-            //     // printf("done calculating\n");
-            //     writefile("block_vars.dat",block_vars.data(), block_vars.size());
+                // printf("done calculating\n");
+                writefile("block_vars.dat",block_vars.data(), block_vars.size());
+                
 
-            // }
-            // printf("sift_index %ld = \n", sift_index);
+
+            }
+            printf("sift_index %ld = \n", sift_index);
             
             quant_inds.reserve(num_elements);
             // my_level.reserve(num_elements);
@@ -336,6 +370,41 @@ namespace SZ {
             write(interpolator_id, buffer_pos);
             write(direction_sequence_id, buffer_pos);
 
+            if (N==3)
+            {
+                std::vector<unsigned char> sift_index_bytes;
+                size_t num_sift_index_bytes = num_elements/sizeof(unsigned char)/BIT_PER_BYTE+(num_elements%(sizeof(unsigned char)*BIT_PER_BYTE)!=0);
+                std::cout<<"num_sift_index_bytes = "<< num_sift_index_bytes<<std::endl;
+                sift_index_bytes.reserve(num_sift_index_bytes);
+                for (size_t i =0; i< num_sift_index_bytes; i++)
+                {
+                    sift_index_bytes.push_back(0);
+                }
+                size_t byte_index=0;
+                size_t data_index;
+                for(size_t i =0; i<num_elements; i+=sizeof(unsigned char)*BIT_PER_BYTE)
+                {
+                    for(int j =0; j<sizeof(unsigned char)*BIT_PER_BYTE; j++)
+                    {
+                        data_index = i+j;
+                        byte_index = data_index/sizeof(unsigned char)/8;
+                        if(data_index==num_elements)
+                        {
+                            std::cout<<"complted convertion"<<std::endl;
+                            break;
+                        }
+                        unsigned char tmp = (1==my_sift_index[data_index]);
+                        tmp = tmp<<(sizeof(unsigned char)*BIT_PER_BYTE-1-j);
+                        sift_index_bytes.at(byte_index) = sift_index_bytes.at(byte_index) | tmp;
+                    }
+                }
+                write(sift_index_bytes.data(), num_sift_index_bytes, buffer_pos);
+                writefile("sift_index.dat", sift_index_bytes.data(), num_sift_index_bytes);
+                std::cout<<"byte_index = "<<byte_index<<std::endl;
+                std::cout<<"data_index = "<<data_index<<std::endl;
+                std::cout<<"sift_index_bytes.size() "<<sift_index_bytes.size()<<std::endl;
+            }
+
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
 
@@ -396,29 +465,39 @@ namespace SZ {
         }
 
         inline void quantize(size_t idx, T &d, T pred) {
-            // double default_eb = quantizer.get_eb();
-            // if(my_sift_index[idx] && current_level <4 )
-            // {
-            //     quantizer.set_eb(default_eb/reduction_factor/2);
-            //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-            //     quantizer.set_eb(default_eb);
+            double default_eb = quantizer.get_eb();
+            if(my_sift_index[idx] && current_level ==1 )
+            {
+                quantizer.set_eb(default_eb/reduction_factor/2);
+                quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+                quantizer.set_eb(default_eb);
                 
-            // }
+            }
             // else if( my_sift_index[idx] )
             // {
             //     quantizer.set_eb(default_eb/reduction_factor/5);
             //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
             //     quantizer.set_eb(default_eb);
             // }
-            // else{
+            else{
                 quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-            // }
+            }
             // my_level[idx] = current_level;
             
         }
 
         inline void recover(size_t idx, T &d, T pred) {
-            d = quantizer.recover(pred, quant_inds[quant_index++]);
+            double default_eb = quantizer.get_eb(); 
+            if(my_sift_index[idx] && current_level ==1 )
+            {
+                quantizer.set_eb(default_eb/reduction_factor/2);
+                d = quantizer.recover(pred, quant_inds[quant_index++]);
+                quantizer.set_eb(default_eb);
+            }
+            else
+            {
+                d = quantizer.recover(pred, quant_inds[quant_index++]);
+            }
         };
 
 
