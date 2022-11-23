@@ -32,6 +32,10 @@ namespace SZ {
     constexpr const char *INTERP_ALGO_STR[] = {"INTERP_ALGO_LINEAR", "INTERP_ALGO_CUBIC"};
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
+    enum BLOCK_SIFT_MODE{BLOCK_SIFT_VARIANCE, BLOCK_SIFT_VALUE_RANGE};
+    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"BLOCK_SIFT_VARIANCE", "BLOCK_SIFT_VALUE_RANGE"};
+    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {BLOCK_SIFT_VARIANCE, BLOCK_SIFT_VALUE_RANGE};
+
     template<class T>
     const char *enum2Str(T e) {
         if (std::is_same<T, ALGO>::value) {
@@ -40,7 +44,11 @@ namespace SZ {
             return INTERP_ALGO_STR[e];
         } else if (std::is_same<T, EB>::value) {
             return EB_STR[e];
-        } else {
+        } else if (std::is_same<T,BLOCK_SIFT_MODE>::value)
+        {
+            return BLOCK_SIFT_MODE_STR[e];
+        }
+        else {
             printf("invalid enum type for enum2Str()\n ");
             exit(0);
         }
@@ -118,6 +126,16 @@ namespace SZ {
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
             var_percentage = cfg.GetReal("AlgoSettings","var_percentage",var_percentage);
+            value_range_percentage = cfg.GetReal("AlgoSettings","value_range_percentage",var_percentage);
+            sifted_reduction_factor = cfg.GetReal("AlgoSettings","sifted_reduction_factor",sifted_reduction_factor);
+            sift_block_size = cfg.GetInteger("AlgoSettings","sift_block_size",sift_block_size);
+
+            auto blockSiftStr = cfg.Get("AlgoSettings", "BLOCK_SIFT_MODE", "");
+            if (blockSiftStr == BLOCK_SIFT_MODE_STR[BLOCK_SIFT_VARIANCE]) {
+                block_sift_mode = BLOCK_SIFT_VARIANCE;
+            } else if (blockSiftStr == BLOCK_SIFT_MODE_STR[BLOCK_SIFT_VALUE_RANGE]) {
+                block_sift_mode = BLOCK_SIFT_VALUE_RANGE;
+            } 
 
 
         }
@@ -204,6 +222,10 @@ namespace SZ {
         int stride; //not used now
         int pred_dim; // not used now
         double var_percentage =0.95;
+        double value_range_percentage = 0.95;
+        uint8_t block_sift_mode = BLOCK_SIFT_VALUE_RANGE;
+        double sifted_reduction_factor=4.0;
+        int sift_block_size =4;
 
     };
 
