@@ -57,17 +57,13 @@ namespace SZ
             init();
             size_t num_small_values = 0;
 
-            if (N == 3)
+            if (N == 3 || N==2)
             {
                 std::vector<unsigned char> uchar_bytes;
 
                 my_sift_index.reserve(num_elements);
                 size_t num_uchar_bytes = num_elements / sizeof(unsigned char) / BIT_PER_BYTE + (num_elements % (sizeof(unsigned char) * BIT_PER_BYTE) != 0);
-                uchar_bytes.reserve(num_uchar_bytes);
-                for (size_t i = 0; i < num_uchar_bytes; i++)
-                {
-                    uchar_bytes.push_back(0);
-                }
+                uchar_bytes.resize(num_uchar_bytes,0);
                 read(uchar_bytes.data(), num_uchar_bytes, buffer_pos, remaining_length);
                 my_sift_index = uchar_vector_to_bool_vector(uchar_bytes);
 
@@ -165,7 +161,292 @@ namespace SZ
             //     printf("dims %ld \n", global_dimensions[i]);
             Timer timer;
             timer.start();
-            if (N == 3)
+            make_sift(conf,data,eb);
+            std::cout << " compute variance" << timer.stop() << std::endl;
+            quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
+
+            // my_level[0] = 0;
+
+            if (interpolators[interpolator_id] == "linear")
+            {
+                reduction_factor = sqrt(19 / 8);
+            }
+            else
+            {
+                reduction_factor = sqrt(4.4159889);
+            }
+            real_eb_ratio = pow(1 / reduction_factor, interpolation_level - 1);
+
+            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
+            {
+                // if (level >= 3) {
+                //     quantizer.set_eb(eb * eb_ratio);
+                // } else {
+                //     quantizer.set_eb(eb);
+                // }
+                current_level = level;
+                quantizer.set_eb(eb * real_eb_ratio);
+                real_eb_ratio *= reduction_factor;
+                size_t stride = 1U << (level - 1);
+
+                auto inter_block_range = std::make_shared<
+                    SZ::multi_dimensional_range<T, N>>(data, std::begin(global_dimensions),
+                                                       std::end(global_dimensions),
+                                                       blocksize * stride, 0);
+
+                auto inter_begin = inter_block_range->begin();
+                auto inter_end = inter_block_range->end();
+
+                for (auto block = inter_begin; block != inter_end; ++block)
+                {
+                    auto end_idx = block.get_global_index();
+                    for (int i = 0; i < N; i++)
+                    {
+                        end_idx[i] += blocksize * stride;
+                        if (end_idx[i] > global_dimensions[i] - 1)
+                        {
+                            end_idx[i] = global_dimensions[i] - 1;
+                        }
+                    }
+
+                    block_interpolation(data, block.get_global_index(), end_idx, PB_predict_overwrite,
+                                        interpolators[interpolator_id], direction_sequence_id, stride);
+                }
+            }
+            // assert(quant_inds.size() == num_elements);
+            // std::cout<< "quant_inds.size" << quant_inds.size() << std::endl;
+            //            timer.stop("Prediction & Quantization");
+
+            //            writefile("pred.dat", preds.data(), num_elements);
+            //            writefile("quant.dat", quant_inds.data(), num_elements);
+            encoder.preprocess_encode(quant_inds, 0);
+            size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
+            // std::cout << "buffer size = " << bufferSize << std::endl;
+            uchar *buffer = new uchar[bufferSize];
+            uchar *buffer_pos = buffer;
+
+            write(global_dimensions.data(), N, buffer_pos);
+            write(blocksize, buffer_pos);
+            write(interpolator_id, buffer_pos);
+            write(direction_sequence_id, buffer_pos);
+            write(sifted_reduction_factor, buffer_pos);
+            size_t quant_inds_size = quant_inds.size();
+            write(quant_inds_size, buffer_pos);
+            size_t num_sift_index_bytes = num_elements / sizeof(unsigned char) / BIT_PER_BYTE + (num_elements % (sizeof(unsigned char) * BIT_PER_BYTE) != 0);
+            write(bool_vector_to_uchar_vector(my_sift_index).data(), num_sift_index_bytes, buffer_pos);
+            write(bool_vector_to_uchar_vector(my_small_value_index).data(), num_sift_index_bytes, buffer_pos);
+
+
+            quantizer.save(buffer_pos);
+            quantizer.postcompress_data();
+
+            timer.start();
+            encoder.save(buffer_pos);
+            encoder.encode(quant_inds, buffer_pos);
+            encoder.postprocess_encode();
+            //            timer.stop("Coding");
+            assert(buffer_pos - buffer < bufferSize);
+
+            timer.start();
+            uchar *lossless_data = lossless.compress(buffer,
+                                                     buffer_pos - buffer,
+                                                     compressed_size);
+            lossless.postcompress_data(buffer);
+            //            timer.stop("Lossless");
+
+            compressed_size += interp_compressed_size;
+            writefile("compressed.dat", data, num_elements);
+            // writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
+            // writefile("level.dat", my_level.data(), my_level.size());
+            // writefile("index.dat", my_index.data(), num_elements);
+            // printf("# of unpredict %ld \n", quantizer.get_unpred_idx().size());
+            return lossless_data;
+        }
+
+    private:
+        enum PredictorBehavior
+        {
+            PB_predict_overwrite,
+            PB_predict,
+            PB_recover
+        };
+
+        void init()
+        {
+            assert(blocksize % 2 == 0 && "Interpolation block size should be even numbers");
+            num_elements = 1;
+            interpolation_level = -1;
+            for (int i = 0; i < N; i++)
+            {
+                if (interpolation_level < ceil(log2(global_dimensions[i])))
+                {
+                    interpolation_level = (uint)ceil(log2(global_dimensions[i]));
+                }
+                num_elements *= global_dimensions[i];
+            }
+
+            dimension_offsets[N - 1] = 1;
+            for (int i = N - 2; i >= 0; i--)
+            {
+                dimension_offsets[i] = dimension_offsets[i + 1] * global_dimensions[i + 1];
+            }
+
+            dimension_sequences = std::vector<std::array<int, N>>();
+            auto sequence = std::array<int, N>();
+            for (int i = 0; i < N; i++)
+            {
+                sequence[i] = i;
+            }
+            do
+            {
+                dimension_sequences.push_back(sequence);
+            } while (std::next_permutation(sequence.begin(), sequence.end()));
+        }
+
+        void make_sift(const Config &conf, T *data, double eb)
+        {
+            if (N == 1)
+            {
+
+            }
+            else if (N==2)
+            {
+                size_t xdim = global_dimensions[0];
+                size_t ydim = global_dimensions[1];
+                size_t x_block = sift_block_size;
+                size_t y_block = sift_block_size;
+                size_t i,j; 
+                int ii, jj;
+                size_t x ,y;
+                size_t current_index;
+                my_sift_index.resize(num_elements, 0);
+                my_small_value_index.resize(num_elements, 0);
+                std::vector<double> block_vars;
+                std::vector<double> block_ranges;
+                std::vector<double> block_abs_maxs;
+                double sift_threshold; // 
+                for (i = 0; i< xdim; i+=x_block)
+                {
+                    for (j = 0; j<ydim; j+= y_block)
+                    {
+                        double block_max = -std::numeric_limits<double>::infinity();
+                        double block_min = std::numeric_limits<double>::infinity();
+                        double block_avg = 0;
+                        int block_size = 0;
+
+                        for (ii = 0; ii<x_block; ii++)
+                        {
+                            x = (i + ii < xdim) ? (i + ii) : xdim - 1; 
+                            for(jj=0; jj<y_block; jj++)
+                            {
+                                y = (j + jj < ydim) ? (j + jj) : ydim - 1; 
+                                current_index = x*ydim+y; 
+                                block_size++;
+                                if(data[current_index]>block_max)
+                                {
+                                    block_max = data[current_index];
+                                }
+                                if (data[current_index]<block_min)
+                                {
+                                    block_min = data[current_index];
+                                }
+                                block_avg += data[current_index];
+                            }
+                        }
+                        block_ranges.push_back(block_max - block_min);
+                        block_abs_maxs.push_back(std::max(std::abs( block_max) , std::abs(block_min)));
+                        block_avg = block_avg/block_size;
+                        double block_var = 0;
+                        for (ii = 0; ii<x_block; ii++)
+                        {
+                            x = (i + ii < xdim) ? (i + ii) : xdim - 1; 
+                            for(jj=0; jj<y_block; jj++)
+                            {
+                                y = (j + jj < ydim) ? (j + jj) : ydim - 1; 
+                                current_index = x*ydim+y; 
+                                block_var += (data[current_index]-block_avg)*(data[current_index]-block_avg);
+
+                            }
+                        }
+                        block_var = block_var/block_size;
+                        block_vars.push_back(block_var);
+
+                    }
+                }
+                if (conf.block_sift_mode == SZ::BLOCK_SIFT_VARIANCE)
+                {
+                    size_t threshold_index = size_t(var_percentage * block_vars.size());
+                    std::vector<double> block_vars_copy(block_vars);
+                    std::sort(block_vars_copy.begin(), block_vars_copy.end());
+                    double threshold = block_vars_copy[threshold_index];
+                    sift_threshold = threshold;
+                    std::cout << "block_vars.size = " << block_vars.size() << std::endl;
+                    printf("variance %2.f %% threshold = %f \n", var_percentage * 100, threshold);
+                }
+                else if (conf.block_sift_mode == SZ::BLOCK_SIFT_VALUE_RANGE)
+                {
+                    size_t threshold_index = size_t(value_range_percentage * block_ranges.size());
+                    std::vector<double> block_ranges_copy(block_ranges);
+                    std::sort(block_ranges_copy.begin(), block_ranges_copy.end());
+                    double threshold = block_ranges_copy[threshold_index];
+                    sift_threshold = threshold;
+                    std::cout << "block_ranges_copy.size = " << block_ranges_copy.size() << std::endl;
+                    printf("value range %2.f %% threshold = %f \n", value_range_percentage * 100, threshold);
+                }
+                size_t sift_count = 0;
+                size_t block_ptr = 0; // pointer to the processing plock
+                double block_value;
+                size_t small_count = 0;
+                for (i = 0; i< xdim; i+=x_block)
+                {
+                    for (j = 0; j<ydim; j+= y_block)
+                    {
+                        double block_abs_max = block_abs_maxs[block_ptr];
+                        if (conf.block_sift_mode == SZ::BLOCK_SIFT_VARIANCE)
+                        {
+                            block_value = block_vars[block_ptr];
+                        }
+                        else if (conf.block_sift_mode == SZ::BLOCK_SIFT_VALUE_RANGE)
+                        {
+                            block_value = block_ranges[block_ptr];
+                        }
+
+                        if (block_value > sift_threshold && block_abs_max < 0.1 * eb)
+                        {
+                            for (ii = 0; ii < x_block; ii++)
+                            {
+                                x = (i + ii < xdim) ? (i + ii) : xdim - 1;
+                                for (jj = 0; jj < y_block; jj++)
+                                {
+                                    y = (j + jj < ydim) ? (j + jj) : ydim - 1;
+                                    current_index = x*ydim+y; 
+                                    my_sift_index[current_index] = 1;
+                                    sift_count += 1;
+                                    my_small_value_index[current_index] = 1;
+                                    small_count++;
+                                }
+                            }
+                        }
+                        else if ( block_abs_max < 0.1 * eb)
+                        {
+                            for (ii = 0; ii < x_block; ii++)
+                            {
+                                x = (i + ii < xdim) ? (i + ii) : xdim - 1;
+                                for (jj = 0; jj < y_block; jj++)
+                                {
+                                    y = (j + jj < ydim) ? (j + jj) : ydim - 1;
+                                    current_index = x*ydim+y; 
+                                    my_small_value_index[current_index] = 1;
+                                    small_count++;
+                                }
+                            }
+                        }
+                        block_ptr++;
+                    }
+                }
+            }
+
+            else if (N == 3)
             {
                 size_t xdim = global_dimensions[0];
                 size_t ydim = global_dimensions[1];
@@ -189,9 +470,9 @@ namespace SZ
                 std::vector<double> block_vars;
                 std::vector<double> block_ranges;
                 std::vector<double> block_abs_maxs;
-                double block_abs_max;
+                double block_abs_max; // single block abs max
                 double block_range; // single block range;
-                double sift_threshold;
+                double sift_threshold; // 
 
                 my_sift_index.resize(num_elements, 0);
                 my_small_value_index.resize(num_elements, 0);
@@ -272,7 +553,12 @@ namespace SZ
                 {
                     size_t threshold_index = size_t(value_range_percentage * block_ranges.size());
                     std::vector<double> block_ranges_copy(block_ranges);
+
+                    // std::vector<double> block_ranges_copy;
+                    // std::copy(block_ranges.begin(), block_ranges.end(),block_ranges_copy);
+
                     std::sort(block_ranges_copy.begin(), block_ranges_copy.end());
+
                     double threshold = block_ranges_copy[threshold_index];
                     sift_threshold = threshold;
                     std::cout << "block_ranges_copy.size = " << block_ranges_copy.size() << std::endl;
@@ -312,17 +598,17 @@ namespace SZ
                                         {
                                             z = (k + kk < zdim) ? (k + kk) : zdim - 1;
                                             current_index = ioffset + joffset + z;
-                                                my_sift_index[current_index] = 1;
-                                                sift_count += 1;
-                                                my_small_value_index[current_index] = 1;
-                                                small_count++;
+                                            my_sift_index[current_index] = 1;
+                                            sift_count += 1;
+                                            my_small_value_index[current_index] = 1;
+                                            small_count++;
                                         }
                                     }
                                 }
                             }
                             else if (block_value > sift_threshold)
                             {
-                                                                for (ii = 0; ii < x_block; ii++)
+                                for (ii = 0; ii < x_block; ii++)
                                 {
                                     x = (i + ii < xdim) ? (i + ii) : xdim - 1;
                                     ioffset = x * zy;
@@ -334,8 +620,8 @@ namespace SZ
                                         {
                                             z = (k + kk < zdim) ? (k + kk) : zdim - 1;
                                             current_index = ioffset + joffset + z;
-                                                my_sift_index[current_index] = 1;
-                                                sift_count += 1;
+                                            my_sift_index[current_index] = 1;
+                                            sift_count += 1;
                                         }
                                     }
                                 }
@@ -369,163 +655,14 @@ namespace SZ
                 // printf("done calculating\n");
                 // writefile("block_vars.dat",block_vars.data(), block_vars.size());
             }
-            std::cout << " compute variance" << timer.stop() << std::endl;
-            quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
-
-            // my_level[0] = 0;
-
-            if (interpolators[interpolator_id] == "linear")
+            else if (N==4)
             {
-                reduction_factor = sqrt(19 / 8);
+                
             }
             else
             {
-                reduction_factor = sqrt(4.4159889);
+                std::cout<<"dose not support this dimention\n";
             }
-            real_eb_ratio = pow(1 / reduction_factor, interpolation_level - 1);
-
-            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
-            {
-                // if (level >= 3) {
-                //     quantizer.set_eb(eb * eb_ratio);
-                // } else {
-                //     quantizer.set_eb(eb);
-                // }
-                current_level = level;
-                quantizer.set_eb(eb * real_eb_ratio);
-                real_eb_ratio *= reduction_factor;
-                size_t stride = 1U << (level - 1);
-
-                auto inter_block_range = std::make_shared<
-                    SZ::multi_dimensional_range<T, N>>(data, std::begin(global_dimensions),
-                                                       std::end(global_dimensions),
-                                                       blocksize * stride, 0);
-
-                auto inter_begin = inter_block_range->begin();
-                auto inter_end = inter_block_range->end();
-
-                for (auto block = inter_begin; block != inter_end; ++block)
-                {
-                    auto end_idx = block.get_global_index();
-                    for (int i = 0; i < N; i++)
-                    {
-                        end_idx[i] += blocksize * stride;
-                        if (end_idx[i] > global_dimensions[i] - 1)
-                        {
-                            end_idx[i] = global_dimensions[i] - 1;
-                        }
-                    }
-
-                    block_interpolation(data, block.get_global_index(), end_idx, PB_predict_overwrite,
-                                        interpolators[interpolator_id], direction_sequence_id, stride);
-                }
-            }
-            // assert(quant_inds.size() == num_elements);
-            // std::cout<< "quant_inds.size" << quant_inds.size() << std::endl;
-            //            timer.stop("Prediction & Quantization");
-
-            //            writefile("pred.dat", preds.data(), num_elements);
-            //            writefile("quant.dat", quant_inds.data(), num_elements);
-            encoder.preprocess_encode(quant_inds, 0);
-            size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
-            // std::cout << "buffer size = " << bufferSize << std::endl;
-            uchar *buffer = new uchar[bufferSize];
-            uchar *buffer_pos = buffer;
-
-            write(global_dimensions.data(), N, buffer_pos);
-            write(blocksize, buffer_pos);
-            write(interpolator_id, buffer_pos);
-            write(direction_sequence_id, buffer_pos);
-            write(sifted_reduction_factor, buffer_pos);
-            size_t quant_inds_size = quant_inds.size();
-            write(quant_inds_size, buffer_pos);
-
-            if (N == 3)
-            {
-                // std::vector<unsigned char> sift_index_bytes;
-                size_t num_sift_index_bytes = num_elements / sizeof(unsigned char) / BIT_PER_BYTE + (num_elements % (sizeof(unsigned char) * BIT_PER_BYTE) != 0);
-                // bool_vector_to_uchar_vector(my_sift_index);
-                write(bool_vector_to_uchar_vector(my_sift_index).data(), num_sift_index_bytes, buffer_pos);
-                // writefile("blocksift_compress.dat", bool_vector_to_uchar_vector(my_sift_index).data(), num_sift_index_bytes);
-
-                // std::cout << "buff pos" << buffer_pos - buffer << std::endl;
-                write(bool_vector_to_uchar_vector(my_small_value_index).data(), num_sift_index_bytes, buffer_pos);
-                // std::cout << "buff pos" << buffer_pos - buffer << std::endl;
-                // writefile("small_index_compress.dat", bool_vector_to_uchar_vector(my_small_value_index).data(), num_sift_index_bytes);
-                // std::cout<<"byte_index = "<<byte_index<<std::endl;
-                // std::cout<<"data_index = "<<data_index<<std::endl;
-                // std::cout<<"sift_index_bytes.size() "<<sift_index_bytes.size()<<std::endl;
-            }
-
-            quantizer.save(buffer_pos);
-            quantizer.postcompress_data();
-
-            timer.start();
-            encoder.save(buffer_pos);
-            encoder.encode(quant_inds, buffer_pos);
-            encoder.postprocess_encode();
-            //            timer.stop("Coding");
-            assert(buffer_pos - buffer < bufferSize);
-
-            timer.start();
-            uchar *lossless_data = lossless.compress(buffer,
-                                                     buffer_pos - buffer,
-                                                     compressed_size);
-            lossless.postcompress_data(buffer);
-            //            timer.stop("Lossless");
-
-            compressed_size += interp_compressed_size;
-            // writefile("compressed.dat", data, num_elements);
-            // writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
-            // writefile("level.dat", my_level.data(), my_level.size());
-            // writefile("index.dat", my_index.data(), num_elements);
-            // printf("# of unpredict %ld \n", quantizer.get_unpred_idx().size());
-            return lossless_data;
-        }
-
-    private:
-        enum PredictorBehavior
-        {
-            PB_predict_overwrite,
-            PB_predict,
-            PB_recover
-        };
-
-        void init()
-        {
-            assert(blocksize % 2 == 0 && "Interpolation block size should be even numbers");
-            num_elements = 1;
-            interpolation_level = -1;
-            for (int i = 0; i < N; i++)
-            {
-                if (interpolation_level < ceil(log2(global_dimensions[i])))
-                {
-                    interpolation_level = (uint)ceil(log2(global_dimensions[i]));
-                }
-                num_elements *= global_dimensions[i];
-            }
-
-            dimension_offsets[N - 1] = 1;
-            for (int i = N - 2; i >= 0; i--)
-            {
-                dimension_offsets[i] = dimension_offsets[i + 1] * global_dimensions[i + 1];
-            }
-
-            dimension_sequences = std::vector<std::array<int, N>>();
-            auto sequence = std::array<int, N>();
-            for (int i = 0; i < N; i++)
-            {
-                sequence[i] = i;
-            }
-            do
-            {
-                dimension_sequences.push_back(sequence);
-            } while (std::next_permutation(sequence.begin(), sequence.end()));
-        }
-
-        void make_sift()
-        {
-
         }
 
         std::vector<unsigned char> bool_vector_to_uchar_vector(std::vector<bool> &boolvector)
@@ -553,7 +690,7 @@ namespace SZ
                     if (boolvector[data_index])
                     {
                         unsigned char tmp = 1 << (sizeof(unsigned char) * BIT_PER_BYTE - 1 - j);
-                        uchar_bytes.at(byte_index) = uchar_bytes.at(byte_index) | tmp;
+                        uchar_bytes[byte_index] = uchar_bytes[byte_index] | tmp;
                     }
                 }
             }
@@ -773,13 +910,13 @@ namespace SZ
             double predict_error = 0;
             size_t stride2x = stride * 2;
             const std::array<int, N> dims = dimension_sequences[direction];
-            double tmp = quantizer.get_eb();
+            double default_eb = quantizer.get_eb();
             // double reduction_factor = sqrt(4.4159889);
             double C = sqrt(4.4159889);
             double C1 = sqrt(1.640625);
             double C2 = C1 * C1;
 
-            quantizer.set_eb(tmp / C2);
+            quantizer.set_eb(default_eb / C2);
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
             {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
@@ -794,7 +931,7 @@ namespace SZ
                 }
             }
 
-            quantizer.set_eb(tmp / C1);
+            quantizer.set_eb(default_eb / C1);
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
             {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
@@ -808,7 +945,7 @@ namespace SZ
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
                 }
             }
-            quantizer.set_eb(tmp);
+            quantizer.set_eb(default_eb);
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
             {
                 for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride)
