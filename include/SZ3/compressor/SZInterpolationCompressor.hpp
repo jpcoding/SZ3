@@ -220,7 +220,7 @@ namespace SZ
             //            writefile("pred.dat", preds.data(), num_elements);
             //            writefile("quant.dat", quant_inds.data(), num_elements);
             encoder.preprocess_encode(quant_inds, 0);
-            size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
+            size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size() + 2*num_elements / sizeof(unsigned char) / BIT_PER_BYTE);
             // std::cout << "buffer size = " << bufferSize << std::endl;
             uchar *buffer = new uchar[bufferSize];
             uchar *buffer_pos = buffer;
@@ -235,16 +235,16 @@ namespace SZ
             size_t num_sift_index_bytes = num_elements / sizeof(unsigned char) / BIT_PER_BYTE + (num_elements % (sizeof(unsigned char) * BIT_PER_BYTE) != 0);
             write(bool_vector_to_uchar_vector(my_sift_index).data(), num_sift_index_bytes, buffer_pos);
             write(bool_vector_to_uchar_vector(my_small_value_index).data(), num_sift_index_bytes, buffer_pos);
-
-
+                                    
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
-
             timer.start();
             encoder.save(buffer_pos);
             encoder.encode(quant_inds, buffer_pos);
             encoder.postprocess_encode();
             //            timer.stop("Coding");
+
+
             assert(buffer_pos - buffer < bufferSize);
 
             timer.start();
@@ -255,7 +255,7 @@ namespace SZ
             //            timer.stop("Lossless");
 
             compressed_size += interp_compressed_size;
-            writefile("compressed.dat", data, num_elements);
+            // writefile("compressed.dat", data, num_elements);
             // writefile("unpred_index.dat",quantizer.get_unpred_idx().data(),quantizer.get_unpred_idx().size());
             // writefile("level.dat", my_level.data(), my_level.size());
             // writefile("index.dat", my_index.data(), num_elements);
@@ -437,7 +437,22 @@ namespace SZ
                                     y = (j + jj < ydim) ? (j + jj) : ydim - 1;
                                     current_index = x*ydim+y; 
                                     my_small_value_index[current_index] = 1;
+
                                     small_count++;
+                                }
+                            }
+                        }
+                        else if (block_value > sift_threshold )
+                        {
+                            for (ii = 0; ii < x_block; ii++)
+                            {
+                                x = (i + ii < xdim) ? (i + ii) : xdim - 1;
+                                for (jj = 0; jj < y_block; jj++)
+                                {
+                                    y = (j + jj < ydim) ? (j + jj) : ydim - 1;
+                                    current_index = x*ydim+y; 
+                                    my_sift_index[current_index] = 1;
+                                    sift_count += 1;
                                 }
                             }
                         }
@@ -476,6 +491,8 @@ namespace SZ
 
                 my_sift_index.resize(num_elements, 0);
                 my_small_value_index.resize(num_elements, 0);
+                std::vector<unsigned char> my_small_value_char(num_elements, 0);
+
 
                 for (i = 0; i < xdim; i += x_block)
                 {
@@ -601,6 +618,8 @@ namespace SZ
                                             my_sift_index[current_index] = 1;
                                             sift_count += 1;
                                             my_small_value_index[current_index] = 1;
+                                            my_small_value_char.resize(num_elements, 0);
+
                                             small_count++;
                                         }
                                     }
