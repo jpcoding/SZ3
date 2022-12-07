@@ -4,6 +4,7 @@
 #include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/utils/Statistic.hpp"
 #include "SZ3/utils/Config.hpp"
+#include "SZ3/utils/qcat_ssim.hpp"
 #include "SZ3/api/impl/SZInterp.hpp"
 #include "SZ3/api/impl/SZLorenzoReg.hpp"
 #include <cmath>

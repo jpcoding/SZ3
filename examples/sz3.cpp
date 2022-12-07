@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cmath>
 #include "SZ3/api/sz.hpp"
-#include "SZ3/utils/qcat_ssim.hpp"
 
 
 #define SZ_FLOAT 0
@@ -15,39 +14,6 @@
 #define SZ_INT32 7
 #define SZ_UINT64 8
 #define SZ_INT64 9
-
-// template<class T>
-// double calculateSSIM(T* oriData, T* decData,SZ::Config conf)
-// {
-// 	int dim = (int) conf.N;
-// 	int windowSize0 = 7;
-// 	int windowSize1 = 7;
-// 	int windowSize2 = 7;
-// 	int windowSize3 = 7;
-// 	int windowShift0 = 2;
-// 	int windowShift1 = 2;
-// 	int windowShift2 = 2;
-// 	int windowShift3 = 2;
-// 	double result = -1;
-	
-//     switch(dim)
-//     {
-//     case 1:
-//         result = SZ::SSIM_1d_windowed(oriData, decData, conf.dims[0], windowSize0, windowShift0);
-//         break;
-//     case 2:
-//         result = SZ::SSIM_2d_windowed(oriData, decData, conf.dims[0], conf.dims[1], windowSize0, windowSize1, windowShift0, windowShift1);
-//         break;
-//     case 3:
-//         result = SZ::SSIM_3d_windowed(oriData, decData, conf.dims[0], conf.dims[1],  conf.dims[2], windowSize0, windowSize1, windowSize2, windowShift0, windowShift1, windowShift2);
-//         break;
-//     case 4:
-//         result = SZ::SSIM_4d_windowed(oriData, decData, conf.dims[0], conf.dims[1], conf.dims[2],  conf.dims[3], windowSize0, windowSize1, windowSize2, windowSize3, windowShift0, windowShift1, windowShift2, windowShift3);
-//         break;
-//     }	
-// 	return result;
-// }
-
 
 
 

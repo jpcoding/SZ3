@@ -1,9 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <math.h>
-#include "SZ3/utils/Config.hpp"
+#ifndef SZ_QCATSSIM_HPP
+#define SZ_QCATSSIM_HPP
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstdint>
+#include <cstring>
+#include <cmath>
+#include "SZ3/def.hpp"
+#include "Config.hpp"
 
 #define K1 0.01
 #define K2 0.03
@@ -38,6 +42,7 @@ namespace SZ
 
     template <class T>
     double calculateSSIM(T *oriData, T *decData, const Config &conf);
+
     /////////////////// 1D
     template <class T>
     double SSIM_1d_calcWindow(T *data, T *other, int offset0, int windowSize0)
@@ -533,18 +538,19 @@ namespace SZ
         switch (dim)
         {
         case 1:
-            result = SZ::SSIM_1d_windowed(oriData, decData, conf.dims[0], windowSize0, windowShift0);
+            result = SSIM_1d_windowed(oriData, decData, conf.dims[0], windowSize0, windowShift0);
             break;
         case 2:
-            result = SZ::SSIM_2d_windowed(oriData, decData, conf.dims[0], conf.dims[1], windowSize0, windowSize1, windowShift0, windowShift1);
+            result = SSIM_2d_windowed(oriData, decData, conf.dims[0], conf.dims[1], windowSize0, windowSize1, windowShift0, windowShift1);
             break;
         case 3:
-            result = SZ::SSIM_3d_windowed(oriData, decData, conf.dims[0], conf.dims[1], conf.dims[2], windowSize0, windowSize1, windowSize2, windowShift0, windowShift1, windowShift2);
+            result = SSIM_3d_windowed(oriData, decData, conf.dims[0], conf.dims[1], conf.dims[2], windowSize0, windowSize1, windowSize2, windowShift0, windowShift1, windowShift2);
             break;
         case 4:
-            result = SZ::SSIM_4d_windowed(oriData, decData, conf.dims[0], conf.dims[1], conf.dims[2], conf.dims[3], windowSize0, windowSize1, windowSize2, windowSize3, windowShift0, windowShift1, windowShift2, windowShift3);
+            result = SSIM_4d_windowed(oriData, decData, conf.dims[0], conf.dims[1], conf.dims[2], conf.dims[3], windowSize0, windowSize1, windowSize2, windowSize3, windowShift0, windowShift1, windowShift2, windowShift3);
             break;
         }
         return result;
     }
 }
+#endif
