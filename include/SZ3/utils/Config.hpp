@@ -32,10 +32,6 @@ namespace SZ {
     constexpr const char *INTERP_ALGO_STR[] = {"INTERP_ALGO_LINEAR", "INTERP_ALGO_CUBIC"};
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
-    enum BLOCK_SIFT_MODE{BLOCK_SIFT_VARIANCE, BLOCK_SIFT_VALUE_RANGE};
-    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"BLOCK_SIFT_VARIANCE", "BLOCK_SIFT_VALUE_RANGE"};
-    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {BLOCK_SIFT_VARIANCE, BLOCK_SIFT_VALUE_RANGE};
-
     template<class T>
     const char *enum2Str(T e) {
         if (std::is_same<T, ALGO>::value) {
@@ -44,11 +40,7 @@ namespace SZ {
             return INTERP_ALGO_STR[e];
         } else if (std::is_same<T, EB>::value) {
             return EB_STR[e];
-        } else if (std::is_same<T,BLOCK_SIFT_MODE>::value)
-        {
-            return BLOCK_SIFT_MODE_STR[e];
-        }
-        else {
+        } else {
             printf("invalid enum type for enum2Str()\n ");
             exit(0);
         }
@@ -125,18 +117,11 @@ namespace SZ {
             interpBlockSize = cfg.GetInteger("AlgoSettings", "InterpolationBlockSize", interpBlockSize);
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
-            var_percentage = cfg.GetReal("AlgoSettings","var_percentage",var_percentage);
-            value_range_percentage = cfg.GetReal("AlgoSettings","value_range_percentage",var_percentage);
-            sifted_reduction_factor = cfg.GetReal("AlgoSettings","sifted_reduction_factor",sifted_reduction_factor);
-            sift_block_size = cfg.GetInteger("AlgoSettings","sift_block_size",sift_block_size);
-
-            auto blockSiftStr = cfg.Get("AlgoSettings", "BLOCK_SIFT_MODE", "");
-            if (blockSiftStr == BLOCK_SIFT_MODE_STR[BLOCK_SIFT_VARIANCE]) {
-                block_sift_mode = BLOCK_SIFT_VARIANCE;
-            } else if (blockSiftStr == BLOCK_SIFT_MODE_STR[BLOCK_SIFT_VALUE_RANGE]) {
-                block_sift_mode = BLOCK_SIFT_VALUE_RANGE;
-            } 
-
+            // additional variable
+            detection_block_size = cfg.GetReal("ArtifactSettings", "DetectionBlockSize", detection_block_size);
+            detection_threshold = cfg.GetReal("ArtifactSettings", "DetectionThreshold", detection_threshold);
+            detection_eb_rate = cfg.GetReal("ArtifactSettings", "DetectionEBRate", detection_eb_rate);
+            noise_rate = cfg.GetReal("ArtifactSettings", "NoiseRate", noise_rate);
 
         }
 
@@ -163,6 +148,11 @@ namespace SZ {
             write(stride, c);
             write(pred_dim, c);
             write(openmp, c);
+            // add additional variable
+            write(detection_block_size, c);
+            write(detection_threshold, c);
+            write(detection_eb_rate, c);
+            write(noise_rate, c);
         };
 
         void load(const unsigned char *&c) {
@@ -188,6 +178,11 @@ namespace SZ {
             read(stride, c);
             read(pred_dim, c);
             read(openmp, c);
+            // add additional variable
+            read(detection_block_size, c);
+            read(detection_threshold, c);
+            read(detection_eb_rate, c);
+            read(noise_rate, c);
         }
 
         void print() {
@@ -221,12 +216,11 @@ namespace SZ {
         int blockSize;
         int stride; //not used now
         int pred_dim; // not used now
-        double var_percentage =0.95;
-        double value_range_percentage = 0.95;
-        uint8_t block_sift_mode = BLOCK_SIFT_VALUE_RANGE;
-        double sifted_reduction_factor=4.0;
-        int sift_block_size =4;
-
+        // for artifact mitagation
+        int detection_block_size = 16;
+        double detection_threshold = 0.9;
+        double detection_eb_rate = 1.0 / sqrt(4.4159889);
+        double noise_rate = 0;
     };
 
 
