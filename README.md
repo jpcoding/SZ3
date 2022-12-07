@@ -8,7 +8,11 @@ SZ3: A Modular Error-bounded Lossy Compression Framework for Scientific Datasets
 
 ## Citations
 
-**Kindly note**: If you mention SZ in your paper, the most appropriate citation is including these three references (**ICDE21, HPDC2020, Bigdata2018**), because they cover the design and implementation of the latest version of SZ.
+**Kindly note**: If you mention SZ in your paper, the most appropriate citation is including these three references (**TBD22, ICDE21, Bigdata18**), because they cover the design and implementation of the latest version of SZ.
+
+* SZ3 Framework: Xin Liang, Kai Zhao, Sheng Di, Sihuan Li, Robert Underwood, Ali M Gok, Jiannan Tian, Junjing Deng, Jon C Calhoun, Dingwen Tao, Zizhong Chen, and Franck Cappello.
+  "[SZ3: A modular framework for composing prediction-based error-bounded lossy compressors](https://ieeexplore.ieee.org/abstract/document/9866018)",
+  IEEE Transactions on Big Data (TBD 22).
 
 * SZ3 Algorithm: Kai Zhao, Sheng Di, Maxim Dmitriev, Thierry-Laurent D. Tonellot, Zizhong Chen, and Franck
   Cappello. "[Optimizing Error-Bounded Lossy Compression for Scientiﬁc Data by Dynamic Spline Interpolation](https://ieeexplore.ieee.org/document/9458791)"
@@ -72,7 +76,20 @@ Scripts without parameters below should work fine by replacing SZ2 with SZ3.
 
 ## API
 
-Please refer to 'include/SZ3/api/sz.hpp' for API and instructions. SZ3 API is different with SZ2.
+#### SZ3 C++ API
+* Located in 'include/SZ3/api/sz.hpp'. 
+* Requiring a modern C++ compiler.  
+* Different with SZ2 API.
+
+#### SZ3 C API
+* Located in 'tools/sz3c/include/sz3c.h'
+* Compatible with SZ2 API
+
+#### Python API
+* Located in 'tools/pysz/pysz.py'
+* Test file provided ('tools/pysz/test.py')
+* Compatible with both SZ3 and SZ2
+* Requiring SZ2/3 dynamic library
 
 ## H5Z-SZ3
 
@@ -101,10 +118,11 @@ Version New features
 
 * SZ 3.0.0 SZ3 is the C++ version of SZ with modular and composable design.
 * SZ 3.0.1 Improve the build process.
-* SZ 3.0.2 Support point-wise relative error bound mode.
 * SZ 3.1.0 The default algorithm is now interpolation+Lorenzo.
 * SZ 3.1.1 Add OpenMP support. Works for all algorithms. Please enable it using the config file. 
-* SZ 3.1.2 Support configuration file (INI format). Example can be found in 'test/sz3.config'.
+* SZ 3.1.2 Support configuration file (INI format). Example can be found in 'tools/sz3/sz3.config'.
 * SZ 3.1.3 Support more error control mode: PSNR, L2Norm, ABS_AND_REL, ABS_OR_REL. Support INT32 and INT64 datatype.
 * SZ 3.1.4 Support running on Windows. Please refer to https://github.com/szcompressor/SZ3/issues/5#issuecomment-1094039224 for instructions.
 * SZ 3.1.5 Support HDF5 by H5Z-SZ3. Please add "-DBUILD_H5Z_FILTER=ON" to enable this function for CMake.
+* SZ 3.1.6 Support C API and Python API.
+* SZ 3.1.7 Initial MDZ(https://github.com/szcompressor/SZ3/tree/master/tools/mdz) support.
