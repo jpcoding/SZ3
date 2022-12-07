@@ -936,6 +936,7 @@ namespace SZ
 
         size_t compute_auxilliary_data_decompress(const T *data)
         {
+            size_t num_flushed_elements;
             if (N == 2)
             {
                 // TODO: add corner case when dimensions are not divisible by block size
@@ -947,7 +948,7 @@ namespace SZ
                 flushed_block = std::vector<uchar>(num_elements, 0);
                 significant_block = std::vector<uchar>(num_elements, 0);
                 int block_id = 0;
-                size_t num_flushed_elements = 0;
+                num_flushed_elements = 0;
                 const T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
@@ -996,7 +997,6 @@ namespace SZ
                     }
                     x_data_pos += block_size * dims[1];
                 }
-                return num_flushed_elements;
             }
             else if (N == 3)
             {
@@ -1009,7 +1009,7 @@ namespace SZ
                 flushed_block = std::vector<uchar>(num_elements, 0);
                 significant_block = std::vector<uchar>(num_elements, 0);
                 int block_id = 0;
-                size_t num_flushed_elements = 0;
+                num_flushed_elements = 0;
                 const T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
@@ -1077,8 +1077,8 @@ namespace SZ
                     }
                     x_data_pos += block_size * dims[1] * dims[2];
                 }
-                return num_flushed_elements;
             }
+            return num_flushed_elements;
         }
 
         // *** modified from Sheng's code start ***
