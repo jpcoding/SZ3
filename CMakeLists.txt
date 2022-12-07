@@ -63,7 +63,14 @@ if (GSL_FOUND)
 endif()
 
 add_subdirectory(tools/sz3)
-add_subdirectory(tools/sz3c)
+
+
+
+
+option(BUILD_sz3c_FILTER "build the sz3c" OFF)
+if(BUILD_sz3c_FILTER)
+	add_subdirectory(tools/sz3c)
+endif()
 
 
 option(BUILD_H5Z_FILTER "build the H5Z-SZ3 filter" OFF)
