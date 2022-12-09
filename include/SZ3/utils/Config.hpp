@@ -32,6 +32,12 @@ namespace SZ {
     constexpr const char *INTERP_ALGO_STR[] = {"INTERP_ALGO_LINEAR", "INTERP_ALGO_CUBIC"};
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
+    enum BLOCK_SIFT_MODE{
+        VARIANCE, RANGE
+    };
+    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE"};
+    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE};
+
     template<class T>
     const char *enum2Str(T e) {
         if (std::is_same<T, ALGO>::value) {
@@ -122,6 +128,16 @@ namespace SZ {
             detection_threshold = cfg.GetReal("ArtifactSettings", "DetectionThreshold", detection_threshold);
             detection_eb_rate = cfg.GetReal("ArtifactSettings", "DetectionEBRate", detection_eb_rate);
             noise_rate = cfg.GetReal("ArtifactSettings", "NoiseRate", noise_rate);
+            auto block_sift_mode_str = cfg.Get("ArtifactSettings", "block_sift_mode", "");
+            if(block_sift_mode_str == BLOCK_SIFT_MODE_STR[VARIANCE]){
+                block_sift_mode = VARIANCE;
+            }
+            else if(block_sift_mode_str == BLOCK_SIFT_MODE_STR[RANGE])
+            {
+                block_sift_mode = RANGE;
+            }
+            block_flush_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
+            block_sift_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
 
         }
 
@@ -153,6 +169,10 @@ namespace SZ {
             write(detection_threshold, c);
             write(detection_eb_rate, c);
             write(noise_rate, c);
+            write(block_sift_mode, c);
+            write(block_sift_on, c);
+            write(block_flush_on, c);
+
         };
 
         void load(const unsigned char *&c) {
@@ -183,6 +203,9 @@ namespace SZ {
             read(detection_threshold, c);
             read(detection_eb_rate, c);
             read(noise_rate, c);
+            read(block_sift_mode, c);
+            read(block_sift_on, c);
+            read(block_flush_on, c);
         }
 
         void print() {
@@ -221,6 +244,10 @@ namespace SZ {
         double detection_threshold = 0.9;
         double detection_eb_rate = 1.0 / sqrt(4.4159889);
         double noise_rate = 0;
+        uint8_t block_sift_mode = RANGE;
+        bool block_flush_on = 1;
+        bool block_sift_on =1;
+
     };
 
 
