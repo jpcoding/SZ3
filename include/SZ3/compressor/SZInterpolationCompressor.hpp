@@ -217,7 +217,7 @@ namespace SZ
                                         interpolators[interpolator_id], direction_sequence_id, stride);
                 }
             }
-            assert(quant_inds.size() == num_elements);
+            assert(quant_inds.size() <= num_elements);
             //            timer.stop("Prediction & Quantization");
 
             //            writefile("pred.dat", preds.data(), num_elements);
@@ -674,26 +674,22 @@ namespace SZ
                 T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
+                    int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                     T *y_data_pos = x_data_pos;
                     for (int j = 0; j < ny; j++)
                     {
+                        int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                         T block_max = std::numeric_limits<T>::min();
                         T block_min = std::numeric_limits<T>::max();
                         // compute average
                         double sum = 0;
                         T *xx_data_pos = y_data_pos;
-                        int actual_block_size = 0;
-                        for (int ii = 0; ii < block_size; ii++)
+                        for (int ii = 0; ii < block_size_i; ii++)
                         {
-                            // if (i * block_size + ii >= dims[0])
-                            //     break;
                             T *yy_data_pos = xx_data_pos;
-                            for (int jj = 0; jj < block_size; jj++)
+                            for (int jj = 0; jj < block_size_j; jj++)
                             {
-                                // if (j * block_size + jj >= dims[1])
-                                //     break;
                                 sum += *yy_data_pos;
-                                actual_block_size++;
                                 if (*yy_data_pos > block_max)
                                     block_max = *yy_data_pos;
                                 if (*yy_data_pos < block_min)
@@ -707,15 +703,11 @@ namespace SZ
                         if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
                         {
                             T *xx_data_pos = y_data_pos;
-                            for (int ii = 0; ii < block_size; ii++)
+                            for (int ii = 0; ii < block_size_i; ii++)
                             {
-                                // if (i * block_size + ii >= dims[0])
-                                //     break;
                                 T *yy_data_pos = xx_data_pos;
-                                for (int jj = 0; jj < block_size; jj++)
+                                for (int jj = 0; jj < block_size_j; jj++)
                                 {
-                                    // if (j * block_size + jj >= dims[1])
-                                    //     break;
                                     *yy_data_pos = 0;
                                     flushed_block[yy_data_pos - data] = 1;
                                     yy_data_pos++;
@@ -737,24 +729,20 @@ namespace SZ
                             }
                             else if (sift_mode == SZ::BLOCK_SIFT_MODE::VARIANCE)
                             {
-                                double average = sum / actual_block_size;
+                                double average = sum / block_size_i/block_size_j;
                                 double variance = 0;
                                 T *xx_data_pos = y_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    // if (i * block_size + ii >= dims[0])
-                                    //     break;
                                     T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        // if (j * block_size + jj >= dims[1])
-                                        //     break;
                                         variance += (*yy_data_pos - average) * (*yy_data_pos - average);
                                         yy_data_pos++;
                                     }
                                     xx_data_pos += dims[1];
                                 }
-                                variance /= actual_block_size;
+                                variance /= (block_size_i*block_size_j);
                                 block_significance.push_back(variance);
                             }
                         }
@@ -780,21 +768,19 @@ namespace SZ
                     x_data_pos = data;
                     for (int i = 0; i < nx; i++)
                     {
+                        int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                         T *y_data_pos = x_data_pos;
                         for (int j = 0; j < ny; j++)
                         {
+                            int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                             if (block_significance[block_id] > threshold)
                             {
                                 T *xx_data_pos = y_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    if (i * block_size + ii >= dims[0])
-                                        break;
                                     T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        if (j * block_size + jj >= dims[1])
-                                            break;
                                         significant_block[yy_data_pos - data] = 1;
                                         yy_data_pos++;
                                     }
@@ -820,7 +806,7 @@ namespace SZ
                 int nz = (int)ceil(dims[2] * 1.0 / block_size);
                 flushed_block = std::vector<uchar>(num_elements, 0);
                 flushed_block_id = std::vector<uchar>(nx * ny * nz, 0);
-                int actual_block_size;
+                // int actual_block_size;
                 Timer timer;
                 timer.start();
                 // compute statistics
@@ -831,34 +817,30 @@ namespace SZ
                 T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
+                    int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                     T *y_data_pos = x_data_pos;
                     for (int j = 0; j < ny; j++)
                     {
+                        int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                         T *z_data_pos = y_data_pos;
                         for (int k = 0; k < nz; k++)
                         {
+                            int block_size_k = (k + 1) * block_size > dims[2] ? dims[2] - k * block_size : block_size;
                             T block_max = std::numeric_limits<T>::min();
                             T block_min = std::numeric_limits<T>::max();
-                            actual_block_size = 0;
+                            // actual_block_size = 0;
                             // compute average
                             double sum = 0;
                             T *xx_data_pos = z_data_pos;
-                            for (int ii = 0; ii < block_size; ii++)
+                            for (int ii = 0; ii < block_size_i; ii++)
                             {
-                                if (i * block_size + ii >= dims[0])
-                                    break;
                                 T *yy_data_pos = xx_data_pos;
-                                for (int jj = 0; jj < block_size; jj++)
+                                for (int jj = 0; jj < block_size_j; jj++)
                                 {
-                                    if (j * block_size + jj >= dims[1])
-                                        break;
                                     T *zz_data_pos = yy_data_pos;
-                                    for (int kk = 0; kk < block_size; kk++)
+                                    for (int kk = 0; kk < block_size_k; kk++)
                                     {
-                                        if (k * block_size + kk >= dims[2])
-                                            break;
                                         sum += *zz_data_pos;
-                                        actual_block_size++;
                                         if (*zz_data_pos > block_max)
                                             block_max = *zz_data_pos;
                                         if (*zz_data_pos < block_min)
@@ -875,20 +857,14 @@ namespace SZ
                             if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
                             {
                                 T *xx_data_pos = z_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    if (i * block_size + ii >= dims[0])
-                                        break;
                                     T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        if (j * block_size + jj >= dims[1])
-                                            break;
                                         T *zz_data_pos = yy_data_pos;
-                                        for (int kk = 0; kk < block_size; kk++)
+                                        for (int kk = 0; kk < block_size_k; kk++)
                                         {
-                                            if (k * block_size + kk >= dims[2])
-                                                break;
                                             *zz_data_pos = 0;
                                             flushed_block[zz_data_pos - data] = 1;
                                             zz_data_pos++;
@@ -912,23 +888,17 @@ namespace SZ
                                 }
                                 else if (sift_mode == SZ::BLOCK_SIFT_MODE::VARIANCE)
                                 {
-                                    double average = sum / actual_block_size;
+                                    double average = sum / block_size_i/block_size_j/block_size_k;
                                     double variance = 0;
                                     T *xx_data_pos = z_data_pos;
-                                    for (int ii = 0; ii < block_size; ii++)
+                                    for (int ii = 0; ii < block_size_i; ii++)
                                     {
-                                        if (i * block_size + ii >= dims[0])
-                                            break;
                                         T *yy_data_pos = xx_data_pos;
-                                        for (int jj = 0; jj < block_size; jj++)
+                                        for (int jj = 0; jj < block_size_k; jj++)
                                         {
-                                            if (j * block_size + jj >= dims[1])
-                                                break;
                                             T *zz_data_pos = yy_data_pos;
-                                            for (int kk = 0; kk < block_size; kk++)
+                                            for (int kk = 0; kk < block_size_k; kk++)
                                             {
-                                                if (k * block_size + kk >= dims[2])
-                                                    break;
                                                 variance += (*zz_data_pos - average) * (*zz_data_pos - average);
                                                 zz_data_pos++;
                                             }
@@ -936,7 +906,7 @@ namespace SZ
                                         }
                                         xx_data_pos += dims[1] * dims[2];
                                     }
-                                    variance /= actual_block_size;
+                                    variance /= (block_size_i*block_size_j*block_size_k);
                                     block_significance.push_back(variance);
                                 }
                             }
@@ -947,16 +917,12 @@ namespace SZ
                     }
                     x_data_pos += block_size * dims[1] * dims[2];
                 }
-                // writefile("variance.dat",block_significance.data(), block_significance.size());
-                // writefile("var_blocks.dat", flushed_block_id.data(), flushed_block_id.size());
-                // std::cout << "block_significance.size() = " << block_significance.size() << std::endl;
-                std::cout<<"acyual_block_size = "<<actual_block_size<<std::endl;
                 std::cout << "flushed_count = " << flushed_count << ", percent = " << flushed_count * 1.0 / (nx * ny * nz) << std::endl;
                 if (block_sift_on)
                 {
                     double threshold;
                     double percent = detection_threshold;
-                    { // destroy tmp after use
+                    { // destroy the copy after use
                         auto block_significance_tmp(block_significance);
                         std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
                         threshold = block_significance_tmp[(int)(percent * block_significance.size())];
@@ -968,29 +934,26 @@ namespace SZ
                     x_data_pos = data;
                     for (int i = 0; i < nx; i++)
                     {
+                        int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                         T *y_data_pos = x_data_pos;
                         for (int j = 0; j < ny; j++)
                         {
+                            int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                             T *z_data_pos = y_data_pos;
                             for (int k = 0; k < nz; k++)
                             {
+                                int block_size_k = (k + 1) * block_size > dims[2] ? dims[2] - k * block_size : block_size;
                                 if (block_significance[block_id] > threshold)
                                 {
                                     T *xx_data_pos = z_data_pos;
                                     for (int ii = 0; ii < block_size; ii++)
                                     {
-                                        if (i * block_size + ii >= dims[0])
-                                            break;
                                         T *yy_data_pos = xx_data_pos;
                                         for (int jj = 0; jj < block_size; jj++)
                                         {
-                                            if (j * block_size + jj >= dims[1])
-                                                break;
                                             T *zz_data_pos = yy_data_pos;
                                             for (int kk = 0; kk < block_size; kk++)
                                             {
-                                                if (k * block_size + kk >= dims[2])
-                                                    break;
                                                 significant_block[zz_data_pos - data] = 1;
                                                 zz_data_pos++;
                                             }
@@ -1029,22 +992,20 @@ namespace SZ
                 const T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
+                    int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                     const T *y_data_pos = x_data_pos;
                     for (int j = 0; j < ny; j++)
                     {
+                        int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                         if (block_flush_on && block_sift_on && flushed_block_id[block_id] && significant_block_id[block_id])
                         {
                             int actual_block_size = 0;
                             const T *xx_data_pos = y_data_pos;
-                            for (int ii = 0; ii < block_size; ii++)
+                            for (int ii = 0; ii < block_size_i; ii++)
                             {
-                                if (i * block_size + ii >= dims[0])
-                                    break;
                                 const T *yy_data_pos = xx_data_pos;
-                                for (int jj = 0; jj < block_size; jj++)
+                                for (int jj = 0; jj < block_size_j; jj++)
                                 {
-                                    if (j * block_size + jj >= dims[1])
-                                        break;
                                     flushed_block[yy_data_pos - data] = 1;
                                     actual_block_size++;
                                     significant_block[yy_data_pos - data] = 1;
@@ -1058,15 +1019,11 @@ namespace SZ
                         {
                             int actual_block_size = 0;
                             const T *xx_data_pos = y_data_pos;
-                            for (int ii = 0; ii < block_size; ii++)
+                            for (int ii = 0; ii < block_size_i; ii++)
                             {
-                                if (i * block_size + ii >= dims[0])
-                                    break;
                                 const T *yy_data_pos = xx_data_pos;
-                                for (int jj = 0; jj < block_size; jj++)
+                                for (int jj = 0; jj < block_size_j; jj++)
                                 {
-                                    if (j * block_size + jj >= dims[1])
-                                        break;
                                     flushed_block[yy_data_pos - data] = 1;
                                     yy_data_pos += 1;
                                 }
@@ -1077,15 +1034,11 @@ namespace SZ
                         else if (block_sift_on && significant_block_id[block_id])
                         {
                             const T *xx_data_pos = y_data_pos;
-                            for (int ii = 0; ii < block_size; ii++)
+                            for (int ii = 0; ii < block_size_i; ii++)
                             {
-                                if (i * block_size + ii >= dims[0])
-                                    break;
                                 const T *yy_data_pos = xx_data_pos;
-                                for (int jj = 0; jj < block_size; jj++)
+                                for (int jj = 0; jj < block_size_j; jj++)
                                 {
-                                    if (j * block_size + jj >= dims[1])
-                                        break;
                                     significant_block[yy_data_pos - data] = 1;
                                     yy_data_pos += 1;
                                 }
@@ -1113,30 +1066,27 @@ namespace SZ
                 const T *x_data_pos = data;
                 for (int i = 0; i < nx; i++)
                 {
+                    int block_size_i = (i + 1) * block_size > dims[0] ? dims[0] - i * block_size : block_size;
                     const T *y_data_pos = x_data_pos;
                     for (int j = 0; j < ny; j++)
                     {
+                        int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                         const T *z_data_pos = y_data_pos;
                         for (int k = 0; k < nz; k++)
                         {
+                            int block_size_k = (k + 1) * block_size > dims[2] ? dims[2] - k * block_size : block_size;
                             if (block_flush_on && block_sift_on && flushed_block_id[block_id] && significant_block_id[block_id])
                             {
                                 int actual_block_size = 0;
                                 const T *xx_data_pos = z_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    if (i * block_size + ii >= dims[0])
-                                        break;
                                     const T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        if (j * block_size + jj >= dims[1])
-                                            break;
                                         const T *zz_data_pos = yy_data_pos;
-                                        for (int kk = 0; kk < block_size; kk++)
+                                        for (int kk = 0; kk < block_size_k; kk++)
                                         {
-                                            if (k * block_size + kk >= dims[2])
-                                                break;
                                             flushed_block[zz_data_pos - data] = 1;
                                             significant_block[zz_data_pos - data] = 1;
                                             zz_data_pos++;
@@ -1152,20 +1102,14 @@ namespace SZ
                             {
                                 int actual_block_size = 0;
                                 const T *xx_data_pos = z_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    if (i * block_size + ii >= dims[0])
-                                        break;
                                     const T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        if (j * block_size + jj >= dims[1])
-                                            break;
                                         const T *zz_data_pos = yy_data_pos;
-                                        for (int kk = 0; kk < block_size; kk++)
+                                        for (int kk = 0; kk < block_size_k; kk++)
                                         {
-                                            if (k * block_size + kk >= dims[2])
-                                                break;
                                             flushed_block[zz_data_pos - data] = 1;
                                             zz_data_pos++;
                                             actual_block_size++;
@@ -1179,20 +1123,14 @@ namespace SZ
                             else if (block_sift_on && significant_block_id[block_id])
                             {
                                 const T *xx_data_pos = z_data_pos;
-                                for (int ii = 0; ii < block_size; ii++)
+                                for (int ii = 0; ii < block_size_i; ii++)
                                 {
-                                    if (i * block_size + ii >= dims[0])
-                                        break;
                                     const T *yy_data_pos = xx_data_pos;
-                                    for (int jj = 0; jj < block_size; jj++)
+                                    for (int jj = 0; jj < block_size_j; jj++)
                                     {
-                                        if (j * block_size + jj >= dims[1])
-                                            break;
                                         const T *zz_data_pos = yy_data_pos;
-                                        for (int kk = 0; kk < block_size; kk++)
+                                        for (int kk = 0; kk < block_size_k; kk++)
                                         {
-                                            if (k * block_size + kk >= dims[2])
-                                                break;
                                             significant_block[zz_data_pos - data] = 1;
                                             zz_data_pos++;
                                         }
@@ -1291,7 +1229,7 @@ namespace SZ
         double c1 = 1.0 / sqrt(1.640625);
         double c2 = 1.0 / 1.640625;
         double c3 = 1.0 / sqrt(4.4159889);
-        int detection_block_size = 16;
+        int detection_block_size = 4;
         double detection_threshold = 0.9;
         double detection_eb_rate = c3;
         double noise_rate = 0;

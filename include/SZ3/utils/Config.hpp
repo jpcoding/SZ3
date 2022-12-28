@@ -240,7 +240,7 @@ namespace SZ {
         int stride; //not used now
         int pred_dim; // not used now
         // for artifact mitagation
-        int detection_block_size = 16;
+        int detection_block_size = 4;
         double detection_threshold = 0.9;
         double detection_eb_rate = 1.0 / sqrt(4.4159889);
         double noise_rate = 0;
