@@ -510,8 +510,8 @@ namespace SZ
             double predict_error = 0;
             size_t stride2x = stride * 2;
 
-            auto default_eb = quantizer.get_eb();
-            quantizer.set_eb(default_eb * c2);
+            // auto default_eb = quantizer.get_eb();
+            // quantizer.set_eb(default_eb * c2);
 
             const std::array<int, N> dims = dimension_sequences[direction];
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
@@ -528,7 +528,7 @@ namespace SZ
                 }
             }
 
-            quantizer.set_eb(default_eb * c1);
+            // quantizer.set_eb(default_eb * c1);
 
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
             {
@@ -544,7 +544,7 @@ namespace SZ
                 }
             }
 
-            quantizer.set_eb(default_eb);
+            // quantizer.set_eb(default_eb);
 
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
             {

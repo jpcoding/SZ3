@@ -183,7 +183,7 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
         auto ori_data = SZ::readfile<T>(inPath, totalNbEle);
         assert(totalNbEle == conf.num);
         SZ::verify<T>(ori_data.get(), decData, conf.num);
-        printf("SSIM = %.6f\n", SZ::calculateSSIM(ori_data.get(), decData, conf));
+        // printf("SSIM = %.6f\n", SZ::calculateSSIM(ori_data.get(), decData, conf));
 
     }
     delete[]decData;

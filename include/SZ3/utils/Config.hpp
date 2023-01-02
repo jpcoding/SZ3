@@ -136,7 +136,7 @@ namespace SZ {
             {
                 block_sift_mode = RANGE;
             }
-            block_flush_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
+            block_flush_on = cfg.GetBoolean("ArtifactSettings", "block_flush_on", block_flush_on);
             block_sift_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
 
         }
