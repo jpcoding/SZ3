@@ -655,7 +655,89 @@ namespace SZ
         void compute_auxilliary_data(const Config &conf, T *data)
         {
 
-            if (N == 2)
+            // special case when blocksize = 1 
+            if(detection_block_size ==1)
+            {   
+                if(block_flush_on==1 && block_sift_on==1)
+                    {
+                        // Timer timer;
+                        // timer.start();
+                        flushed_block_id = std::vector<uchar>(num_elements, 0);
+                        significant_block_id = std::vector<uchar>(num_elements ,0);
+                        double threshold;
+                        
+                        // timer.stop("SIFT: define variables ");
+                        // { // destroy the copy after use
+                        //     std::vector<T> block_significance_tmp(data,data+num_elements);
+                        //     timer.start();
+                        //     std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)((1-detection_threshold) * num_elements),block_significance_tmp.end(),std::greater<int>());
+                        //     timer.stop("SIFT: select nth ");
+                        //     threshold = block_significance_tmp[(size_t)((1-detection_threshold) * num_elements)];
+                        //     std::cout<<"threshold = " << threshold<<std::endl;
+                        // }
+                        { // destroy the copy after use
+                            std::vector<T> block_significance_tmp(data,data+num_elements);
+                            // timer.start();
+                            std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)(detection_threshold * num_elements),block_significance_tmp.end());
+                            // timer.stop("SIFT: select nth ");
+                            threshold = block_significance_tmp[(size_t)(detection_threshold * num_elements)];
+                        }
+
+                        
+                        // timer.start();
+                        for(int i =0; i<num_elements; i++)
+                        {
+                            if(data[i] > threshold)
+                            {
+                                significant_block_id[i] =1;
+                            }
+                            if(std::abs(data[i]) < quantizer.get_eb() * 0.1)
+                            {
+                                flushed_block_id[i] =1;
+                            }
+                        }
+                        // timer.stop("SIFT: sift");
+                        significant_block = significant_block_id;
+                        flushed_block = flushed_block_id;
+
+                    }
+                else if(block_flush_on==1 && block_sift_on==0)
+                    {
+                        flushed_block_id = std::vector<uchar>(num_elements, 0);
+                        for(int i =0; i<num_elements; i++)
+                        {
+                            T* data_pos = data+i;
+                            if(std::abs(*data_pos) < quantizer.get_eb() * 0.1)
+                            {
+                                flushed_block_id[i] =1;
+                            }
+                        }
+                        flushed_block = flushed_block_id;
+
+                    }
+                else if(block_flush_on==0 && block_sift_on==1)
+                    {
+                        significant_block_id = std::vector<uchar>(num_elements ,0);
+                        double threshold;
+                        { // destroy the copy after use
+                            std::vector<T> block_significance_tmp(data,data+num_elements);
+                            // std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
+                            std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)(detection_threshold * num_elements),block_significance_tmp.end());
+                            threshold = block_significance_tmp[(size_t)(detection_threshold * num_elements)];
+                        }
+                        for(int i =0; i<num_elements; i++)
+                        {
+                            T* data_pos = data+i;
+                            if(*data_pos > threshold)
+                            {
+                                significant_block_id[i] =1;
+                            }
+                        }
+                        significant_block = significant_block_id;
+
+                    }
+            }
+            else if (N == 2)
             {
                 // TODO: add corner case when dimensions are not divisible by block size
                 int block_size = detection_block_size;
@@ -758,8 +840,9 @@ namespace SZ
                     percent = detection_threshold;
                     {
                         auto block_significance_tmp(block_significance);
-                        std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
-                        threshold = block_significance_tmp[(int)(percent * block_significance.size())];
+                        // std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
+                        std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)(detection_threshold * num_elements),block_significance_tmp.end());
+                        threshold = block_significance_tmp[(size_t)(percent * block_significance.size())];
                     }
                     std::cout << percent * 100 << "% threshold = " << threshold << std::endl;
                     significant_block = std::vector<uchar>(num_elements, 0);
@@ -798,6 +881,7 @@ namespace SZ
             }
             else if (N == 3)
             {
+
                 // TODO: add corner case when dimensions are not divisible by block size
                 int block_size = detection_block_size;
                 const auto &dims = conf.dims;
@@ -922,10 +1006,17 @@ namespace SZ
                 {
                     double threshold;
                     double percent = detection_threshold;
+                    
                     { // destroy the copy after use
+                        // Timer timer;
+                        // timer.start();
                         auto block_significance_tmp(block_significance);
-                        std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
-                        threshold = block_significance_tmp[(int)(percent * block_significance.size())];
+                        // timer.stop("SIFT: copy data");
+                        // timer.start();
+                        // std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
+                        std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)(detection_threshold * num_elements),block_significance_tmp.end());
+                        // timer.stop("SIFT: sort time");
+                        threshold = block_significance_tmp[(size_t)(percent * block_significance.size())];
                     }
                     std::cout << percent * 100 << "% " << SZ::BLOCK_SIFT_MODE_STR[sift_mode] << " threshold = " << threshold << std::endl;
                     significant_block = std::vector<uchar>(num_elements, 0);
@@ -978,6 +1069,27 @@ namespace SZ
         size_t compute_auxilliary_data_decompress(const T *data)
         {
             size_t num_flushed_elements;
+            // special case when blocksize = 1 
+            if(detection_block_size ==1)
+            {   
+                if(block_sift_on)
+                {
+                    significant_block = significant_block_id;
+                }
+                if (block_flush_on)
+                {
+                    num_flushed_elements=0;
+                    flushed_block = flushed_block_id;
+                    for(int i=0; i<num_elements; i++)
+                    {
+                        if(flushed_block[i])
+                            num_flushed_elements++;
+                        
+                    }
+                }
+                return num_flushed_elements;
+            }
+            
             if (N == 2)
             {
                 // TODO: add corner case when dimensions are not divisible by block size
