@@ -56,10 +56,10 @@ namespace SZ
 
             // read auxilliary data
             read(detection_block_size, buffer_pos);
-            size_t num_detection_block = 0;
             read(num_detection_block, buffer_pos);
+            std::cout<<"num_detection_block = " << num_detection_block <<std::endl; 
             Timer timer;
-            // timer.start();
+            timer.start();
             if (block_flush_on == 1)
             {
                 flushed_block_id = std::vector<uchar>(num_detection_block);
@@ -72,7 +72,7 @@ namespace SZ
                 significant_block_id = std::vector<uchar>(num_detection_block);
                 convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
             }
-            // timer.stop("read auxilliary data");
+            timer.stop("read auxilliary data");
             // significant_block_id = std::vector<uchar>(num_detection_block);
             // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
             // read additional variable
@@ -238,7 +238,6 @@ namespace SZ
 
             // add auxilliary array
             write(detection_block_size, buffer_pos);
-            size_t num_detection_block = flushed_block_id.size();
             write(num_detection_block, buffer_pos);
             if (block_flush_on)
                 convertIntArray2ByteArray_fast_1b_to_result_sz(flushed_block_id.data(), flushed_block_id.size(), buffer_pos);
@@ -657,7 +656,7 @@ namespace SZ
 
             // special case when blocksize = 1 
             if(detection_block_size ==1)
-            {   
+            {    num_detection_block=num_elements;
                 if(block_flush_on==1 && block_sift_on==1)
                     {
                         // Timer timer;
@@ -718,13 +717,19 @@ namespace SZ
                 else if(block_flush_on==0 && block_sift_on==1)
                     {
                         significant_block_id = std::vector<uchar>(num_elements ,0);
+                        
                         double threshold;
+                        Timer timer;
                         { // destroy the copy after use
+                        
+                        timer.start();
                             std::vector<T> block_significance_tmp(data,data+num_elements);
                             // std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
                             std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)(detection_threshold * num_elements),block_significance_tmp.end());
                             threshold = block_significance_tmp[(size_t)(detection_threshold * num_elements)];
+                            timer.stop("SIFT:compute threshold ");
                         }
+                        timer.start();
                         for(int i =0; i<num_elements; i++)
                         {
                             T* data_pos = data+i;
@@ -733,6 +738,7 @@ namespace SZ
                                 significant_block_id[i] =1;
                             }
                         }
+                        timer.stop("SIFT: lebel ");
                         significant_block = significant_block_id;
 
                     }
@@ -746,6 +752,7 @@ namespace SZ
                 int ny = (int)ceil(dims[1] * 1.0 / block_size);
                 flushed_block = std::vector<uchar>(num_elements, 0);
                 flushed_block_id = std::vector<uchar>(nx * ny, 0);
+                num_detection_block = nx * ny;
                 Timer timer;
                 timer.start();
                 // compute statistics
@@ -890,6 +897,7 @@ namespace SZ
                 int nz = (int)ceil(dims[2] * 1.0 / block_size);
                 flushed_block = std::vector<uchar>(num_elements, 0);
                 flushed_block_id = std::vector<uchar>(nx * ny * nz, 0);
+                num_detection_block = nx * ny * nz;
                 // int actual_block_size;
                 Timer timer;
                 timer.start();
@@ -1069,14 +1077,17 @@ namespace SZ
         size_t compute_auxilliary_data_decompress(const T *data)
         {
             size_t num_flushed_elements;
+            std::cout<<"compute aux "<<std::endl; 
+
             // special case when blocksize = 1 
             if(detection_block_size ==1)
             {   
-                if(block_sift_on)
+                if(block_sift_on ==1)
                 {
                     significant_block = significant_block_id;
+                    num_flushed_elements=0;
                 }
-                if (block_flush_on)
+                if (block_flush_on ==1)
                 {
                     num_flushed_elements=0;
                     flushed_block = flushed_block_id;
@@ -1087,6 +1098,7 @@ namespace SZ
                         
                     }
                 }
+                std::cout<<"num_flushed_elements "<< num_flushed_elements<<std::endl; 
                 return num_flushed_elements;
             }
             
@@ -1353,6 +1365,7 @@ namespace SZ
         double current_base_eb;
         bool block_flush_on;
         bool block_sift_on;
+        size_t num_detection_block =0;
     };
 };
 
