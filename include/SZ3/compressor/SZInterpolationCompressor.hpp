@@ -812,7 +812,11 @@ namespace SZ
                         else if (block_sift_on)
                         {
                             // compute block significance
-                            if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
+                            if (sift_mode == SZ::BLOCK_SIFT_MODE::BLOCK_MAX)
+                            {
+                                block_significance.push_back(max_abs_val);
+                            }
+                            else if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
                             {
                                 block_significance.push_back(block_range);
                             }
@@ -974,7 +978,11 @@ namespace SZ
                             else if (block_sift_on)
                             {
                                 // compute variance
-                                if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
+                                if (sift_mode == SZ::BLOCK_SIFT_MODE::BLOCK_MAX)
+                                {
+                                    block_significance.push_back(max_abs_val);
+                                }
+                                else if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
                                 {
                                     block_significance.push_back(block_range);
                                 }

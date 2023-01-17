@@ -33,10 +33,10 @@ namespace SZ {
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
     enum BLOCK_SIFT_MODE{
-        VARIANCE, RANGE
+        VARIANCE, RANGE, BLOCK_MAX
     };
-    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE"};
-    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE};
+    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE", "BLOCK_MAX"};
+    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE, BLOCK_MAX};
 
     template<class T>
     const char *enum2Str(T e) {
@@ -135,6 +135,10 @@ namespace SZ {
             else if(block_sift_mode_str == BLOCK_SIFT_MODE_STR[RANGE])
             {
                 block_sift_mode = RANGE;
+            }
+            else if(block_sift_mode_str == BLOCK_SIFT_MODE_STR[BLOCK_MAX])
+            {
+                block_sift_mode = BLOCK_MAX;
             }
             block_flush_on = cfg.GetBoolean("ArtifactSettings", "block_flush_on", block_flush_on);
             block_sift_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
