@@ -690,7 +690,7 @@ namespace SZ
                             {
                                 significant_block_id[i] =1;
                             }
-                            if(std::abs(data[i]) < quantizer.get_eb() * 0.1)
+                            if(fabs(data[i]) < quantizer.get_eb() * 0.1)
                             {
                                 flushed_block_id[i] =1;
                             }
@@ -706,7 +706,7 @@ namespace SZ
                         for(int i =0; i<num_elements; i++)
                         {
                             T* data_pos = data+i;
-                            if(std::abs(*data_pos) < quantizer.get_eb() * 0.1)
+                            if(fabs(*data_pos) < quantizer.get_eb() * 0.1)
                             {
                                 flushed_block_id[i] =1;
                             }
@@ -787,7 +787,7 @@ namespace SZ
                             }
                             xx_data_pos += dims[1];
                         }
-                        T max_abs_val = std::max(std::abs(block_max), std::abs(block_min));
+                        T max_abs_val = std::max(fabs(block_max), fabs(block_min));
                         T block_range = block_max - block_min;
                         if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
                         {
@@ -947,7 +947,7 @@ namespace SZ
                                 }
                                 xx_data_pos += dims[1] * dims[2];
                             }
-                            T max_abs_val = std::max(std::abs(block_max), std::abs(block_min));
+                            T max_abs_val = std::max(fabs(block_max), fabs(block_min));
 
                             T block_range = block_max - block_min;
                             if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
