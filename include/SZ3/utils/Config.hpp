@@ -33,10 +33,10 @@ namespace SZ {
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
     enum BLOCK_SIFT_MODE{
-        VARIANCE, RANGE, BLOCK_MAX
+        VARIANCE, RANGE, BLOCK_MAX,ISOVALUE
     };
-    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE", "BLOCK_MAX"};
-    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE, BLOCK_MAX};
+    constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE", "BLOCK_MAX", "ISOVALUE"};
+    constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE, BLOCK_MAX, ISOVALUE};
 
     template<class T>
     const char *enum2Str(T e) {
@@ -124,7 +124,7 @@ namespace SZ {
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
             // additional variable
-            detection_block_size = cfg.GetReal("ArtifactSettings", "DetectionBlockSize", detection_block_size);
+            detection_block_size = cfg.GetInteger("ArtifactSettings", "DetectionBlockSize", detection_block_size);
             detection_threshold = cfg.GetReal("ArtifactSettings", "DetectionThreshold", detection_threshold);
             detection_eb_rate = cfg.GetReal("ArtifactSettings", "DetectionEBRate", detection_eb_rate);
             noise_rate = cfg.GetReal("ArtifactSettings", "NoiseRate", noise_rate);
@@ -140,8 +140,14 @@ namespace SZ {
             {
                 block_sift_mode = BLOCK_MAX;
             }
+            else if (block_sift_mode_str == BLOCK_SIFT_MODE_STR[ISOVALUE])
+            {
+                block_sift_mode = ISOVALUE;
+            }
             block_flush_on = cfg.GetBoolean("ArtifactSettings", "block_flush_on", block_flush_on);
             block_sift_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
+            block_iso_on = cfg.GetBoolean("ArtifactSettings", "block_iso_on", block_iso_on);
+            block_isovalue =  cfg.GetReal("ArtifactSettings", "block_isovalue", block_isovalue);
 
         }
 
@@ -251,6 +257,8 @@ namespace SZ {
         uint8_t block_sift_mode = RANGE;
         bool block_flush_on = 1;
         bool block_sift_on =1;
+        bool block_iso_on=0;
+        double block_isovalue=0;
 
     };
 

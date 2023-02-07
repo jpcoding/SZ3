@@ -16,6 +16,9 @@
 #include "SZ3/utils/Config.hpp"
 #include <cstring>
 #include <cmath>
+#include <algorithm>
+#include <bits/stdc++.h>
+
 
 namespace SZ
 {
@@ -78,6 +81,8 @@ namespace SZ
             // read additional variable
             read(noise_rate, buffer_pos);
             read(detection_eb_rate, buffer_pos);
+            read(original_max,buffer_pos );
+            read(original_min,buffer_pos );
             std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
             std::cout << "noise_rate = " << noise_rate << std::endl;
 
@@ -155,13 +160,26 @@ namespace SZ
             sift_mode = conf.block_sift_mode;
             block_flush_on = conf.block_flush_on;
             block_sift_on = conf.block_sift_on;
+            block_iso_on = conf.block_iso_on;
+            isovalue=conf.block_isovalue;
+
+
             std::cout << "detection_block_size = " << detection_block_size << std::endl;
             std::cout << "detection_threshold = " << detection_threshold << std::endl;
             std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
             std::cout << "noise_rate = " << noise_rate << std::endl;
+            if(block_iso_on) std::cout << "isovalue = " << isovalue << std::endl;
 
             srand(3333);
             init();
+            auto orig_min_max = std::minmax_element(data, data+num_elements);
+
+            //  original_max = *std::max_element(data, data+num_elements);
+            original_min = *orig_min_max.first;
+            original_max= *orig_min_max.second;
+            std::cout<< "original max "<< original_max << std::endl;
+            std::cout<< "original min "<< original_min << std::endl;
+
             Timer timer;
             timer.start();
             compute_auxilliary_data(conf, data);
@@ -246,6 +264,8 @@ namespace SZ
             // add additional variable
             write(noise_rate, buffer_pos);
             write(detection_eb_rate, buffer_pos);
+            write(original_max, buffer_pos);
+            write(original_min, buffer_pos);
 
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
@@ -308,6 +328,18 @@ namespace SZ
             } while (std::next_permutation(sequence.begin(), sequence.end()));
         }
 
+        inline void range_check( T& d )
+        {
+            if(d > original_max)
+            {
+                d=original_max;
+            }
+            if (d < original_min)
+            {
+                d=original_min;
+            }
+        }
+
         inline void quantize(size_t idx, T &d, T pred)
         {
             if (block_flush_on && flushed_block[idx])
@@ -330,6 +362,7 @@ namespace SZ
                 quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
                 quantizer.set_eb(default_eb);
             }
+            range_check(d);
         }
 
         inline void recover(size_t idx, T &d, T pred)
@@ -354,6 +387,7 @@ namespace SZ
                 d = quantizer.recover(pred, quant_inds[quant_index++]);
                 quantizer.set_eb(default_eb);
             }
+            range_check(d);
         };
 
         double block_interpolation_1d(T *data, size_t begin, size_t end, size_t stride,
@@ -770,6 +804,7 @@ namespace SZ
                         int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
                         T block_max = std::numeric_limits<T>::min();
                         T block_min = std::numeric_limits<T>::max();
+                        T block_distance_to_isovalue=std::numeric_limits<T>::max();
                         // compute average
                         double sum = 0;
                         T *xx_data_pos = y_data_pos;
@@ -924,6 +959,7 @@ namespace SZ
                             int block_size_k = (k + 1) * block_size > dims[2] ? dims[2] - k * block_size : block_size;
                             T block_max = std::numeric_limits<T>::min();
                             T block_min = std::numeric_limits<T>::max();
+                            T block_isovalue_distance = std::numeric_limits<T>::max();
                             // actual_block_size = 0;
                             // compute average
                             double sum = 0;
@@ -941,6 +977,10 @@ namespace SZ
                                             block_max = *zz_data_pos;
                                         if (*zz_data_pos < block_min)
                                             block_min = *zz_data_pos;
+                                        if(block_iso_on)
+                                        {
+                                            block_isovalue_distance = std::min(fabs(block_isovalue_distance), fabs(isovalue-*zz_data_pos));
+                                        }
                                         zz_data_pos++;
                                     }
                                     yy_data_pos += dims[2];
@@ -985,6 +1025,10 @@ namespace SZ
                                 else if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
                                 {
                                     block_significance.push_back(block_range);
+                                }
+                                else if (sift_mode == SZ::BLOCK_SIFT_MODE::ISOVALUE)
+                                {
+                                    block_significance.push_back(-block_isovalue_distance);
                                 }
                                 else if (sift_mode == SZ::BLOCK_SIFT_MODE::VARIANCE)
                                 {
@@ -1053,13 +1097,13 @@ namespace SZ
                                 if (block_significance[block_id] > threshold)
                                 {
                                     T *xx_data_pos = z_data_pos;
-                                    for (int ii = 0; ii < block_size; ii++)
+                                    for (int ii = 0; ii < block_size_i; ii++)
                                     {
                                         T *yy_data_pos = xx_data_pos;
-                                        for (int jj = 0; jj < block_size; jj++)
+                                        for (int jj = 0; jj < block_size_j; jj++)
                                         {
                                             T *zz_data_pos = yy_data_pos;
-                                            for (int kk = 0; kk < block_size; kk++)
+                                            for (int kk = 0; kk < block_size_k; kk++)
                                             {
                                                 significant_block[zz_data_pos - data] = 1;
                                                 zz_data_pos++;
@@ -1374,6 +1418,10 @@ namespace SZ
         bool block_flush_on;
         bool block_sift_on;
         size_t num_detection_block =0;
+        bool block_iso_on=0;
+        double isovalue=0;
+        T original_max;
+        T original_min;
     };
 };
 
