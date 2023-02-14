@@ -10,4 +10,7 @@ cmake-build-release
 install
 testbuild
 install
-.*
+*cache
+.github
+.cache
+.ccls-cache
