@@ -17,7 +17,6 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
-#include <bits/stdc++.h>
 
 
 namespace SZ
