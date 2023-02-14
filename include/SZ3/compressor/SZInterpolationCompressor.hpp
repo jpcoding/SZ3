@@ -978,7 +978,7 @@ namespace SZ
                                             block_min = *zz_data_pos;
                                         if(block_iso_on)
                                         {
-                                            block_isovalue_distance = std::min(fabs(block_isovalue_distance), fabs(isovalue-*zz_data_pos));
+                                            block_isovalue_distance = std::min<T>(fabs(block_isovalue_distance), fabs(isovalue-*zz_data_pos));
                                         }
                                         zz_data_pos++;
                                     }
