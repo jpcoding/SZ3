@@ -6,6 +6,9 @@ foreach (SRCFILE IN LISTS cpu_source_files)
     add_executable(${EXE} ${EXE}.cpp)
     target_link_libraries(${EXE} PRIVATE SZ3)
     install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${EXE}$<TARGET_FILE_SUFFIX:${EXE}> TYPE BIN)
+    # add_library(lib${EXE} SHARED ${EXE}.cpp)
+    # target_link_libraries(lib${EXE} PRIVATE SZ3)
+    # install(TARGETS lib${EXE} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 endforeach ()
 

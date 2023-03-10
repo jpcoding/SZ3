@@ -123,6 +123,7 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
 
     bool useInterp = !(best_lorenzo_ratio > best_interp_ratio && best_lorenzo_ratio < 80 && best_interp_ratio < 80);
 
+    std::cout<< "userInterp = "<< useInterp <<std::endl;
     if (useInterp) {
         conf.cmprAlgo = SZ::ALGO_INTERP;
         double tuning_time = timer.stop();

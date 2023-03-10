@@ -51,6 +51,13 @@ namespace SZ {
 
             init();
 
+            std::cout<<"interpolator : " << interpolators[interpolator_id] << std::endl;
+            std::cout<<"interpolation direction :";
+            for(int i =0; i<N; i++){
+                std::cout<<dimension_sequences[direction_sequence_id][i]<<" ";
+            }
+            std::cout<<std::endl;
+
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
             quant_inds = encoder.decode(buffer_pos, num_elements);
@@ -147,6 +154,7 @@ namespace SZ {
 
 //            writefile("pred.dat", preds.data(), num_elements);
 //            writefile("quant.dat", quant_inds.data(), num_elements);
+
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
 
@@ -210,6 +218,7 @@ namespace SZ {
             do {
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
+            
         }
 
         inline void quantize(size_t idx, T &d, T pred) {
