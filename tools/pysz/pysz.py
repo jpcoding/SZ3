@@ -29,6 +29,12 @@ class SZ:
                                              ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
                                              ctypes.c_size_t)
         self.sz.SZ_compress_args.restype = ctypes.POINTER(ctypes.c_ubyte)
+        
+        self.sz.SZ_compress_conf.argtypes = (ctypes.c_int, ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t),
+                                             ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_double,
+                                             ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+                                             ctypes.c_size_t, ctypes.c_char_p)
+        self.sz.SZ_compress_conf.restype = ctypes.POINTER(ctypes.c_ubyte)
 
         self.sz.SZ_decompress.argtypes = (ctypes.c_int, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_size_t,
                                           ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
@@ -80,11 +86,13 @@ class SZ:
                                            data_cmpr.size,
                                            r5, r4, r3, r2, r1)
 
+            
+
         data_dec = np.array(data_dec_c[:np.prod(original_shape)]).reshape(original_shape)
         self.libc.free(data_dec_c)
         return data_dec
 
-    def compress(self, data, eb_mode, eb_abs, eb_rel, eb_pwr):
+    def compress(self, data, eb_mode, eb_abs, eb_rel, eb_pwr,config_file=None):
         """
         Compress data with SZ
         :param data: original data, numpy array format, dtype is FP32 or FP64
@@ -99,10 +107,17 @@ class SZ:
         cmpr_size = ctypes.c_size_t()
         r5, r4, r3, r2, r1 = [0] * (5 - len(data.shape)) + list(data.shape)
         datatype, datap = self.__sz_datatype(data.dtype, data)
-        data_cmpr_c = self.sz.SZ_compress_args(datatype, datap,
+        if config_file is None:
+            data_cmpr_c = self.sz.SZ_compress_args(datatype, datap,
                                                ctypes.byref(cmpr_size),
                                                eb_mode, eb_abs, eb_rel, eb_pwr,
                                                r5, r4, r3, r2, r1)
+        else:
+            print(config_file)
+            data_cmpr_c = self.sz.SZ_compress_conf(datatype, datap,
+                                               ctypes.byref(cmpr_size),
+                                               eb_mode, eb_abs, eb_rel, eb_pwr,
+                                               r5, r4, r3, r2, r1,ctypes.c_char_p(config_file.encode()))
 
         cmpr_ratio = data.size * data.itemsize / cmpr_size.value
 

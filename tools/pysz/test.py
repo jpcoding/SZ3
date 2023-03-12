@@ -5,7 +5,7 @@ import sys
 
 # prepare your data in numpy array format
 HOME = str(Path.home())
-data = np.fromfile(HOME + '/data/hurricane-100x500x500/Uf48.bin.dat', dtype=np.float32)
+data = np.fromfile(HOME + '/data/hurricane_100x500x500/Uf48.bin.f32', dtype=np.float32)
 data = np.reshape(data, (100, 500, 500))
 
 # init SZ (both SZ2 and SZ3 are supported)
@@ -18,7 +18,7 @@ lib_extention = {
 sz = SZ("../../install/lib/{}".format(lib_extention))
 
 # compress, both input and output data are numpy array
-data_cmpr, cmpr_ratio = sz.compress(data, 0, 1e-3, 0, 0)
+data_cmpr, cmpr_ratio = sz.compress(data, 0, 1e-6, 0, 0,config_file="/Users/pjiao/git/sz3-orig/tools/sz3/sz3.config")
 print("compression ratio = {:5G}".format(cmpr_ratio))
 
 # decompress, both input and output data are numpy array
