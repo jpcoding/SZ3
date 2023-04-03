@@ -3,6 +3,11 @@ project(SZ3 VERSION 3.1.7)
 include(GNUInstallDirs)
 include(CTest)
 
+if (SZ_ANALYSIS)
+  add_compile_definitions(-DSZ_ANALYSIS)
+endif()
+
+
 option(BUILD_SHARED_LIBS "build shared libraries by default" ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if (MSVC)

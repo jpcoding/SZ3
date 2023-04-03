@@ -87,8 +87,10 @@ namespace SZ
 
             srand(3333);
             init();
-
-            auto num_flushed_elements = compute_auxilliary_data_decompress(decData);
+            size_t num_flushed_elements = 0;
+            if(block_flush_on ==1 || block_sift_on==1){
+                num_flushed_elements = compute_auxilliary_data_decompress(decData);
+            }
 
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
@@ -98,7 +100,19 @@ namespace SZ
 
             lossless.postdecompress_data(buffer);
             double eb = quantizer.get_eb();
-            double eb_final = eb / pow(c, interpolation_level - 1);
+            double eb_final;
+            double eb_reduction_factor;
+            if(interpolator_id == 0)
+            {
+                eb_final = eb / pow(linear_interp_eb_factor, (interpolation_level - 1)*N);
+                eb_reduction_factor = pow(linear_interp_eb_factor,N );
+            }
+            else
+            {
+                eb_final = eb / pow(cubic_interp_eb_factor, (interpolation_level - 1)*N);
+                eb_reduction_factor = pow(cubic_interp_eb_factor,N );
+
+            }
 
             std::cout << "start decompression\n";
             // *decData = quantizer.recover(0, quant_inds[quant_index++]);
@@ -114,7 +128,7 @@ namespace SZ
                 current_level = level;
                 current_base_eb = eb_final;
                 quantizer.set_eb(eb_final);
-                eb_final *= c;
+                eb_final *= eb_reduction_factor;
 
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
@@ -163,32 +177,48 @@ namespace SZ
             isovalue=conf.block_isovalue;
 
 
-            std::cout << "detection_block_size = " << detection_block_size << std::endl;
-            std::cout << "detection_threshold = " << detection_threshold << std::endl;
-            std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
-            std::cout << "noise_rate = " << noise_rate << std::endl;
+            if(block_sift_on || block_flush_on) std::cout << "detection_block_size = " << detection_block_size << std::endl;
+            if(block_sift_on ) std::cout << "detection_threshold = " << detection_threshold << std::endl;
+            if(block_sift_on ) std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
+            if(noise_rate != 0) std::cout << "noise_rate = " << noise_rate << std::endl;
             if(block_iso_on) std::cout << "isovalue = " << isovalue << std::endl;
 
-            srand(3333);
+            if(noise_rate != 0)  srand(3333);
             init();
-            auto orig_min_max = std::minmax_element(data, data+num_elements);
+            
 
-            //  original_max = *std::max_element(data, data+num_elements);
+            // For data range check.
+            auto orig_min_max = std::minmax_element(data, data+num_elements);
             original_min = *orig_min_max.first;
             original_max= *orig_min_max.second;
             std::cout<< "original max "<< original_max << std::endl;
             std::cout<< "original min "<< original_min << std::endl;
 
             Timer timer;
-            timer.start();
-            compute_auxilliary_data(conf, data);
-            timer.stop("Auxilliary Data Compress");
+            if (block_flush_on ==1 || block_sift_on ==1 || block_iso_on ==1 )
+            {
+                timer.start();
+                compute_auxilliary_data(conf, data);
+                timer.stop("Auxilliary Data Compress");
+            }
 
             quant_inds.reserve(num_elements);
             size_t interp_compressed_size = 0;
 
             double eb = quantizer.get_eb();
-            double eb_final = eb / pow(c, interpolation_level - 1);
+            double eb_final;
+            double eb_reduction_factor;
+            if(interpolator_id == 0)
+            {
+                eb_final = eb / pow(linear_interp_eb_factor, (interpolation_level - 1)*N);
+                eb_reduction_factor = pow(linear_interp_eb_factor,N );
+            }
+            else
+            {
+                eb_final = eb / pow(cubic_interp_eb_factor, (interpolation_level - 1)*N);
+                eb_reduction_factor = pow(cubic_interp_eb_factor,N );
+
+            }
 
             // quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
             quantize(0, *data, 0);
@@ -206,7 +236,7 @@ namespace SZ
                 current_level = level;
                 current_base_eb = eb_final;
                 quantizer.set_eb(eb_final);
-                eb_final *= c;
+                eb_final *= eb_reduction_factor;
 
                 size_t stride = 1U << (level - 1);
 
@@ -235,10 +265,6 @@ namespace SZ
                 }
             }
             assert(quant_inds.size() <= num_elements);
-            //            timer.stop("Prediction & Quantization");
-
-            //            writefile("pred.dat", preds.data(), num_elements);
-            //            writefile("quant.dat", quant_inds.data(), num_elements);
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
 
@@ -283,6 +309,15 @@ namespace SZ
             lossless.postcompress_data(buffer);
             //            timer.stop("Lossless");
             // writefile("compressed.dat",data, num_elements);
+
+            #ifdef SZ_ANALYSIS
+            writefile("pred.dat",my_pred.data(), num_elements);
+            writefile("quant.dat",my_quant_inds.data(), num_elements);
+            writefile("decompressed.dat",data, num_elements);
+            writefile("level.dat",my_level.data(), num_elements);
+            std::cout<<"[ANALYSIS COMPILATION MODE]"<<std::endl;
+            #endif 
+
             compressed_size += interp_compressed_size;
             return lossless_data;
         }
@@ -325,6 +360,16 @@ namespace SZ
             {
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
+
+            #ifdef SZ_ANALYSIS
+            my_level.resize(num_elements);
+            my_quant_inds.resize(num_elements);
+            my_pred.resize(num_elements);
+            my_pred[0]=0;
+            my_level[0]=interpolation_level;
+            #endif
+
+
         }
 
         inline void range_check( T& d )
@@ -362,6 +407,13 @@ namespace SZ
                 quantizer.set_eb(default_eb);
             }
             range_check(d);
+
+            #ifdef SZ_ANALYSIS
+            my_level[idx] = current_level;
+            my_quant_inds[idx] = *quant_inds.end();
+            my_pred[idx] = pred;
+            #endif
+
         }
 
         inline void recover(size_t idx, T &d, T pred)
@@ -510,9 +562,9 @@ namespace SZ
         {
             double predict_error = 0;
             size_t stride2x = stride * 2;
-            auto default_eb = quantizer.get_eb();
+            // auto default_eb = quantizer.get_eb();
 
-            quantizer.set_eb(default_eb * c1);
+            // quantizer.set_eb(default_eb * c1);
             const std::array<int, N> dims = dimension_sequences[direction];
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
             {
@@ -522,7 +574,7 @@ namespace SZ
                                                             (end[dims[0]] - begin[dims[0]]) * dimension_offsets[dims[0]],
                                                         stride * dimension_offsets[dims[0]], interp_func, pb);
             }
-            quantizer.set_eb(default_eb);
+            // quantizer.set_eb(default_eb);
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
             {
                 size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]];
@@ -697,16 +749,7 @@ namespace SZ
                         flushed_block_id = std::vector<uchar>(num_elements, 0);
                         significant_block_id = std::vector<uchar>(num_elements ,0);
                         double threshold;
-                        
                         // timer.stop("SIFT: define variables ");
-                        // { // destroy the copy after use
-                        //     std::vector<T> block_significance_tmp(data,data+num_elements);
-                        //     timer.start();
-                        //     std::nth_element(block_significance_tmp.begin(), block_significance_tmp.begin()+(size_t)((1-detection_threshold) * num_elements),block_significance_tmp.end(),std::greater<int>());
-                        //     timer.stop("SIFT: select nth ");
-                        //     threshold = block_significance_tmp[(size_t)((1-detection_threshold) * num_elements)];
-                        //     std::cout<<"threshold = " << threshold<<std::endl;
-                        // }
                         { // destroy the copy after use
                             std::vector<T> block_significance_tmp(data,data+num_elements);
                             // timer.start();
@@ -714,8 +757,6 @@ namespace SZ
                             // timer.stop("SIFT: select nth ");
                             threshold = block_significance_tmp[(size_t)(detection_threshold * num_elements)];
                         }
-
-                        
                         // timer.start();
                         for(int i =0; i<num_elements; i++)
                         {
@@ -1400,13 +1441,17 @@ namespace SZ
         int direction_sequence_id;
         // added for artifact mitigation
         int current_level = 0;
-        double c = sqrt(4.4159889);
-        double c1 = 1.0 / sqrt(1.640625);
-        double c2 = 1.0 / 1.640625;
-        double c3 = 1.0 / sqrt(4.4159889);
+        // double c = sqrt(4.4159889); // deprecated 
+        // double c1 = 1.0 / sqrt(1.640625); //deprecated
+        // double c2 = 1.0 / 1.640625; //deprecated
+        // double c3 = 1.0 / sqrt(4.4159889); //deprecated
+
+        double linear_interp_eb_factor = sqrt(1.5);
+        double cubic_interp_eb_factor = 1.2808688457449497;
+
         int detection_block_size = 4;
         double detection_threshold = 0.9;
-        double detection_eb_rate = c3;
+        double detection_eb_rate;
         double noise_rate = 0;
         std::vector<uchar> flushed_block;
         std::vector<uchar> flushed_block_id;
@@ -1419,8 +1464,18 @@ namespace SZ
         size_t num_detection_block =0;
         bool block_iso_on=0;
         double isovalue=0;
-        T original_max;
-        T original_min;
+        T original_max; // for data range check 
+        T original_min; // for data range check
+
+        // Analysis utils; 
+        // This is for conditional compilation not comments
+        // #ifndef SZ_ANALYSIS
+        // #define SZ_ANALYSIS
+        #ifdef SZ_ANALYSIS
+        std::vector<int> my_level;
+        std::vector<int> my_quant_inds;
+        std::vector<T> my_pred;
+        #endif
     };
 };
 

@@ -255,9 +255,9 @@ namespace SZ {
         double detection_eb_rate = 1.0 / sqrt(4.4159889);
         double noise_rate = 0;
         uint8_t block_sift_mode = RANGE;
-        bool block_flush_on = 1;
-        bool block_sift_on =1;
-        bool block_iso_on=0;
+        bool block_flush_on = 0;
+        bool block_sift_on =0;
+        bool block_iso_on = 0;
         double block_isovalue=0;
 
     };
