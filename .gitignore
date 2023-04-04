@@ -13,3 +13,7 @@ install
 *.pyc
 .cache
 debug*
+<<<<<<< HEAD
+=======
+
+>>>>>>> ac17de8... ignore debug folder
