@@ -121,6 +121,11 @@ namespace SZ {
             timer.start();
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
+                
+                #ifdef SZ_ANALYSIS
+                current_level=level;
+                #endif 
+
                 if (level >= 3) {
                     quantizer.set_eb(eb * eb_ratio);
                 } else {
@@ -184,6 +189,14 @@ namespace SZ {
             lossless.postcompress_data(buffer);
 //            timer.stop("Lossless");
 
+            #ifdef SZ_ANALYSIS
+            writefile("pred.dat",my_pred.data(), num_elements);
+            writefile("quant.dat",my_quant_inds.data(), num_elements);
+            writefile("decompressed.dat",data, num_elements);
+            writefile("level.dat",my_level.data(), num_elements);
+            std::cout<<"[ANALYSIS COMPILATION MODE]"<<std::endl;
+            #endif 
+
             compressed_size += interp_compressed_size;
             return lossless_data;
         }
@@ -218,11 +231,24 @@ namespace SZ {
             do {
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
-            
+
+            #ifdef SZ_ANALYSIS
+            my_level.resize(num_elements);
+            my_quant_inds.resize(num_elements);
+            my_pred.resize(num_elements);
+            my_pred[0]=0;
+            my_level[0]=interpolation_level;
+            #endif
         }
 
         inline void quantize(size_t idx, T &d, T pred) {
             quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+            
+            #ifdef SZ_ANALYSIS
+            my_level[idx] = current_level;
+            my_quant_inds[idx] = *quant_inds.end();
+            my_pred[idx] = pred;
+            #endif
         }
 
         inline void recover(size_t idx, T &d, T pred) {
@@ -482,6 +508,16 @@ namespace SZ {
         std::array<size_t, N> dimension_offsets;
         std::vector<std::array<int, N>> dimension_sequences;
         int direction_sequence_id;
+        // Analysis utils; 
+        // This is for conditional compilation not comments
+        // #ifndef SZ_ANALYSIS
+        // #define SZ_ANALYSIS
+        #ifdef SZ_ANALYSIS
+        std::vector<int> my_level;
+        std::vector<int> my_quant_inds;
+        std::vector<T> my_pred;
+        int current_level;
+        #endif
     };
 
 

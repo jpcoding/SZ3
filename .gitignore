@@ -12,3 +12,4 @@ install
 .vscode
 *.pyc
 .cache
+debug*
