@@ -113,7 +113,7 @@ class SZ:
                                                eb_mode, eb_abs, eb_rel, eb_pwr,
                                                r5, r4, r3, r2, r1)
         else:
-            print(config_file)
+            # print(config_file)
             data_cmpr_c = self.sz.SZ_compress_conf(datatype, datap,
                                                ctypes.byref(cmpr_size),
                                                eb_mode, eb_abs, eb_rel, eb_pwr,

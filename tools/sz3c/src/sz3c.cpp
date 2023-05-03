@@ -66,8 +66,8 @@ unsigned char *SZ_compress_conf(int dataType, void *data, size_t *outSize,
 
     SZ::Config conf;
     
-    printf("config file path: %s \n", configFilePath);
-    std::cout<< SZ::ALGO_STR[conf.cmprAlgo]<<std::endl;
+    // printf("config file path: %s \n", configFilePath);
+    // std::cout<< SZ::ALGO_STR[conf.cmprAlgo]<<std::endl;
 
     if (r2 == 0) {
         conf = SZ::Config(r1);
@@ -99,7 +99,7 @@ unsigned char *SZ_compress_conf(int dataType, void *data, size_t *outSize,
 
     unsigned char *cmpr_data = NULL;
     if (dataType == SZ_FLOAT) {
-        std::cout<< SZ::ALGO_STR[conf.cmprAlgo]<<std::endl;
+        // std::cout<< SZ::ALGO_STR[conf.cmprAlgo]<<std::endl;
         cmpr_data = (unsigned char *) SZ_compress<float>(conf, (float *) data, *outSize);
     } else if (dataType == SZ_DOUBLE) {
         // cmpr_data = (unsigned char *) SZ_compress<double>(conf, (double *) data, *outSize);

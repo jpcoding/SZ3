@@ -14,8 +14,10 @@
 #include "SZ3/utils/Timer.hpp"
 #include "SZ3/def.hpp"
 #include "SZ3/utils/Config.hpp"
+#include <cstddef>
 #include <cstring>
 #include <cmath>
+#include <random>
 
 namespace SZ {
     template<class T, uint N, class Quantizer, class Encoder, class Lossless>
@@ -117,6 +119,19 @@ namespace SZ {
 
             quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
 
+            #ifdef SZ_ANALYSIS
+            my_level.resize(num_elements);
+            my_quant_inds.resize(num_elements);
+            my_pred.resize(num_elements);
+            my_pred[0]=0;
+            my_level[0]=interpolation_level;
+            my_quant_inds[0]=quant_inds.back();
+            my_interpolators.resize(num_elements);
+            my_interpolators[0]=0;
+            interp_block_info.resize(num_elements);
+            interp_block_info[0]=0;
+            #endif
+
             Timer timer;
             timer.start();
 
@@ -140,7 +155,9 @@ namespace SZ {
 
                 auto inter_begin = inter_block_range->begin();
                 auto inter_end = inter_block_range->end();
-
+                #ifdef SZ_ANALYSIS
+                int block_count = 0;
+                #endif
                 for (auto block = inter_begin; block != inter_end; ++block) {
                     auto end_idx = block.get_global_index();
                     for (int i = 0; i < N; i++) {
@@ -149,10 +166,17 @@ namespace SZ {
                             end_idx[i] = global_dimensions[i] - 1;
                         }
                     }
+                    #ifdef SZ_ANALYSIS
+                    block_count ++;
+                    current_block_id = block_count;
+                    #endif
 
                     block_interpolation(data, block.get_global_index(), end_idx, PB_predict_overwrite,
                                         interpolators[interpolator_id], direction_sequence_id, stride);
                 }
+                #ifdef SZ_ANALYSIS
+                std::cout<<"level "<<level<<" block count "<<block_count<<std::endl;
+                #endif
             }
             assert(quant_inds.size() == num_elements);
 //            timer.stop("Prediction & Quantization");
@@ -194,12 +218,16 @@ namespace SZ {
             writefile("quant.dat",my_quant_inds.data(), num_elements);
             writefile("decompressed.dat",data, num_elements);
             writefile("level.dat",my_level.data(), num_elements);
+            writefile("interpolators.dat",my_interpolators.data(), num_elements);
+            writefile("interp_block_info.dat",interp_block_info.data(), interp_block_info.size());
             std::cout<<"[ANALYSIS COMPILATION MODE]"<<std::endl;
             #endif 
 
             compressed_size += interp_compressed_size;
             return lossless_data;
         }
+
+
 
     private:
 
@@ -232,13 +260,6 @@ namespace SZ {
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
 
-            #ifdef SZ_ANALYSIS
-            my_level.resize(num_elements);
-            my_quant_inds.resize(num_elements);
-            my_pred.resize(num_elements);
-            my_pred[0]=0;
-            my_level[0]=interpolation_level;
-            #endif
         }
 
         inline void quantize(size_t idx, T &d, T pred) {
@@ -246,8 +267,9 @@ namespace SZ {
             
             #ifdef SZ_ANALYSIS
             my_level[idx] = current_level;
-            my_quant_inds[idx] = *quant_inds.end();
+            my_quant_inds[idx] = quant_inds.back();
             my_pred[idx] = pred;
+            interp_block_info[idx]= current_block_id;
             #endif
         }
 
@@ -271,13 +293,22 @@ namespace SZ {
                 if (pb == PB_predict_overwrite) {
                     for (size_t i = 1; i + 1 < n; i += 2) {
                         T *d = data + begin + i * stride;
+                        #ifdef SZ_ANALYSIS
+                        my_interpolators[d-data] = 1;
+                        #endif
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
                     }
                     if (n % 2 == 0) {
                         T *d = data + begin + (n - 1) * stride;
                         if (n < 4) {
+                            #ifdef SZ_ANALYSIS
+                            my_interpolators[d-data] = 2;
+                            #endif
                             quantize(d - data, *d, *(d - stride));
                         } else {
+                            #ifdef SZ_ANALYSIS
+                            my_interpolators[d-data] = 3;
+                            #endif
                             quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         }
                     }
@@ -302,16 +333,29 @@ namespace SZ {
                     size_t i;
                     for (i = 3; i + 3 < n; i += 2) {
                         d = data + begin + i * stride;
+                        #ifdef SZ_ANALYSIS
+                        my_interpolators[d-data] = 4;
+                        #endif
                         quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                     }
                     d = data + begin + stride;
+                    #ifdef SZ_ANALYSIS
+                    my_interpolators[d-data] = 5;
+                    #endif
                     quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
 
+                   
                     d = data + begin + i * stride;
+                     #ifdef SZ_ANALYSIS
+                    my_interpolators[d-data] = 6;
+                    #endif
                     quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
                     if (n % 2 == 0) {
                         d = data + begin + (n - 1) * stride;
+                        #ifdef SZ_ANALYSIS
+                        my_interpolators[d-data] = 7;
+                        #endif
                         quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
 
@@ -492,6 +536,7 @@ namespace SZ {
             return predict_error;
         }
 
+
         int interpolation_level = -1;
         uint blocksize;
         int interpolator_id;
@@ -516,7 +561,11 @@ namespace SZ {
         std::vector<int> my_level;
         std::vector<int> my_quant_inds;
         std::vector<T> my_pred;
+        std::vector<T> my_pred_erros;
+        std::vector<int> my_interpolators;
         int current_level;
+        std::vector<int> interp_block_info;
+        int current_block_id=0;
         #endif
     };
 
