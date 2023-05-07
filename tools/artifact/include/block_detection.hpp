@@ -1,0 +1,182 @@
+#include <cmath>
+#include <functional>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <numeric>
+#include <queue>
+#include <set>
+#include <unordered_map>
+#include <vector>
+
+// only works on the sampled 1D data from ND data
+
+template <class T> class BlockDetection {
+public:
+  BlockDetection(T *data, int begin, int num_elements, int stride) {
+    this->input_data = data;
+    this->num_elements = num_elements;
+    this->begin = begin;
+    this->input_stride = stride;
+    // central derivative is used for block detection
+    calculate_central_derivative();
+  }
+
+  ~BlockDetection() {}
+
+  // Called by the user
+  // given a threshold, return the block detection result.
+  // By default, the block size is from 4-16 (inclusive)
+  // The block size is the number of elements in the block
+  // The threshold is the threshold to determine if a block is an artifact
+  // if the ratio of artifact blocks to effective blocks is larger than the
+  // previous one, then the block size is updated
+
+  int block_detection(T threshold) {
+
+    int effective_block_count = 0;
+    int artifact_block_count = 0;
+    int block_size = 0;
+    int max_block_size = std::min(16, num_elements);
+    double artifact_ratio = 0.0;
+    for (int i = 4; i <= max_block_size; i++) {
+      double i_ratio = 0.0;
+      int i_effective_block_count = 0;
+      int i_artifact_block_count = 0;
+      try_block_detection(derivative.data(), i, threshold,
+                          i_effective_block_count, i_artifact_block_count);
+      i_ratio =
+          (double)i_artifact_block_count / (double)i_effective_block_count;
+      std::cout << "block size = " << i << "\nratio = " << i_ratio << std::endl;
+      std::cout << "effective_block_count = " << i_effective_block_count
+                << "\nartifact_block_count = " << i_artifact_block_count
+                << std::endl;
+      if (i_ratio > artifact_ratio) {
+        artifact_ratio = i_ratio;
+        effective_block_count = i_effective_block_count;
+        artifact_block_count = i_artifact_block_count;
+        block_size = i;
+      }
+    }
+
+    return block_size;
+  }
+
+  // int block_detection(int block_size, T threshold) {
+  //   int effective_block_count = 0;
+  //   int artifact_block_count = 0;
+  //   try_block_detection(input_data, block_size, threshold,
+  //                       effective_block_count, artifact_block_count);
+  //   return artifact_block_count;
+  // }
+
+private:
+  T *input_data;                 // memory address of global data
+  int begin;                     // global begin index of the input 1D slice
+  int num_elements;              // number of elements in the input 1D slice
+  int input_stride;              // stride of the input 1D slice
+  std::vector<T> derivative;     // derivative of the input data 1D slice
+  double flush_threshold = 1e-7; // any value below this will be treated as 0
+
+  // Input:
+  // data: detivative of a 1D array of the original data.
+  // block_size: the size of the block.
+  // threshold: the threshold to determine if a block is an artifact.
+  // Output:
+  // effective_block_count: the number of blocks that are above the flush.
+  // artifact_block_count: the number of blocks that are determined as artifact
+  // blocks.
+  //  Make sure you are use the correct input data!!! (derivative).
+  void try_block_detection(T *data, int block_size, T threshold,
+                           int &effective_block_count,
+                           int &artifact_block_count) {
+    int n_block = num_elements / block_size;
+    effective_block_count = 0;
+    artifact_block_count = 0;
+    for (int i = 0; i < n_block; i++) {
+      int block_begin = i * block_size;
+      int block_end = std::min(block_begin + block_size, num_elements - 1);
+      T block_max = block_abs_max(data, block_begin, block_end);
+      if (block_max > flush_threshold) {
+        effective_block_count++;
+        if (std::abs(data[block_begin]) > threshold ||
+            data[block_end] > threshold) {
+          auto detect_indicator = block_range(data, block_begin, block_end);
+          // T block_std = block_std(data, block_begin, block_end);
+          if (detect_indicator > threshold) {
+            artifact_block_count++;
+          }
+        }
+      }
+    }
+  }
+
+  // derivative calculation
+  void calculate_central_derivative() {
+    derivative.resize(num_elements, 0);
+    for (int i = 1; i < num_elements - 1; i += input_stride) {
+      derivative[i] =
+          (input_data[begin + i + 1] - input_data[begin + i - 1]) / 2;
+    }
+  }
+
+  void calculate_forward_derivate() {
+    derivative.resize(num_elements, 0);
+    for (int i = 0; i < num_elements - 1; i += input_stride) {
+      derivative[i] = (input_data[begin + i + 1] - input_data[begin + i]);
+    }
+  }
+
+  void calculate_backward_derivative() {
+    derivative.resize(num_elements, 0);
+    for (int i = 1; i < num_elements; i += input_stride) {
+      derivative[i] = (input_data[begin + i] - input_data[begin + i - 1]);
+    }
+  }
+
+  T block_abs_max(T *data, int block_begin, int block_end, int stride = 1) {
+    T max = std::numeric_limits<T>::min();
+    for (int i = block_begin; i < block_end; i += stride) {
+      max = std::max(max, std::abs(data[i]));
+    }
+    return max;
+  }
+
+  // candidates for block detrcer function
+  T block_range(T *data, int block_begin, int block_end, int stride = 1) {
+    T max = std::numeric_limits<T>::min();
+    T min = std::numeric_limits<T>::max();
+    for (int i = block_begin; i < block_end; i += stride) {
+      max = std::max(max, data[i]);
+      min = std::min(min, data[i]);
+    }
+    return max - min;
+  }
+
+  double block_std(T *data, int block_begin, int block_end, int stride = 1) {
+    double mean = 0;
+    double std = 0;
+    double count = 0;
+    for (int i = block_begin; i < block_end; i += stride) {
+      mean += data[i];
+      count++;
+    }
+    mean /= count;
+    for (int i = block_begin; i < block_end; i += stride) {
+      std += (data[i] - mean) * (data[i] - mean);
+    }
+    std /= count;
+    return std;
+  }
+
+  double block_mean(T *data, int block_begin, int block_end, int stride = 1) {
+    double mean = 0;
+    int count = 0;
+    for (int i = block_begin; i < block_end; i += stride) {
+      mean += data[i];
+      count++;
+    }
+    mean /= count;
+    return mean;
+  }
+};

@@ -3,9 +3,19 @@ project(SZ3 VERSION 3.1.7)
 include(GNUInstallDirs)
 include(CTest)
 
-option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data" OFF)
+option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data. cmake -D SZ_ANALYSIS=ON" OFF)
 if (SZ_ANALYSIS)
   add_compile_definitions(-DSZ_ANALYSIS)
+endif()
+
+option(OPTIMIZE_FOR_NATIVE "Build with -march=native" OFF)
+if (OPTIMIZE_FOR_NATIVE)
+  add_compile_options(-march=native)
+endif()
+
+option(OPTIMIZE_FOR_ZEN2 "Build with -march=znver2" OFF)
+if (OPTIMIZE_FOR_ZEN2)
+  add_compile_options(-Ofast)
 endif()
 
 
@@ -73,6 +83,7 @@ endif ()
 
 add_subdirectory(tools/sz3)
 add_subdirectory(tools/sz3c)
+add_subdirectory(tools/artifact)
 
 
 option(BUILD_H5Z_FILTER "build the H5Z-SZ3 filter" OFF)

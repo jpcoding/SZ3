@@ -14,6 +14,7 @@
 #include "SZ3/utils/Timer.hpp"
 #include "SZ3/def.hpp"
 #include "SZ3/utils/Config.hpp"
+#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <cmath>
@@ -167,7 +168,7 @@ namespace SZ {
                         }
                     }
                     #ifdef SZ_ANALYSIS
-                    block_count ++;
+                    block_count = block_count + 1;
                     current_block_id = block_count;
                     #endif
 
@@ -565,7 +566,8 @@ namespace SZ {
         std::vector<int> my_interpolators;
         int current_level;
         std::vector<int> interp_block_info;
-        int current_block_id=0;
+        int current_block_id;
+        std::vector<int> my_interp_direction;
         #endif
     };
 
