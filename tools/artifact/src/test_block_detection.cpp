@@ -21,11 +21,15 @@ int main(int argc, char **argv) {
   for (int i = 0; i < N; i++) {
     global_dimensions.push_back(atoi(argv[3 + i]));
     num_elements *= global_dimensions[i];
+    std::cout << "dim " << i << " = " << global_dimensions[i] << std::endl;
   }
 
   std::vector<float> input_data(num_elements);
   SZ::readfile<float>(argv[1], num_elements, input_data.data());
 
+
+  float data_min, dat_max;
+  float range = normalization( input_data, data_min, dat_max);
   // block detection
 
   if (N == 2) {
@@ -98,7 +102,7 @@ int main(int argc, char **argv) {
     int y_stride = global_dimensions[1] / num_ysample;
     int z_stride = global_dimensions[2] / num_zsample;
 
-    float block_detect_threshold = 1e-7;
+    double block_detect_threshold = 1e-5;
 
     // 1. detect along z direction
     int detect_block_size_z = 0;
@@ -165,8 +169,16 @@ int main(int argc, char **argv) {
         }
       }
     }
-    std::cout << "block size = " << detect_block_size_x << std::endl;
-    std::cout << "detect ratio = " << detect_ratio_x << std::endl;
+    std::cout << "block size x= " << detect_block_size_x << std::endl;
+    std::cout << "detect ratio x = " << detect_ratio_x << std::endl;
+
+
+    std::cout << "block size y = " << detect_block_size_y << std::endl;
+    std::cout << "detect ratio y = " << detect_ratio_y << std::endl;
+
+    std::cout << "block size z = " << detect_block_size_z << std::endl;
+    std::cout << "detect ratio z = " << detect_ratio_z << std::endl;
+
 
     // decision on 3D data
     if (detect_ratio_x > detect_ratio_y) {

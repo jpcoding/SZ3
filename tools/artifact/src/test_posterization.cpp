@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <posterization.hpp>
+#include <unordered_map>
 #include <vector>
 #include <data_preprocess.hpp>
 int main(int argc, char **argv) {
@@ -27,6 +28,10 @@ int main(int argc, char **argv) {
     threhshold = atof(argv[argc - 1]);
   }
 
+  if (argc == (3 + N + 2)) {
+    threhshold = atof(argv[argc - 1]);
+  }
+
   std::cout << "input threhshold: " << threhshold << std::endl;
 
   std::vector<float> data(num_elements);
@@ -45,8 +50,23 @@ int main(int argc, char **argv) {
       posterization_analyzer.get_segmentation_map(threhshold);
   timer.stop("Posterization map generation ");
   timer.start();
-  posterization_analyzer.evaluate(0);
+  posterization_analyzer.evaluate();
   timer.stop("Posterization evaluation ");
+
+  // rearrange the label from 0 to the uniuqe label count-1
+  timer.start();
+  std::unordered_map<int, int> label_map;
+  label_map.reserve(segmentation_map.size());
+  int current_label = 0;
+  for (int i = 0; i < segmentation_map.size(); i++) {
+    if (label_map.find(segmentation_map[i]) == label_map.end()) {
+      label_map[segmentation_map[i]] = current_label;
+      current_label++;
+    }
+    segmentation_map[i] = label_map[segmentation_map[i]];
+  }
+  timer.stop("Rearrange label ");
+
   SZ::writefile("segmentation_map.dat", segmentation_map.data(),
                 segmentation_map.size());
   return 0;

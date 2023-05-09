@@ -1,4 +1,5 @@
 #include "DisjointSet.hpp"
+#include "SZ3/utils/ska_hash/bytell_hash_map.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -29,21 +30,14 @@ public:
   std::vector<int> get_global_dimensions() { return global_dimensions; }
 
   std::vector<int> get_segmentation_map(T threshold = 1e-5) {
-    // std::vector<T> datacopy(input_data, input_data + num_elements);
     posterization_threshold = threshold;
     result_segmentation_map.resize(num_elements);
-    // std::copy(this->input_data, this->input_data + num_elements,
-    //           result_segmentation_map.begin());
-    // std::vector<int> segmentation_map(num_elements);
+
     if (N == 2) {
       Segmentation2D(input_data, threshold);
     } else if (N == 3) {
       Segmentation3D(input_data, threshold);
     }
-
-    // std::transform(datacopy.begin(), datacopy.end(),
-    // segmentation_map.begin(),
-    //                [](T i) { return (int)i; });
 
     return result_segmentation_map;
   }
@@ -62,6 +56,8 @@ public:
       evaluate_no_background();
     else
       evaluate_with_background();
+    
+    posterization_dsu->writefiles();
   }
 
   void evaluate_no_background() {
@@ -75,11 +71,13 @@ public:
     std::cout << "background label count = " << background_count
               << std::endl;
     std::cout << "label count =  " << root_size.size() << std::endl;
-    std::cout << "num_elements =  " << num_elements << std::endl;
+    // std::cout << "num_elements =  " << num_elements << std::endl;
     double lable2size_ratio =
         (double)(1.0 * (root_size.size() - 1)) /
         (double)(1.0 * num_elements - background_count);
-    std::cout << "lable / size =  " << lable2size_ratio << std::endl;
+    std::cout << "without background: lable / size =  " << lable2size_ratio << std::endl;
+    std::cout << "with background: lable / size =  " << (double)((root_size.size()) / (1.0 * num_elements)) << std::endl;
+
   }
 
   void evaluate_with_background() {
@@ -101,6 +99,7 @@ private:
   // std::unordered_map<int, int> root_label;
   // std::unordered_map<int, std::array<int,2>> root_label;
   std::unordered_map<int, int> root_size; // root label and size of the tree
+
 
   /*
   def segmentation(data, threshold):
@@ -145,8 +144,7 @@ private:
         }
       }
     }
-
-       for (int i=0; i< num_elements; i++)
+    for (int i=0; i< num_elements; i++)
     {
       int root = posterization_dsu->find(i);
         auto it = root_size.find(root);
@@ -157,7 +155,7 @@ private:
         }
         result_segmentation_map[i] = root;
         root_size[root] += 1;
-        // root_size[root] += 1;
+
     }
 
 

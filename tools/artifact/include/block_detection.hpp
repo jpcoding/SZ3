@@ -1,3 +1,4 @@
+#include "SZ3/utils/FileUtil.hpp"
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -8,6 +9,7 @@
 #include <set>
 #include <unordered_map>
 #include <vector>
+#include <data_preprocess.hpp>
 
 // only works on the sampled 1D data from ND data
 
@@ -103,15 +105,19 @@ private:
     artifact_block_count = 0;
     for (int i = 0; i < n_block; i++) {
       int block_begin = i * block_size;
-      int block_end = std::min(block_begin + block_size, sample_size - 1);
+      int block_end = block_begin + block_size;
       T block_max = block_abs_max(data, block_begin, block_end);
       if (block_max > flush_threshold) {
         effective_block_count++;
-        if (std::abs(data[block_begin]) > threshold ||
-            data[block_end] > threshold) {
-          auto detect_indicator = block_range(data, block_begin, block_end);
+        // std::cout<< "block data " << std::abs(data[block_begin]) << "  " << std::abs(data[block_end-1])<<std::endl;
+        if ((std::abs(data[block_begin]) > threshold) ||
+            (std::abs(data[block_end-1]) > threshold)) {
+          
+          auto detect_indicator = block_range(data, block_begin+1, block_end-1);
+          // std::cout << i <<"detect_indicator = " << detect_indicator << std::endl;
           // T block_std = block_std(data, block_begin, block_end);
-          if (detect_indicator > threshold) {
+          // std::cout << "indicator = " << detect_indicator << " - " <<  threshold << " = "  << (detect_indicator - threshold) << std::endl;
+          if (detect_indicator < threshold) {
             artifact_block_count++;
           }
         }
@@ -121,29 +127,38 @@ private:
 
   // derivative calculation
   void calculate_central_derivative() {
-    derivative.resize(sample_size, 0);
+    derivative.resize(sample_size);
+    derivative[0]=0;
+    derivative[sample_size-1]=0;
     for (int i = 1; i < sample_size - 1; i ++) {
       derivative[i] =
           (input_data[begin + (i+1) * input_stride] - input_data[begin + (i-1) * input_stride]) / 2;
     }
+    // if(begin==0 && sample_size==100)
+    // {
+    //   SZ::writefile("derivative.dat", derivative.data(), derivative.size());
+    //   for (int i = 0; i < sample_size; i ++) {
+    //     std::cout << input_data[begin+i*input_stride]<<std::endl;
+    //   }
+    // }
   }
 
   void calculate_forward_derivate() {
-    derivative.resize(sample_size, 0);
+    derivative.assign(sample_size, 0);
     for (int i = 0; i < sample_size - 1; i ++) {
       derivative[i] = (input_data[begin + (i + 1)*input_stride] - input_data[begin + i*input_stride]);
     }
   }
 
   void calculate_backward_derivative() {
-    derivative.resize(sample_size, 0);
+    derivative.assign(sample_size, 0);
     for (int i = 1; i < sample_size; i ++) {
       derivative[i] = (input_data[begin + i*input_stride] - input_data[begin + (i - 1)*input_stride]);
     }
   }
 
   T block_abs_max(T *data, int block_begin, int block_end, int stride = 1) {
-    T max = std::numeric_limits<T>::min();
+    T max = 0;
     for (int i = block_begin; i < block_end; i += stride) {
       max = std::max(max, std::abs(data[i]));
     }
@@ -152,13 +167,14 @@ private:
 
   // candidates for block detrcer function
   T block_range(T *data, int block_begin, int block_end, int stride = 1) {
-    T max = std::numeric_limits<T>::min();
-    T min = std::numeric_limits<T>::max();
+    T max = -std::numeric_limits<T>::max();
+    T min = std::numeric_limits<T>::max(); 
     for (int i = block_begin; i < block_end; i += stride) {
       max = std::max(max, data[i]);
       min = std::min(min, data[i]);
     }
-    return max - min;
+    // std::cout << "max = " << max << " min = " << min << std::endl;
+    return (max - min);
   }
 
   double block_std(T *data, int block_begin, int block_end, int stride = 1) {

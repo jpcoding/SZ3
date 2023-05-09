@@ -21,22 +21,66 @@ public:
     return parent[x];
   }
 
-  void union_(int x, int y) {
+  // void union_(int x, int y) {
+  //   int xroot = find(x);
+  //   int yroot = find(y);
+
+  //   if (xroot == yroot) {
+  //     return;
+  //   }
+  //   if (this->rank[xroot] < this->rank[yroot]) {
+  //     parent[xroot] = yroot;
+  //   } else if (this->rank[xroot] > this->rank[yroot]) {
+  //     parent[yroot] = xroot;
+  //   } else {
+  //     parent[yroot] = xroot;
+  //     this->rank[xroot] += 1;
+  //   }
+  // }
+
+  void union_(int x, int y)
+  {
     int xroot = find(x);
     int yroot = find(y);
-
-    if (xroot == yroot) {
-      return;
-    }
-    if (this->rank[xroot] < this->rank[yroot]) {
-      parent[xroot] = yroot;
-    } else if (this->rank[xroot] > this->rank[yroot]) {
-      parent[yroot] = xroot;
-    } else {
-      parent[yroot] = xroot;
-      this->rank[xroot] += 1;
+    if (xroot != yroot)
+    {
+      if (rank[xroot]> rank[yroot])
+      {
+        parent[yroot] = xroot;
+      }
+      else
+      {
+        parent[xroot] = yroot;
+        if (rank[xroot] == rank[yroot])
+        {
+          rank[yroot] += 1;
+        }
+      }
     }
   }
+
+  // void union_(int x, int y) {
+  //   int xroot = find(x);
+  //   int yroot = find(y);
+
+  //   if (xroot == yroot) {
+  //     return;
+  //   }
+  //   if (rank[xroot] < rank[yroot]) {
+  //     parent[xroot] = yroot;
+  //     // compress path from x to y's root
+  //     find(x);
+  //   } else if (rank[xroot] > rank[yroot]) {
+  //     parent[yroot] = xroot;
+  //     // compress path from y to x's root
+  //     find(y);
+  //   } else {
+  //     parent[yroot] = xroot;
+  //     rank[xroot] += 1;
+  //     // compress path from y to x's root
+  //     find(y);
+  //   }
+  // }
 
   void writefiles() {
     SZ::writefile("parent.dat", parent.data(), parent.size());

@@ -281,7 +281,7 @@ private:
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, xpadding, ypadding](T &local_abs_max ) {
       T min = std::numeric_limits<T>::max();
-      T max = std::numeric_limits<T>::min();
+      T max = -std::numeric_limits<T>::max();
       for (int i = idx - xpadding; i < idx + xpadding; ++i) {
         for (int j = idy - ypadding; j < idy + ypadding; ++j) {
           T value = get_value(i, j);
@@ -357,7 +357,7 @@ private:
     auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
                                zpadding](T &local_abs_max) {
       T min = std::numeric_limits<T>::max();
-      T max = std::numeric_limits<T>::min();
+      T max = -std::numeric_limits<T>::max();
       for (int i = idx - xpadding; i < idx + xpadding; ++i) {
         for (int j = idy - ypadding; j < idy + ypadding; ++j) {
           for (int k = idz - zpadding; k < idz + zpadding; ++k) {
