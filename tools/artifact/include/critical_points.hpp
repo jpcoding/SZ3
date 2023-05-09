@@ -297,7 +297,7 @@ private:
 
     if (xpadding != 0 && ypadding != 0)
     { T local_value_range = get_local_value_range(local_abs_max);
-      if (local_value_range > (T)(1e-6) && local_abs_max > (T)1e-6) return 1;
+      if (local_value_range > (T)(1e-5) && local_abs_max > (T)1e-5) return 1;
       else return 0;
     }
     else
@@ -376,7 +376,7 @@ private:
     if ((xpadding != 0 && ypadding != 0) || (xpadding != 0 && zpadding != 0) ||
         (ypadding != 0 && zpadding != 0)) {
       T local_value_range = get_local_value_range(local_abs_max);
-      if (local_value_range > (T)(1e-6) && local_abs_max > (T)1e-6)
+      if (local_value_range > (T)(1e-5) && local_abs_max > (T)1e-5)
         return true;
       else
         return false;
