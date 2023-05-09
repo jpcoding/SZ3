@@ -58,13 +58,20 @@ int main(int argc, char **argv) {
   std::unordered_map<int, int> label_map;
   label_map.reserve(segmentation_map.size());
   int current_label = 0;
-  for (int i = 0; i < segmentation_map.size(); i++) {
-    if (label_map.find(segmentation_map[i]) == label_map.end()) {
-      label_map[segmentation_map[i]] = current_label;
-      current_label++;
-    }
-    segmentation_map[i] = label_map[segmentation_map[i]];
+  // for (int i = 0; i < segmentation_map.size(); i++) {
+  //   if (label_map.find(segmentation_map[i]) == label_map.end()) {
+  //     label_map[segmentation_map[i]] = current_label;
+  //     current_label++;
+  //   }
+  //   segmentation_map[i] = label_map[segmentation_map[i]];
+  // }
+ for (int i = 0; i < segmentation_map.size(); i++) {
+  auto emplace_result = label_map.emplace(segmentation_map[i], current_label);
+  if (emplace_result.second) {
+    current_label++;
   }
+  segmentation_map[i] = emplace_result.first->second;
+}
   timer.stop("Rearrange label ");
 
   SZ::writefile("segmentation_map.dat", segmentation_map.data(),

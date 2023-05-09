@@ -1,11 +1,6 @@
 #include "DisjointSet.hpp"
-#include "SZ3/utils/ska_hash/bytell_hash_map.hpp"
-#include <algorithm>
-#include <array>
-#include <cstdlib>
+#include "SZ3/utils/Timer.hpp"
 #include <iostream>
-#include <typeinfo>
-#include <unordered_map>
 #include <vector>
 
 template <class T> class Posterization {
@@ -20,9 +15,15 @@ public:
       this->num_elements *= dims[i];
       this->global_dimensions[i] = dims[i];
     }
-
-    // root_label.reserve(num_elements);
-    root_size.reserve( num_elements);
+    // SZ::Timer timer;
+    // timer.start();
+    label_set.resize(num_elements, 0);
+    // timer.stop("label_set resize and init");
+    result_segmentation_map.resize(num_elements);
+    // SZ::Timer timer;
+    // timer.start();
+    posterization_dsu = new DisjointSet(num_elements);
+    // timer.stop("DisjointSet init");
   }
 
   ~Posterization() { delete posterization_dsu; }
@@ -31,7 +32,6 @@ public:
 
   std::vector<int> get_segmentation_map(T threshold = 1e-5) {
     posterization_threshold = threshold;
-    result_segmentation_map.resize(num_elements);
 
     if (N == 2) {
       Segmentation2D(input_data, threshold);
@@ -42,50 +42,32 @@ public:
     return result_segmentation_map;
   }
 
-  void evaluation(const std::vector<T> &segmentation_map) {
-    T label_max =
-        *std::max_element(segmentation_map.begin(), segmentation_map.end());
+  void evaluate() {
+    int background_size = 0;
+    int label_num = 0;
+    // for (const auto &pair : root_size) {
+    //   if (pair.second > background_size) {
+    //     background_size = pair.second;
+    //   }
+    // }
 
-    std::cout << "label count =  " << (int)(label_max + 1) << std::endl;
-    double lable2size_ratio = (double)(label_max + 1) / (1.0 * num_elements);
-    std::cout << "lable / size =  " << lable2size_ratio << std::endl;
-  }
-
-  void evaluate(bool remove_background = true) {
-    if (remove_background)
-      evaluate_no_background();
-    else
-      evaluate_with_background();
-    
-    posterization_dsu->writefiles();
-  }
-
-  void evaluate_no_background() {
-    int background_count = 0;
-    for (const auto &pair : root_size) {
-      if (pair.second > background_count) {
-        background_count = pair.second;
+    for (int i = 0; i < num_elements; i++) {
+      if (label_set[i] > 0) {
+        label_num++;
+      }
+      if (label_set[i] > background_size) {
+        background_size = label_set[i];
       }
     }
-    // background_count = posterization_dsu->findLargestTreeSize();
-    std::cout << "background label count = " << background_count
+    std::cout << "background size = " << background_size << std::endl;
+    std::cout << "label count =  " << label_num << std::endl;
+    std::cout << "dataset size =  " << num_elements << std::endl;
+    double lable2size_ratio = (double)(1.0 * (label_num - 1)) /
+                              (double)(1.0 * num_elements - background_size);
+    std::cout << "without background: lable / size =  " << lable2size_ratio
               << std::endl;
-    std::cout << "label count =  " << root_size.size() << std::endl;
-    // std::cout << "num_elements =  " << num_elements << std::endl;
-    double lable2size_ratio =
-        (double)(1.0 * (root_size.size() - 1)) /
-        (double)(1.0 * num_elements - background_count);
-    std::cout << "without background: lable / size =  " << lable2size_ratio << std::endl;
-    std::cout << "with background: lable / size =  " << (double)((root_size.size()) / (1.0 * num_elements)) << std::endl;
-
-  }
-
-  void evaluate_with_background() {
-
-    std::cout << "label count =  " << root_size.size() << std::endl;
-    double lable2size_ratio =
-        (double)(root_size.size()) / (1.0 * num_elements);
-    std::cout << "lable / size =  " << lable2size_ratio << std::endl;
+    std::cout << "with background: lable / size =  "
+              << (double)((label_num) / (1.0 * num_elements)) << std::endl;
   }
 
 private:
@@ -98,8 +80,9 @@ private:
   DisjointSet *posterization_dsu;
   // std::unordered_map<int, int> root_label;
   // std::unordered_map<int, std::array<int,2>> root_label;
-  std::unordered_map<int, int> root_size; // root label and size of the tree
-
+  // std::unordered_map<int, int> root_size; // root label and size of the tree
+  // std::map<int, int> root_size; // root label and size of the tree
+  std::vector<int> label_set;
 
   /*
   def segmentation(data, threshold):
@@ -131,7 +114,6 @@ private:
     int h = global_dimensions[1];
     int w = global_dimensions[0];
 
-    posterization_dsu = new DisjointSet(num_elements);
     for (int i = 0; i < h; i++) {
       for (int j = 0; j < w; j++) {
         if (j < w - 1 &&
@@ -144,35 +126,24 @@ private:
         }
       }
     }
-    for (int i=0; i< num_elements; i++)
-    {
+
+    for (int i = 0; i < num_elements; i++) {
       int root = posterization_dsu->find(i);
-        auto it = root_size.find(root);
-        if (it == root_size.end()) {
-          root_size.insert({root, 1});
-          // current_label += 1;
-          // root_size.insert({root, 1});
-        }
-        result_segmentation_map[i] = root;
-        root_size[root] += 1;
-
+      label_set[root] += 1;
+      result_segmentation_map[i] = root;
     }
-
-
-  // two has table version, not efficient 
-    // int current_label = 0;
     // for (int i=0; i< num_elements; i++)
     // {
     //   int root = posterization_dsu->find(i);
-    //     auto it = root_label.find(root);
-    //     if (it == root_label.end()) {
-    //       root_label.insert({root, {current_label, 1}});
-    //       current_label += 1;
+    //     auto it = root_size.find(root);
+    //     if (it == root_size.end()) {
+    //       root_size.insert({root, 1});
+    //       // current_label += 1;
     //       // root_size.insert({root, 1});
     //     }
-    //     data[i] = root_label[root][0];
-    //     root_label[root][1] += 1;
-    //     // root_size[root] += 1;
+    //     result_segmentation_map[i] = root;
+    //     root_size[root] += 1;
+
     // }
   }
 
@@ -180,7 +151,8 @@ private:
     int d = global_dimensions[2];
     int h = global_dimensions[1];
     int w = global_dimensions[0];
-    posterization_dsu = new DisjointSet(num_elements);
+    SZ::Timer timer;
+    timer.start();
     for (int k = 0; k < d; k++) {
       for (int i = 0; i < h; i++) {
         for (int j = 0; j < w; j++) {
@@ -205,46 +177,34 @@ private:
         }
       }
     }
-    int current_label = 0;
+
+
+
+
+    timer.stop("nested loop for segmentation");
+    timer.start();
+    // label_set.assign(num_elements, 0);
+    for (int i = 0; i < num_elements; i++) {
+      int root = posterization_dsu->find(i);
+      label_set[root] += 1;
+      result_segmentation_map[i] = root;
+    }
+    timer.stop("relable data");
+    // int current_label = 0;
+    // timer.start();
     // for (int i=0; i< num_elements; i++)
     // {
     //   int root = posterization_dsu->find(i);
-    //     auto it = root_label.find(root);
-    //     if (it == root_label.end()) {
-    //       root_label.insert({root, current_label});
-    //       current_label += 1;
+    //     auto it = root_size.find(root);
+    //     if (it == root_size.end()) {
+    //       root_size.insert({root, 1});
+    //       // current_label += 1;
     //       // root_size.insert({root, 1});
     //     }
-    //     data[i] = root_label[root];
+    //     result_segmentation_map[i] = root;
+    //     root_size[root] += 1;
     //     // root_size[root] += 1;
     // }
-
-           for (int i=0; i< num_elements; i++)
-    {
-      int root = posterization_dsu->find(i);
-        auto it = root_size.find(root);
-        if (it == root_size.end()) {
-          root_size.insert({root, 1});
-          // current_label += 1;
-          // root_size.insert({root, 1});
-        }
-        result_segmentation_map[i] = root;
-        root_size[root] += 1;
-        // root_size[root] += 1;
-    }
-
-    //     for (int i=0; i< num_elements; i++)
-    // {
-    //   int root = posterization_dsu->find(i);
-    //     auto it = root_label.find(root);
-    //     if (it == root_label.end()) {
-    //       root_label.insert({root, {current_label, 1}});
-    //       current_label += 1;
-    //       // root_size.insert({root, 1});
-    //     }
-    //     data[i] = root_label[root][0];
-    //     root_label[root][1] += 1;
-    //     // root_size[root] += 1;
-    // }
+    // timer.stop("relable data");
   }
 };
