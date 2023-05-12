@@ -86,6 +86,10 @@ namespace SZ {
 //            c += sizeof(size_t);
 //            memcpy(c, selection.data(), selection.size() * sizeof(int));
 //            c += selection.size() * sizeof(int);
+
+            #ifdef SZ_ANALYSIS 
+            writefile("block_selection.dat",selection.data(),selection.size());
+            #endif
         }
 
         void load(const uchar *&c, size_t &remaining_length) {

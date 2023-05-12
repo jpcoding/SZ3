@@ -38,12 +38,13 @@ int main(int argc, char **argv) {
   SZ::readfile<float>(argv[1], num_elements, data.data());
   float data_min, dat_max;
   float range = normalization( data, data_min, dat_max);
-  threhshold = threhshold / range;
-  std::cout << "factoirzed threshold: " << threhshold << std::endl;
+  // threhshold = threhshold / range;
+  // std::cout << "factoirzed threshold: " << threhshold << std::endl;
   SZ::Timer timer;
   // construct posterization analyzer
   Posterization<float> posterization_analyzer(data.data(), N,
                                               global_dimensions.data());
+  // posterization_analyzer.set_flush_threshold(threhshold);
           
   timer.start();
   std::vector<int> segmentation_map =

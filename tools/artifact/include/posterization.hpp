@@ -42,6 +42,8 @@ public:
     return result_segmentation_map;
   }
 
+  void set_flush_threshold(T threshold) { posterization_threshold = threshold; }
+
   void evaluate() {
     int background_size = 0;
     int label_num = 0;
@@ -78,8 +80,6 @@ private:
   T posterization_threshold;
   int N;
   DisjointSet *posterization_dsu;
-  // std::unordered_map<int, int> root_label;
-  // std::unordered_map<int, std::array<int,2>> root_label;
   // std::unordered_map<int, int> root_size; // root label and size of the tree
   // std::map<int, int> root_size; // root label and size of the tree
   std::vector<int> label_set;

@@ -86,8 +86,24 @@ namespace SZ {
         }
 
         void precompress_block_commit() noexcept {
+
+            #ifdef SZ_ANALYSIS
+            for(const auto &coeff: current_coeffs){
+                std::cout << coeff << " ";
+                coeff_reg_pre_quant.push_back(coeff);
+            }
+            #endif
+            
+
             pred_and_quantize_coefficients();
             std::copy(current_coeffs.begin(), current_coeffs.end(), prev_coeffs.begin());
+
+            #ifdef SZ_ANALYSIS
+            for(const auto &coeff: current_coeffs){
+                std::cout << coeff << " ";
+                coeff_reg_post_quant.push_back(coeff);
+            }
+            #endif
         }
 
         inline T predict(const iterator &iter) const noexcept {
@@ -113,6 +129,11 @@ namespace SZ {
                 encoder.save(c);
                 encoder.encode(regression_coeff_quant_inds, c);
                 encoder.postprocess_encode();
+
+                #ifdef SZ_ANALYSIS
+                writefile( "coeff_reg_pre_quant.dat" , coeff_reg_pre_quant.data(), coeff_reg_pre_quant.size());
+                writefile( "coeff_reg_post_quant.dat" , coeff_reg_post_quant.data(), coeff_reg_post_quant.size());
+                #endif
             }
         }
 
@@ -187,6 +208,11 @@ namespace SZ {
         size_t regression_coeff_index = 0;
         std::array<T, N + 1> current_coeffs;
         std::array<T, N + 1> prev_coeffs;
+
+        #ifdef SZ_ANALYSIS 
+        std::vector<double> coeff_reg_pre_quant;
+        std::vector<double> coeff_reg_post_quant;
+        #endif
 
 //        template<uint NN = N>
 //        inline typename std::enable_if<NN == 3, std::array<double, N + 1>>::type

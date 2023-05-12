@@ -33,6 +33,13 @@ namespace SZ {
 
         std::vector<int> compress(T *data) {
             std::vector<int> quant_inds(num_elements);
+
+            #ifdef SZ_ANALYSIS
+            std::vector<T> my_pred(num_elements);
+            std::vector<int> my_quant(num_elements);
+            #endif
+
+
             auto block_range = std::make_shared<SZ::multi_dimensional_range<T, N>>(
                     data, std::begin(global_dimensions), std::end(global_dimensions), block_size, 0);
 
@@ -53,13 +60,25 @@ namespace SZ {
                 predictor_withfallback->precompress_block_commit();
 
                 for (auto element = element_range->begin(); element != element_range->end(); ++element) {
+                    auto pred = predictor_withfallback->predict(element);
                     quant_inds[quant_count++] = quantizer.quantize_and_overwrite(
-                            *element, predictor_withfallback->predict(element));
+                            *element, pred);
+                    #ifdef SZ_ANALYSIS
+                    my_pred[element.get_offset()] = pred;
+                    my_quant[element.get_offset()] = quant_inds[quant_count - 1];
+                    #endif
                 }
             }
 
             predictor.postcompress_data(block_range->begin());
             quantizer.postcompress_data();
+
+            #ifdef SZ_ANALYSIS
+            std::cout << "SZ_ANALYSIS COMPILATION MODE "<< std::endl;
+            writefile("quant.dat", my_quant.data(),  my_quant.size());
+            writefile("pred.dat", my_pred.data(),  my_pred.size());
+            #endif 
+
             return quant_inds;
         }
 

@@ -1,7 +1,6 @@
 #include "SZ3/utils/FileUtil.hpp"
 #include "SZ3/utils/Timer.hpp"
 #include "critical_points.hpp"
-#include "interpolation_walk.hpp"
 #include "posterization.hpp"
 #include <algorithm>
 #include <array>
