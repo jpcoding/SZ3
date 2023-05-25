@@ -28,52 +28,54 @@ int main(int argc, char **argv) {
     threhshold = atof(argv[argc - 1]);
   }
 
-  if (argc == (3 + N + 2)) {
-    threhshold = atof(argv[argc - 1]);
-  }
-
   std::cout << "input threhshold: " << threhshold << std::endl;
 
   std::vector<float> data(num_elements);
   SZ::readfile<float>(argv[1], num_elements, data.data());
   float data_min, dat_max;
+    SZ::Timer timer;
+              double detect_time = 0;
+    timer.start();
   float range = normalization( data, data_min, dat_max);
+  detect_time+= timer.stop("normalization");
   // threhshold = threhshold / range;
   // std::cout << "factoirzed threshold: " << threhshold << std::endl;
-  SZ::Timer timer;
+
   // construct posterization analyzer
   Posterization<float> posterization_analyzer(data.data(), N,
                                               global_dimensions.data());
   // posterization_analyzer.set_flush_threshold(threhshold);
-          
+
   timer.start();
   std::vector<int> segmentation_map =
       posterization_analyzer.get_segmentation_map(threhshold);
-  timer.stop("Posterization map generation ");
+  detect_time+= timer.stop("Posterization map generation ");
   timer.start();
   posterization_analyzer.evaluate();
-  timer.stop("Posterization evaluation ");
+   detect_time +=timer.stop("Posterization evaluation ");
+  std::cout << "detect time = " << detect_time << std::endl;
 
-  // rearrange the label from 0 to the uniuqe label count-1
-  timer.start();
-  std::unordered_map<int, int> label_map;
-  label_map.reserve(segmentation_map.size());
-  int current_label = 0;
-  // for (int i = 0; i < segmentation_map.size(); i++) {
-  //   if (label_map.find(segmentation_map[i]) == label_map.end()) {
-  //     label_map[segmentation_map[i]] = current_label;
-  //     current_label++;
-  //   }
-  //   segmentation_map[i] = label_map[segmentation_map[i]];
-  // }
- for (int i = 0; i < segmentation_map.size(); i++) {
-  auto emplace_result = label_map.emplace(segmentation_map[i], current_label);
-  if (emplace_result.second) {
-    current_label++;
-  }
-  segmentation_map[i] = emplace_result.first->second;
-}
-  timer.stop("Rearrange label ");
+
+//   // rearrange the label from 0 to the uniuqe label count-1
+//   timer.start();
+//   std::unordered_map<int, int> label_map;
+//   label_map.reserve(segmentation_map.size());
+//   int current_label = 0;
+//   // for (int i = 0; i < segmentation_map.size(); i++) {
+//   //   if (label_map.find(segmentation_map[i]) == label_map.end()) {
+//   //     label_map[segmentation_map[i]] = current_label;
+//   //     current_label++;
+//   //   }
+//   //   segmentation_map[i] = label_map[segmentation_map[i]];
+//   // }
+//  for (int i = 0; i < segmentation_map.size(); i++) {
+//   auto emplace_result = label_map.emplace(segmentation_map[i], current_label);
+//   if (emplace_result.second) {
+//     current_label++;
+//   }
+//   segmentation_map[i] = emplace_result.first->second;
+// }
+//   timer.stop("Rearrange label ");
 
   SZ::writefile("segmentation_map.dat", segmentation_map.data(),
                 segmentation_map.size());

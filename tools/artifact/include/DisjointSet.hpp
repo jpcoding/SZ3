@@ -47,6 +47,8 @@ public:
     SZ::writefile("rank.dat", rank.data(), rank.size());
   }
 
+  std::vector<int> get_map() { return parent; }
+
   int findLargestTreeSize() {
     int largestTreeSize = 0;
     std::unordered_map<int, int> treeSizes;

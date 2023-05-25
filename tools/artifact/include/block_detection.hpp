@@ -20,15 +20,8 @@ public:
     this->sample_size = sample_size;
     this->begin = begin;
     this->input_stride = stride;
-    // central derivative is used for block detection
-    calculate_central_derivative();
-    // for (int i = 0; i < sample_size; i++) {
-    //   std::cout<<derivative[i] <<"  ";
-    //   if (i % 10 == 0) {
-    //     std::cout << std::endl;
-    //   }
-    // }
-    // exit(0);
+    calculate_second_derivative();
+
   }
 
   ~BlockDetection() {}
@@ -112,7 +105,7 @@ private:
   // artifact_block_count: the number of blocks that are determined as artifact
   // blocks.
   // Make sure you are use the correct input data!!! (derivative).
-  void try_block_detection(T *data, int block_size, T threshold,
+  void try_block_detection2(T *data, int block_size, T threshold,
                            int &effective_block_count,
                            int &artifact_block_count) {
     int n_block = sample_size / block_size;
@@ -143,6 +136,35 @@ private:
     }
   }
 
+
+  void try_block_detection(T *data, int block_size, T threshold,
+                           int &effective_block_count,
+                           int &artifact_block_count) {
+    // input data is absolute value of second derivative
+    int n_block = sample_size / block_size;
+    effective_block_count = 0;
+    artifact_block_count = 0;
+    T boundary_jump_th= flush_threshold*5; 
+    for (int i = 0; i < n_block; i++) {
+      int block_begin = i * block_size;
+      int block_end = block_begin + block_size;
+      T block_max = block_abs_max(data, block_begin, block_end);
+      // T block_max = block_range(data, block_begin, block_end);
+      if (block_max > flush_threshold) {
+        effective_block_count++;
+        double sum = block_sum(data, block_begin, block_end);
+        double test_ratio =(std::abs(data[block_begin])+std::abs(data[block_end-1]))/sum ;
+        T left = std::abs(data[block_begin] - data[block_begin+1]);
+        T right = std::abs(data[block_end-1] - data[block_end-2]);
+        if (test_ratio >= threshold && (left >=boundary_jump_th && right >=boundary_jump_th ))
+        {
+          artifact_block_count++;
+        }
+      }
+    }
+  }
+
+
   // derivative calculation
   void calculate_central_derivative() {
     derivative.resize(sample_size);
@@ -153,13 +175,6 @@ private:
                        input_data[begin + (i - 1) * input_stride]) /
                       2;
     }
-    // if(begin==0 && sample_size==100)
-    // {
-    //   SZ::writefile("derivative.dat", derivative.data(), derivative.size());
-    //   for (int i = 0; i < sample_size; i ++) {
-    //     std::cout << input_data[begin+i*input_stride]<<std::endl;
-    //   }
-    // }
   }
 
   void calculate_forward_derivate() {
@@ -175,6 +190,15 @@ private:
     for (int i = 1; i < sample_size; i++) {
       derivative[i] = (input_data[begin + i * input_stride] -
                        input_data[begin + (i - 1) * input_stride]);
+    }
+  }
+
+  void calculate_second_derivative()
+  {
+    derivative.assign(sample_size, 0);
+    for (int i = 1; i < sample_size-1; i++) {
+      derivative[i] = std::abs((input_data[begin + (i + 1) * input_stride] -
+                       2*input_data[begin + i * input_stride] + input_data[begin + (i - 1) * input_stride]));
     }
   }
 
@@ -194,7 +218,7 @@ private:
       max = std::max(max, data[i]);
       min = std::min(min, data[i]);
     }
-    // std::cout << "max = " << max << " min = " << min << std::endl;
+    std::cout << "max = " << max << " min = " << min << std::endl;
     return (max - min);
   }
 
@@ -206,11 +230,11 @@ private:
       mean += data[i];
       count++;
     }
-    mean /= count;
+    mean /= (1.0*count);
     for (int i = block_begin; i < block_end; i += stride) {
       std += (data[i] - mean) * (data[i] - mean);
     }
-    std /= count;
+    std /= (1.0*count);
     return std;
   }
 
@@ -223,5 +247,13 @@ private:
     }
     mean /= count;
     return mean;
+  }
+
+  double block_sum(T *data, int block_begin, int block_end, int stride = 1) {
+    double sum = 0;
+    for (int i = block_begin; i < block_end; i += stride) {
+      sum += std::abs(data[i]);
+    }
+    return sum;
   }
 };

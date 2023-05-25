@@ -14,3 +14,4 @@ install
 .cache
 debug*
 *build*
+perf

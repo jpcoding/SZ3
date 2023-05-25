@@ -168,23 +168,23 @@ private:
     // Try all the possible interpolation methods
     // Deal with corner cases first
     // 1. right lorenzo
-    if (valid_interp_dir1[1]) {
-      error = std::min(error, std::abs(value - data[interp_dir1[1]]));
-    }
-    if (valid_interp_dir2[1]) {
-      error = std::min(error, std::abs(value - data[interp_dir2[1]]));
-    }
-    // 2. right linear
-    if (valid_interp_dir1[0] && valid_interp_dir1[1]) {
-      error = std::min(
-          error, std::abs(value - SZ::interp_linear1(data[interp_dir1[0]],
-                                                     data[interp_dir1[1]])));
-    }
-    if (valid_interp_dir2[0] && valid_interp_dir2[1]) {
-      error = std::min(
-          error, std::abs(value - SZ::interp_linear1(data[interp_dir2[0]],
-                                                     data[interp_dir2[1]])));
-    }
+    // if (valid_interp_dir1[1]) {
+    //   error = std::min(error, std::abs(value - data[interp_dir1[1]]));
+    // }
+    // if (valid_interp_dir2[1]) {
+    //   error = std::min(error, std::abs(value - data[interp_dir2[1]]));
+    // }
+    // // 2. right linear
+    // if (valid_interp_dir1[0] && valid_interp_dir1[1]) {
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_linear1(data[interp_dir1[0]],
+    //                                                  data[interp_dir1[1]])));
+    // }
+    // if (valid_interp_dir2[0] && valid_interp_dir2[1]) {
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_linear1(data[interp_dir2[0]],
+    //                                                  data[interp_dir2[1]])));
+    // }
     // 3. regular linear interpolation
     if (valid_interp_dir1[1] && valid_interp_dir1[2]) {
       error = std::min(
@@ -196,37 +196,37 @@ private:
           error,
           std::abs(value - (data[interp_dir2[1]] + data[interp_dir2[2]]) / 2));
     }
-    // 4. left quadratic interpolation
-    if (valid_interp_dir1[1] && valid_interp_dir1[2] && valid_interp_dir1[3]) {
-      // left quadratic
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_1(data[interp_dir1[1]],
-                                                    data[interp_dir1[2]],
-                                                    data[interp_dir1[3]])));
-    }
-    if (valid_interp_dir2[1] && valid_interp_dir2[2] && valid_interp_dir2[3]) {
-      // left quadratic
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_1(data[interp_dir2[1]],
-                                                    data[interp_dir2[2]],
-                                                    data[interp_dir2[3]])));
-    }
-    // 5. right quadratic interpolation1
-    if (valid_interp_dir1[0] && valid_interp_dir1[1] && valid_interp_dir1[2]) {
-      // left quadratic
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_2(data[interp_dir1[0]],
-                                                    data[interp_dir1[1]],
-                                                    data[interp_dir1[2]])));
-    }
-    if (valid_interp_dir2[0] && valid_interp_dir2[1] && valid_interp_dir2[2]) {
-      // left quadratic
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_2(data[interp_dir2[0]],
-                                                    data[interp_dir2[1]],
-                                                    data[interp_dir2[2]])));
-    }
-    // 6. regular quadratic interpolation and cubic interpolation
+    // // 4. left quadratic interpolation
+    // if (valid_interp_dir1[1] && valid_interp_dir1[2] && valid_interp_dir1[3]) {
+    //   // left quadratic
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_1(data[interp_dir1[1]],
+    //                                                 data[interp_dir1[2]],
+    //                                                 data[interp_dir1[3]])));
+    // }
+    // if (valid_interp_dir2[1] && valid_interp_dir2[2] && valid_interp_dir2[3]) {
+    //   // left quadratic
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_1(data[interp_dir2[1]],
+    //                                                 data[interp_dir2[2]],
+    //                                                 data[interp_dir2[3]])));
+    // }
+    // // 5. right quadratic interpolation1
+    // if (valid_interp_dir1[0] && valid_interp_dir1[1] && valid_interp_dir1[2]) {
+    //   // left quadratic
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_2(data[interp_dir1[0]],
+    //                                                 data[interp_dir1[1]],
+    //                                                 data[interp_dir1[2]])));
+    // }
+    // if (valid_interp_dir2[0] && valid_interp_dir2[1] && valid_interp_dir2[2]) {
+    //   // left quadratic
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_2(data[interp_dir2[0]],
+    //                                                 data[interp_dir2[1]],
+    //                                                 data[interp_dir2[2]])));
+    // }
+    // 6. regular cubic interpolation and cubic interpolation
     if (valid_interp_dir1[0] && valid_interp_dir1[1] && valid_interp_dir1[2] &&
         valid_interp_dir1[3]) {
       // cubic
@@ -246,23 +246,23 @@ private:
                                                    data[interp_dir2[3]])));
     }
 
-    // 7. right corner quodratic interpolation that uses -5xStride
-    int corner_idx = cart2global(idx - 5 * stride, idy);
-    int corner_idy = cart2global(idx, idy - 5 * stride);
-    if (is_valid_index(corner_idx) && valid_interp_dir1[0] &&
-        valid_interp_dir1[1]) {
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_3(data[corner_idx],
-                                                    data[interp_dir1[0]],
-                                                    data[interp_dir1[1]])));
-    }
-    if (is_valid_index(corner_idy) && valid_interp_dir2[0] &&
-        valid_interp_dir2[1]) {
-      error = std::min(
-          error, std::abs(value - SZ::interp_quad_3(data[corner_idy],
-                                                    data[interp_dir2[0]],
-                                                    data[interp_dir2[1]])));
-    }
+    // // 7. right corner quodratic interpolation that uses -5xStride
+    // int corner_idx = cart2global(idx - 5 * stride, idy);
+    // int corner_idy = cart2global(idx, idy - 5 * stride);
+    // if (is_valid_index(corner_idx) && valid_interp_dir1[0] &&
+    //     valid_interp_dir1[1]) {
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_3(data[corner_idx],
+    //                                                 data[interp_dir1[0]],
+    //                                                 data[interp_dir1[1]])));
+    // }
+    // if (is_valid_index(corner_idy) && valid_interp_dir2[0] &&
+    //     valid_interp_dir2[1]) {
+    //   error = std::min(
+    //       error, std::abs(value - SZ::interp_quad_3(data[corner_idy],
+    //                                                 data[interp_dir2[0]],
+    //                                                 data[interp_dir2[1]])));
+    // }
     return error; // return the minimum possible error
   }
 
@@ -272,7 +272,7 @@ private:
     T value = data[global_idx];
     T error = std::numeric_limits<T>::max();
     int level = get_level(idx, idy, idz);
-    int stride = 1 << level;
+    int stride = 1 << (level-1);
     int stride3x = 3 * stride;
 
     // Try all the possible interpolation methods

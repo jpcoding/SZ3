@@ -17,6 +17,7 @@
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/def.hpp"
 #include <cmath>
+#include <iostream>
 #include <memory>
 
 
@@ -88,8 +89,11 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
     use_fast=0;
     #endif
 
-    if (use_fast&&N == 3 && !conf.regression2) {
+    std::cout<< " use regression2: "<<conf.regression2<<std::endl;
+
+    if (use_fast&&N == 3 && !conf.regression2 ) {
         // use fast version for 3D
+        std::cout<<"use fast version"<<std::endl;
         auto sz = SZ::make_sz_general_compressor<T, N>(SZ::make_sz_fast_frontend<T, N>(conf, quantizer), SZ::HuffmanEncoder<int>(),
                                                        SZ::Lossless_zstd());
         cmpData = (char *) sz->compress(conf, data, outSize);

@@ -57,7 +57,7 @@ public:
         }
       }
     }
-    std::cout << "match_count: " << match_count << std::endl;
+    // std::cout << "match_count: " << match_count << std::endl;
     return match_count;
   }
   int pattern_match_global(std::vector<int> &match_index,
@@ -89,7 +89,7 @@ public:
         }
       }
     }
-    std::cout << "match_count: " << match_count << std::endl;
+    // std::cout << "match_count: " << match_count << std::endl;
     return match_count;
   }
 
@@ -122,7 +122,7 @@ public:
         }
       }
     }
-    std::cout << "match_count: " << match_count << std::endl;
+    // std::cout << "match_count: " << match_count << std::endl;
     return match_count;
   }
 
@@ -160,22 +160,20 @@ public:
         }
       }
     }
-    std::cout << "match_count: " << match_count << std::endl;
+    // std::cout << "match_count: " << match_count << std::endl;
     return match_count;
   }
 
-
-  bool try_match2d(std::vector<int> &cpmap,int index, int &xpadding,
-                 int &ypadding, int max_padding = 5) {
+  bool try_match2d(std::vector<int> &cpmap, int index, int &xpadding,
+                   int &ypadding, int max_padding = 5) {
     return pattern_match2d(cpmap, index % global_dimensions[0],
                            index / global_dimensions[0], xpadding, ypadding,
                            max_padding);
   }
 
   bool try_match3d(std::vector<int> &cpmap, int index, int &xpadding,
-                 int &ypadding, int &zpadding, int max_padding = 7
-                 ) {
- 
+                   int &ypadding, int &zpadding, int max_padding = 7) {
+
     int idx = index % global_dimensions[0];
     int idy = (index / global_dimensions[0]) % global_dimensions[1];
     int idz = index / (global_dimensions[0] * global_dimensions[1]);
@@ -183,15 +181,34 @@ public:
                            max_padding);
   }
 
-  bool try_match2d( std::vector<int> &cpmap,int idx, int idy, int &xpadding,
-                 int &ypadding, int max_padding = 5) {
+  bool try_match2d(std::vector<int> &cpmap, int idx, int idy, int &xpadding,
+                   int &ypadding, int max_padding = 5) {
     return pattern_match2d(cpmap, idx, idy, xpadding, ypadding, max_padding);
   }
 
-  bool try_match3d(std::vector<int> &cpmap,int idx, int idy, int idz,
-                 int &xpadding, int &ypadding, int max_padding = 5) {
+  bool try_match3d(std::vector<int> &cpmap, int idx, int idy, int idz,
+                   int &xpadding, int &ypadding, int max_padding = 5) {
     return pattern_match3d(cpmap, idx, idy, idz, xpadding, ypadding,
                            max_padding);
+  }
+
+  bool try_match2d_interp(std::vector<int> &cpmap, int index, int &xpadding,
+                          int &ypadding, T &interp_error, T interp_threshold,
+                          int max_padding = 5) {
+    return pattern_match2d_interp(
+        cpmap, index % global_dimensions[0], index / global_dimensions[0],
+        xpadding, ypadding, interp_error, interp_threshold, max_padding);
+  }
+
+  bool try_match3d_interp(std::vector<int> &cpmap, int index, int &xpadding,
+                          int &ypadding, int &zpadding, T &interp_error,
+                          T interp_threshold, int max_padding = 7) {
+    int idx = index % global_dimensions[0];
+    int idy = (index / global_dimensions[0]) % global_dimensions[1];
+    int idz = index / (global_dimensions[0] * global_dimensions[1]);
+    return pattern_match3d_interp(cpmap, idx, idy, idz, xpadding, ypadding,
+                                  zpadding, interp_error, interp_threshold,
+                                  max_padding);
   }
 
   void set_local_range(T range) { local_val_tol = range; }
@@ -223,38 +240,47 @@ private:
     }
   }
 
-  inline T get_value(int idx, int idy) {
-    return data[idx + idy * global_dimensions[0]];
+  inline T *get_value(int idx, int idy) {
+    return data + idx + idy * global_dimensions[0];
   }
 
-  inline T get_value(int idx, int idy, int idz) {
+  inline T *get_value(int idx, int idy, int idz) {
 
-    return data[idx + idy * global_dimensions[0] +
-                idz * global_dimensions[0] * global_dimensions[1]];
+    return data + idx + idy * global_dimensions[0] +
+           idz * global_dimensions[0] * global_dimensions[1];
   }
 
   // Calculate the gradient degree for a single point.
   // 4 if it is a local max or max.
   // the cornor cases is left for future work(the boundary points).
   int calculate_single_point(int global_index) {
+
     if (N == 2) {
+      T tol = 1e-5;
+      T current_value = data[global_index];
+      T value_minus_tol = current_value - tol;
+      T value_plus_tol = current_value + tol;
       int idx = global_index % global_dimensions[0];
       int idy = global_index / global_dimensions[0];
       if (idx == 0 || idy == 0 || idx == global_dimensions[0] - 1 ||
           idy == global_dimensions[1] - 1) {
         return 0;
       } else {
-        int sign1 = (data[global_index] > get_value(idx - 1, idy)) -
-                    (data[global_index] < get_value(idx - 1, idy));
-        int sign2 = (data[global_index] > get_value(idx + 1, idy)) -
-                    (data[global_index] < get_value(idx + 1, idy));
-        int sign3 = (data[global_index] > get_value(idx, idy - 1)) -
-                    (data[global_index] < get_value(idx, idy - 1));
-        int sign4 = (data[global_index] > get_value(idx, idy + 1)) -
-                    (data[global_index] < get_value(idx, idy + 1));
+        int sign1 = (value_minus_tol > *get_value(idx - 1, idy)) -
+                    (value_plus_tol < *get_value(idx - 1, idy));
+        int sign2 = (value_minus_tol > *get_value(idx + 1, idy)) -
+                    (value_plus_tol < *get_value(idx + 1, idy));
+        int sign3 = (value_minus_tol > *get_value(idx, idy - 1)) -
+                    (value_plus_tol < *get_value(idx, idy - 1));
+        int sign4 = (value_minus_tol > *get_value(idx, idy + 1)) -
+                    (value_plus_tol < *get_value(idx, idy + 1));
         return sign1 + sign2 + sign3 + sign4;
       }
     } else if (N == 3) {
+      T tol = 1e-5;
+      T current_value = data[global_index];
+      T value_minus_tol = current_value - tol;
+      T value_plus_tol = current_value + tol;
       int idx = global_index % global_dimensions[0];
       int idy = (global_index / global_dimensions[0]) % global_dimensions[1];
       int idz = global_index / (global_dimensions[0] * global_dimensions[1]);
@@ -262,18 +288,18 @@ private:
           idy == global_dimensions[1] - 1 || idz == global_dimensions[2] - 1) {
         return 0;
       } else {
-        int sign1 = (data[global_index] > get_value(idx - 1, idy, idz)) -
-                    (data[global_index] < get_value(idx - 1, idy, idz));
-        int sign2 = (data[global_index] > get_value(idx + 1, idy, idz)) -
-                    (data[global_index] < get_value(idx + 1, idy, idz));
-        int sign3 = (data[global_index] > get_value(idx, idy - 1, idz)) -
-                    (data[global_index] < get_value(idx, idy - 1, idz));
-        int sign4 = (data[global_index] > get_value(idx, idy + 1, idz)) -
-                    (data[global_index] < get_value(idx, idy + 1, idz));
-        int sign5 = (data[global_index] > get_value(idx, idy, idz - 1)) -
-                    (data[global_index] < get_value(idx, idy, idz - 1));
-        int sign6 = (data[global_index] > get_value(idx, idy, idz + 1)) -
-                    (data[global_index] < get_value(idx, idy, idz + 1));
+        int sign1 = (value_minus_tol > *get_value(idx - 1, idy, idz)) -
+                    (value_plus_tol < *get_value(idx - 1, idy, idz));
+        int sign2 = (value_minus_tol > *get_value(idx + 1, idy, idz)) -
+                    (value_plus_tol < *get_value(idx + 1, idy, idz));
+        int sign3 = (value_minus_tol > *get_value(idx, idy - 1, idz)) -
+                    (value_plus_tol < *get_value(idx, idy - 1, idz));
+        int sign4 = (value_minus_tol > *get_value(idx, idy + 1, idz)) -
+                    (value_plus_tol < *get_value(idx, idy + 1, idz));
+        int sign5 = (value_minus_tol > *get_value(idx, idy, idz - 1)) -
+                    (value_plus_tol < *get_value(idx, idy, idz - 1));
+        int sign6 = (value_minus_tol > *get_value(idx, idy, idz + 1)) -
+                    (value_plus_tol < *get_value(idx, idy, idz + 1));
         return sign1 + sign2 + sign3 + sign4 + sign5 + sign6;
       }
     } else {
@@ -285,24 +311,23 @@ private:
   //
   //  pattern matching
 
-  inline int map_value( int idx, int idy) {
+  inline int map_value(int idx, int idy) {
     return critical_points_map[idx + idy * global_dimensions[0]];
   }
 
-  inline int map_value( int idx, int idy, int idz) {
+  inline int map_value(int idx, int idy, int idz) {
     return critical_points_map[idx + idy * global_dimensions[0] +
                                idz * global_dimensions[0] *
                                    global_dimensions[1]];
   }
 
-  inline int map_value(std::vector<int>&cmap , int idx, int idy) {
+  inline int map_value(std::vector<int> &cmap, int idx, int idy) {
     return cmap[idx + idy * global_dimensions[0]];
   }
 
-  inline int map_value(std::vector<int>&cmap ,int idx, int idy, int idz) {
+  inline int map_value(std::vector<int> &cmap, int idx, int idy, int idz) {
     return cmap[idx + idy * global_dimensions[0] +
-                               idz * global_dimensions[0] *
-                                   global_dimensions[1]];
+                idz * global_dimensions[0] * global_dimensions[1]];
   }
   //
   //  pattern matching
@@ -320,38 +345,55 @@ private:
     int global_index = idx + idy * global_dimensions[0];
     int dimx = global_dimensions[0];
     int dimy = global_dimensions[1];
-
+    int pad_value = 0;
     for (int i = 1; i <= max_padding; ++i) {
       // dir1 index
-      if ((is_valid_index(idx - i, idy) && is_valid_index(idx + i, idy) &&
-           map_value(cpmap,idx - i, idy) == 2 && map_value(cpmap,idx + i, idy) == 2) ||
-          (is_valid_index(idx - i, idy) && is_valid_index(idx + i, idy) &&
-           map_value(cpmap,idx - i, idy) == -2 && map_value(cpmap,idx + i, idy) == -2)) {
-        xpadding = i;
-      } else {
-        { break; }
+      if ((is_valid_index(idx - i, idy)) && is_valid_index(idx + i, idy)) {
+        if (map_value(cpmap, idx - i, idy) == 2 &&
+            map_value(cpmap, idx + i, idy) == 2 &&
+            map_value(cpmap, idx, idy) == 4) {
+          xpadding = i;
+        } else if (map_value(cpmap, idx - i, idy) == -2 &&
+                   map_value(cpmap, idx + i, idy) == -2 &&
+                   map_value(cpmap, idx, idy) == -4) {
+          xpadding = i;
+        } else {
+          break;
+        }
       }
     }
 
+    if (xpadding == 0)
+      return false;
+
     for (int i = 1; i <= max_padding; ++i) {
       // dir1 index
-      if ((is_valid_index(idx, idy - i) && is_valid_index(idx, idy + i) &&
-          map_value(cpmap,idx, idy - i) == 2 && map_value(cpmap,idx, idy + i) == 2) ||
-          (is_valid_index(idx, idy - i) && is_valid_index(idx, idy + i) &&
-          map_value(cpmap,idx, idy - i) == -2 && map_value(cpmap,idx, idy + i) == -2) ) {
-        ypadding = i;
-      } else {
-        break;
+      if ((is_valid_index(idx, idy - i)) && is_valid_index(idx, idy + i)) {
+        if (map_value(cpmap, idx, idy - i) == 2 &&
+            map_value(cpmap, idx, idy + i) == 2 &&
+            map_value(cpmap, idx, idy) == 4) {
+          ypadding = i;
+        } else if (map_value(cpmap, idx, idy - i) == -2 &&
+                   map_value(cpmap, idx, idy + i) == -2 &&
+                   map_value(cpmap, idx, idy) == -4) {
+          ypadding = i;
+        } else {
+          break;
+        }
       }
     }
+
+    if (ypadding == 0)
+      return false;
+
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, xpadding,
                                   ypadding](T &local_abs_max) {
       T min = std::numeric_limits<T>::max();
       T max = -std::numeric_limits<T>::max();
-      for (int i = idx - xpadding; i < idx + xpadding; ++i) {
-        for (int j = idy - ypadding; j < idy + ypadding; ++j) {
-          T value = get_value(i, j);
+      for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
+        for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
+          T value = *get_value(i, j);
           if (value < min)
             min = value;
           if (value > max)
@@ -364,7 +406,7 @@ private:
 
     if (xpadding != 0 && ypadding != 0) {
       T local_value_range = get_local_value_range(local_abs_max);
-      if (local_value_range > local_val_tol  && local_abs_max > flush_threshold)
+      if (local_value_range > local_val_tol)
         return 1;
       else
         return 0;
@@ -378,62 +420,73 @@ private:
     xpadding = 0;
     ypadding = 0;
     zpadding = 0;
+    int padding_value = 0;
 
     int global_index = idx + idy * global_dimensions[0] +
                        idz * global_dimensions[0] * global_dimensions[1];
-    std::cout << "x y z " << idx << " " << idy << " " << idz << std::endl;
+    int count = 0;
+    // std::cout << "x y z " << idx << " " << idy << " " << idz << std::endl;
     for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx - i, idy, idz) &&
-           is_valid_index(idx + i, idy, idz) &&
-           map_value(cpmap,idx - i, idy, idz) == 4 &&
-           map_value(cpmap,idx + i, idy, idz) == 4) ||
-          (is_valid_index(idx - i, idy, idz) &&
-           is_valid_index(idx + i, idy, idz) &&
-           map_value(cpmap,idx - i, idy, idz) == -4 &&
-           map_value(cpmap,idx + i, idy, idz) == -4)) {
-        xpadding = i;
-      } else {
-        break;
+      if (is_valid_index(idx - i, idy, idz) &&
+          is_valid_index(idx + i, idy, idz)) {
+        if ((map_value(cpmap, idx - i, idy, idz) == -4) &&
+            (map_value(cpmap, idx + i, idy, idz) == -4) &&
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          xpadding = i;
+        } else if ((map_value(cpmap, idx - i, idy, idz) == 4) &&
+                   (map_value(cpmap, idx + i, idy, idz) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          xpadding = i;
+        }
+        { break; }
       }
     }
+    // if (xpadding == 0)
+    //   return false;
 
     for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx, idy - i, idz) &&
-           is_valid_index(idx, idy + i, idz) &&
-           map_value(cpmap,idx, idy - i, idz) == 4 &&
-           map_value(cpmap,idx, idy + i, idz) == 4) ||
-          (is_valid_index(idx, idy - i, idz) &&
-           is_valid_index(idx, idy + i, idz) &&
-           map_value(cpmap,idx, idy - i, idz) == -4 &&
-           map_value(cpmap,idx, idy + i, idz) == -4)) {
-        ypadding = i;
-      } else {
-        break;
+      if (is_valid_index(idx, idy - i, idz) &&
+          is_valid_index(idx, idy + i, idz)) {
+        if ((map_value(cpmap, idx, idy - i, idz) == -4) &&
+            (map_value(cpmap, idx, idy + i, idz) == -4) &&
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          ypadding = i;
+        } else if ((map_value(cpmap, idx, idy - i, idz) == 4) &&
+                   (map_value(cpmap, idx, idy + i, idz) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          ypadding = i;
+        }
+        { break; }
       }
     }
+    // if (ypadding == 0)
+    //   return false;
 
     for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx, idy, idz - i) &&
-           is_valid_index(idx, idy, idz + i) &&
-           map_value(cpmap,idx, idy, idz - i) == 4 &&
-           map_value(cpmap,idx, idy, idz + i) == 4) ||
-          (is_valid_index(idx, idy, idz - i) &&
-           is_valid_index(idx, idy, idz + i) &&
-           map_value(cpmap,idx, idy, idz - i) == -4 &&
-           map_value(cpmap,idx, idy, idz + i) == -4)) {
-        zpadding = i;
-      } else {
-        break;
+      if (is_valid_index(idx, idy, idz - i) &&
+          is_valid_index(idx, idy, idz + i)) {
+        if ((map_value(cpmap, idx, idy, idz - i) == -4) &&
+                (map_value(cpmap, idx, idy, idz + i) == -4) ||
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          zpadding = i;
+        } else if ((map_value(cpmap, idx, idy, idz - i) == 4) &&
+                   (map_value(cpmap, idx, idy, idz + i) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          zpadding = i;
+        }
+        { break; }
       }
     }
+    // if (zpadding == 0)
+    //   return false;
 
-    if (idx == 148 && idy == 88 && idz == 64) {
-      std::cout << "global index = " << global_index << std::endl;
-      std::cout << "map_value = " << map_value(idx, idy, idz) << std::endl;
-      std::cout << "xpadding = " << xpadding << std::endl;
-      std::cout << "ypadding = " << ypadding << std::endl;
-      std::cout << "zpadding = " << zpadding << std::endl;
-    }
+    // if (idx == 103 && idy == 211 && idz == 11) {
+    //   std::cout << "global index = " << global_index << std::endl;
+    //   std::cout << "map_value = " << map_value(idx, idy, idz) << std::endl;
+    //   std::cout << "xpadding = " << xpadding << std::endl;
+    //   std::cout << "ypadding = " << ypadding << std::endl;
+    //   std::cout << "zpadding = " << zpadding << std::endl;
+    // }
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
                                   zpadding](T &local_abs_max) {
@@ -442,7 +495,7 @@ private:
       for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
         for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
           for (int k = idz - zpadding; k <= idz + zpadding; ++k) {
-            T value = get_value(i, j, k);
+            T value = *get_value(i, j, k);
             if (value < min)
               min = value;
             if (value > max)
@@ -458,7 +511,7 @@ private:
       T local_value_range = get_local_value_range(local_abs_max);
       local_value_range =
           local_value_range / (2 * (xpadding + ypadding + zpadding));
-      if (local_value_range >local_val_tol  && local_abs_max > flush_threshold)
+      if (local_value_range > local_val_tol)
         return true;
       else
         return false;
@@ -473,43 +526,65 @@ private:
     xpadding = 0;
     ypadding = 0;
     local_interp_error = 0;
+    int padding_value = 0;
 
     int global_index = idx + idy * global_dimensions[0];
-    for (int i = 1; i <= max_padding; ++i) {
-      // dir1 index
-      if ((is_valid_index(idx - i, idy) && is_valid_index(idx + i, idy) &&
-          map_value(idx - i, idy) == 2 && map_value(idx + i, idy) == 2)||
-          (is_valid_index(idx - i, idy) && is_valid_index(idx + i, idy) &&
-          map_value(idx - i, idy) == -2 && map_value(idx + i, idy) == -2)) {
-        xpadding = i;
-        local_interp_error += interps->interp_walk(idx - i, idy);
-        local_interp_error += interps->interp_walk(idx + i, idy);
-      } else {
-        { break; }
-      }
-    }
 
     for (int i = 1; i <= max_padding; ++i) {
       // dir1 index
-      if ((is_valid_index(idx, idy - i) && is_valid_index(idx, idy + i) &&
-          map_value(idx, idy - i) == 2 && map_value(idx, idy + i) == 2)||
-          (is_valid_index(idx, idy - i) && is_valid_index(idx, idy + i) &&
-          map_value(idx, idy - i) == -2 && map_value(idx, idy + i) == -2)) {
-        ypadding = i;
-        local_interp_error += interps->interp_walk(idx, idy - i);
-        local_interp_error += interps->interp_walk(idx, idy + i);
-      } else {
-        break;
+      if ((is_valid_index(idx - i, idy)) && is_valid_index(idx + i, idy)) {
+        if (map_value(cpmap, idx - i, idy) == 2 &&
+            map_value(cpmap, idx + i, idy) == 2 &&
+            map_value(cpmap, idx, idy) == 4) {
+          xpadding = i;
+          local_interp_error += interps->interp_walk(idx - i, idy);
+          local_interp_error += interps->interp_walk(idx + i, idy);
+        } else if (map_value(cpmap, idx - i, idy) == -2 &&
+                   map_value(cpmap, idx + i, idy) == -2 &&
+                   map_value(cpmap, idx, idy) == -4) {
+          xpadding = i;
+          local_interp_error += interps->interp_walk(idx - i, idy);
+          local_interp_error += interps->interp_walk(idx + i, idy);
+        } else {
+          break;
+        }
       }
     }
+
+    if (xpadding == 0)
+      return false;
+
+    for (int i = 1; i <= max_padding; ++i) {
+      // dir1 index
+      if ((is_valid_index(idx, idy - i)) && is_valid_index(idx, idy + i)) {
+        if (map_value(cpmap, idx, idy - i) == 2 &&
+            map_value(cpmap, idx, idy + i) == 2 &&
+            map_value(cpmap, idx, idy) == 4) {
+          ypadding = i;
+          local_interp_error += interps->interp_walk(idx, idy - i);
+          local_interp_error += interps->interp_walk(idx, idy + i);
+        } else if (map_value(cpmap, idx, idy - i) == -2 &&
+                   map_value(cpmap, idx, idy + i) == -2 &&
+                   map_value(cpmap, idx, idy) == -4) {
+          ypadding = i;
+          local_interp_error += interps->interp_walk(idx, idy - i);
+          local_interp_error += interps->interp_walk(idx, idy + i);
+        } else {
+          break;
+        }
+      }
+    }
+    if (ypadding == 0)
+      return false;
+
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, xpadding,
-                                  ypadding](T &local_abs_max, T &interp_error) {
+                                  ypadding](T &local_abs_max) {
       T min = std::numeric_limits<T>::max();
       T max = -std::numeric_limits<T>::max();
-      for (int i = idx - xpadding; i < idx + xpadding; ++i) {
-        for (int j = idy - ypadding; j < idy + ypadding; ++j) {
-          T value = get_value(i, j);
+      for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
+        for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
+          T value = *get_value(i, j);
           if (value < min)
             min = value;
           if (value > max)
@@ -522,15 +597,16 @@ private:
 
     if (xpadding != 0 && ypadding != 0) {
       T local_value_range =
-          get_local_value_range(local_abs_max, local_interp_error);
+          get_local_value_range(local_abs_max);
       local_interp_error /= (T)(2 * xpadding + 2 * ypadding);
-      if (local_value_range > local_val_tol && local_abs_max > flush_threshold &&
+      if (local_value_range > local_val_tol &&
+          local_abs_max > flush_threshold &&
           local_interp_error < interp_error_threshold)
-        return 1;
+        return true;
       else
-        return 0;
+        return false;
     } else
-      return 0;
+      return false;
   }
 
   bool pattern_match3d_interp(std::vector<int> &cpmap, int idx, int idy,
@@ -541,60 +617,104 @@ private:
     ypadding = 0;
     zpadding = 0;
     interp_error = 0;
+    int padding_value = 0;
     int global_index = idx + idy * global_dimensions[0] +
                        idz * global_dimensions[0] * global_dimensions[1];
     for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx - i, idy, idz) &&
-          is_valid_index(idx + i, idy, idz) &&
-          map_value(idx - i, idy, idz) == 4 &&
-          map_value(idx + i, idy, idz) == 4) ||
-          (is_valid_index(idx - i, idy, idz) &&
-          is_valid_index(idx + i, idy, idz) &&
-          map_value(idx - i, idy, idz) == -4 &&
-          map_value(idx + i, idy, idz) == -4)) {
-        xpadding = i;
-        interp_error += interps->interp_walk(idx - i, idy, idz);
-        interp_error += interps->interp_walk(idx + i, idy, idz);
-      } else {
-        break;
+      if (is_valid_index(idx - i, idy, idz) &&
+          is_valid_index(idx + i, idy, idz)) {
+        if ((map_value(cpmap, idx - i, idy, idz) == -4) &&
+            (map_value(cpmap, idx + i, idy, idz) == -4) &&
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          xpadding = i;
+          interp_error += interps->interp_walk(idx - i, idy, idz);
+          interp_error += interps->interp_walk(idx + i, idy, idz);
+        } else if ((map_value(cpmap, idx - i, idy, idz) == 4) &&
+                   (map_value(cpmap, idx + i, idy, idz) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          xpadding = i;
+          interp_error += interps->interp_walk(idx - i, idy, idz);
+          interp_error += interps->interp_walk(idx + i, idy, idz);
+        }
+        { break; }
+      }
+    }
+    // if (idx == 103 && idy == 211 && idz == 11) {
+    //     std::cout << "global index = " << global_index << std::endl;
+    //     std::cout << "map_value = " << map_value(idx, idy, idz) << std::endl;
+    //     std::cout << "xpadding = " << xpadding << std::endl;
+    //     // std::cout << "local_value_range = " << local_value_range <<
+    //     std::endl;
+    // }
+
+    if (xpadding == 0)
+      return false;
+
+    for (int i = 1; i <= max_padding; ++i) {
+      if (is_valid_index(idx, idy - i, idz) &&
+          is_valid_index(idx, idy + i, idz)) {
+        if ((map_value(cpmap, idx, idy - i, idz) == -4) &&
+            (map_value(cpmap, idx, idy + i, idz) == -4) &&
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          ypadding = i;
+          interp_error += interps->interp_walk(idx, idy - i, idz);
+          interp_error += interps->interp_walk(idx, idy + i, idz);
+        } else if ((map_value(cpmap, idx, idy - i, idz) == 4) &&
+                   (map_value(cpmap, idx, idy + i, idz) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          ypadding = i;
+          interp_error += interps->interp_walk(idx, idy - i, idz);
+          interp_error += interps->interp_walk(idx, idy + i, idz);
+        }
+        { break; }
+      }
+    }
+    //       if (idx == 103 && idy == 211 && idz == 11) {
+    //   std::cout << "ypadding = " << ypadding << std::endl;
+    //   // std::cout << "local_value_range = " << local_value_range <<
+    //   std::endl;
+    // }
+    if (ypadding == 0)
+      return false;
+
+    for (int i = 1; i <= max_padding; ++i) {
+      if (is_valid_index(idx, idy, idz - i) &&
+          is_valid_index(idx, idy, idz + i)) {
+        if ((map_value(cpmap, idx, idy, idz - i) == -4) &&
+            (map_value(cpmap, idx, idy, idz + i) == -4) &&
+            (map_value(cpmap, idx, idy, idz) == -6)) {
+          zpadding = i;
+          interp_error += interps->interp_walk(idx, idy, idz - i);
+          interp_error += interps->interp_walk(idx, idy, idz + i);
+        } else if ((map_value(cpmap, idx, idy, idz - i) == 4) &&
+                   (map_value(cpmap, idx, idy, idz + i) == 4) &&
+                   (map_value(cpmap, idx, idy, idz) == 6)) {
+          zpadding = i;
+          interp_error += interps->interp_walk(idx, idy, idz - i);
+          interp_error += interps->interp_walk(idx, idy, idz + i);
+        }
+        { break; }
       }
     }
 
-    for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx, idy - i, idz) &&
-          is_valid_index(idx, idy + i, idz) &&
-          map_value(idx, idy - i, idz) == 4 &&
-          map_value(idx, idy + i, idz) == 4) ||
-          (is_valid_index(idx, idy - i, idz) &&
-          is_valid_index(idx, idy + i, idz) &&
-          map_value(idx, idy - i, idz) == -4 &&
-          map_value(idx, idy + i, idz) == -4))
-       {
-        ypadding = i;
-        interp_error += interps->interp_walk(idx, idy - i, idz);
-        interp_error += interps->interp_walk(idx, idy + i, idz);
-      } else {
-        break;
-      }
-    }
+    //           if (idx == 103 && idy == 211 && idz == 11) {
+    //   std::cout << "zpadding = " << zpadding << std::endl;
+    //   // std::cout << "local_value_range = " << local_value_range <<
+    //   std::endl;
+    // }
 
-    for (int i = 1; i <= max_padding; ++i) {
-      if ((is_valid_index(idx, idy, idz - i) &&
-          is_valid_index(idx, idy, idz + i) &&
-          map_value(idx, idy, idz - i) == 4 &&
-          map_value(idx, idy, idz + i) == 4) || (
-          is_valid_index(idx, idy, idz - i) &&
-          is_valid_index(idx, idy, idz + i) &&
-          map_value(idx, idy, idz - i) == -4 &&
-          map_value(idx, idy, idz + i) == -4
-          )) {
-        zpadding = i;
-        interp_error += interps->interp_walk(idx, idy, idz - i);
-        interp_error += interps->interp_walk(idx, idy, idz + i);
-      } else {
-        break;
-      }
-    }
+    // if (zpadding == 0)
+    //   return false;
+
+    //      if (idx == 103 && idy == 211 && idz == 11) {
+    //     std::cout << "global index = " << global_index << std::endl;
+    //     std::cout << "map_value = " << map_value(idx, idy, idz) << std::endl;
+    //     std::cout << "xpadding = " << xpadding << std::endl;
+    //     std::cout << "ypadding = " << ypadding << std::endl;
+    //     std::cout << "zpadding = " << zpadding << std::endl;
+    //     // std::cout << "local_value_range = " << local_value_range <<
+    //     std::endl;
+    //   }
 
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
@@ -605,7 +725,7 @@ private:
       for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
         for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
           for (int k = idz - zpadding; k <= idz + zpadding; ++k) {
-            T value = get_value(i, j, k);
+            T value = *get_value(i, j, k);
             if (value < min)
               min = value;
             if (value > max)
@@ -613,30 +733,37 @@ private:
           }
         }
       }
-
       local_abs_max = std::max(std::abs(min), std::abs(max));
-      return (max - min);
+      return (T) (max - min);
     };
 
-    // if ((xpadding != 0 && ypadding != 0) || (xpadding != 0 && zpadding != 0)
-    // ||
-    //     (ypadding != 0 && zpadding != 0)) {
+    // auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
+    //                               zpadding](T &local_abs_max) {
+    //   T min = std::numeric_limits<T>::max();
+    //   T max = -std::numeric_limits<T>::max();
+    //   T range = 0; 
+    //   T value = *get_value(idx, idy, idz);
+    //   T left = std::abs(*get_value(idx - xpadding, idy, idz)-value);
+    //   T right = std::abs(*get_value(idx + xpadding, idy, idz)-value);
+    //   T up = std::abs(*get_value(idx, idy - ypadding, idz)-value);
+    //   T down = std::abs(*get_value(idx, idy + ypadding, idz)-value);
+    //   T front = std::abs(*get_value(idx, idy, idz - zpadding)-value);
+    //   T back = std::abs(*get_value(idx, idy, idz + zpadding)-value);
+    //   range = std::max(left, right);
+    //   range = std::max(range, up);
+    //   range = std::max(range, down);
+    //   range = std::max(range, front);
+    //   range = std::max(range, back);
+    //   // local_abs_max = range;
+    //   return range;
+    // };
+
     if ((xpadding != 0 && ypadding != 0 && zpadding != 0)) {
 
       T local_value_range = get_local_value_range(local_abs_max);
-      local_value_range =
-          local_value_range / (2 * (xpadding + ypadding + zpadding));
+      interp_error = interp_error / (2.0 * (xpadding + ypadding + zpadding));
 
-      if (idx == 104 && idy == 304 && idz == 54) {
-        std::cout << "global index = " << global_index << std::endl;
-        std::cout << "map_value = " << map_value(idx, idy, idz) << std::endl;
-        std::cout << "xpadding = " << xpadding << std::endl;
-        std::cout << "ypadding = " << ypadding << std::endl;
-        std::cout << "zpadding = " << zpadding << std::endl;
-        std::cout << "local_value_range = " << local_value_range << std::endl;
-      }
       if (local_value_range > local_val_tol &&
-          local_abs_max > flush_threshold &&
           interp_error < interp_error_threshold)
         return true;
       else
@@ -644,5 +771,4 @@ private:
     } else
       return false;
   }
-
 };
