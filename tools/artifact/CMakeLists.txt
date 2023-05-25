@@ -1,6 +1,8 @@
 # find_package(Boost REQUIRED) 
 # include_directories(${Boost_INCLUDE_DIRS})
 
+
+
 add_executable(
         interp_detect
         src/interp_detect.cpp
@@ -74,6 +76,20 @@ target_include_directories(
         $<INSTALL_INTERFACE:include/atifact>
 )
 target_link_libraries(test_interp_with_orig  SZ3)
+
+
+add_executable(
+        test_interp_error
+        src/test_interp_error.cpp
+)
+target_include_directories(
+        test_interp_error
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include/atifact>
+)
+target_link_libraries(test_interp_error  SZ3)
+
 
 install(TARGETS interp_detect EXPORT artifact
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

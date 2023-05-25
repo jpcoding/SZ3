@@ -177,7 +177,7 @@ public:
     int idx = index % global_dimensions[0];
     int idy = (index / global_dimensions[0]) % global_dimensions[1];
     int idz = index / (global_dimensions[0] * global_dimensions[1]);
-    return pattern_match3d(cpmap, idx, idy, idx, xpadding, ypadding, zpadding,
+    return pattern_match3d(cpmap, idx, idy, idz, xpadding, ypadding, zpadding,
                            max_padding);
   }
 
@@ -187,8 +187,9 @@ public:
   }
 
   bool try_match3d(std::vector<int> &cpmap, int idx, int idy, int idz,
-                   int &xpadding, int &ypadding, int max_padding = 5) {
-    return pattern_match3d(cpmap, idx, idy, idz, xpadding, ypadding,
+                   int &xpadding, int &ypadding, int &zpadding,
+                   int max_padding = 5) {
+    return pattern_match3d(cpmap, idx, idy, idz, xpadding, ypadding, zpadding,
                            max_padding);
   }
 
@@ -256,50 +257,67 @@ private:
   int calculate_single_point(int global_index) {
 
     if (N == 2) {
-      T tol = 1e-5;
-      T current_value = data[global_index];
-      T value_minus_tol = current_value - tol;
-      T value_plus_tol = current_value + tol;
+      T tol = 1e-3;
+
       int idx = global_index % global_dimensions[0];
       int idy = global_index / global_dimensions[0];
+
       if (idx == 0 || idy == 0 || idx == global_dimensions[0] - 1 ||
           idy == global_dimensions[1] - 1) {
         return 0;
       } else {
-        int sign1 = (value_minus_tol > *get_value(idx - 1, idy)) -
-                    (value_plus_tol < *get_value(idx - 1, idy));
-        int sign2 = (value_minus_tol > *get_value(idx + 1, idy)) -
-                    (value_plus_tol < *get_value(idx + 1, idy));
-        int sign3 = (value_minus_tol > *get_value(idx, idy - 1)) -
-                    (value_plus_tol < *get_value(idx, idy - 1));
-        int sign4 = (value_minus_tol > *get_value(idx, idy + 1)) -
-                    (value_plus_tol < *get_value(idx, idy + 1));
+        T current_value = data[global_index];
+        T value_minus_tol = current_value - tol;
+        T value_plus_tol = current_value + tol;
+        // T up = *get_value(idx, idy + 1);
+        // T down = *get_value(idx, idy - 1);
+        // T left = *get_value(idx - 1, idy);
+        // T right = *get_value(idx + 1, idy);
+        T up = data[global_index + global_dimensions[0]];
+        T down = data[global_index - global_dimensions[0]];
+        T left = data[global_index - 1];
+        T right = data[global_index + 1];
+        int sign1 = (value_minus_tol > up) - (value_plus_tol < up);
+        int sign2 = (value_minus_tol > down) - (value_plus_tol < down);
+        int sign3 = (value_minus_tol > left) - (value_plus_tol < left);
+        int sign4 = (value_minus_tol > right) - (value_plus_tol < right);
         return sign1 + sign2 + sign3 + sign4;
       }
     } else if (N == 3) {
-      T tol = 1e-5;
-      T current_value = data[global_index];
-      T value_minus_tol = current_value - tol;
-      T value_plus_tol = current_value + tol;
+      T tol = 1e-3;
+
       int idx = global_index % global_dimensions[0];
       int idy = (global_index / global_dimensions[0]) % global_dimensions[1];
       int idz = global_index / (global_dimensions[0] * global_dimensions[1]);
+
       if (idx == 0 || idy == 0 || idz == 0 || idx == global_dimensions[0] - 1 ||
           idy == global_dimensions[1] - 1 || idz == global_dimensions[2] - 1) {
         return 0;
       } else {
-        int sign1 = (value_minus_tol > *get_value(idx - 1, idy, idz)) -
-                    (value_plus_tol < *get_value(idx - 1, idy, idz));
-        int sign2 = (value_minus_tol > *get_value(idx + 1, idy, idz)) -
-                    (value_plus_tol < *get_value(idx + 1, idy, idz));
-        int sign3 = (value_minus_tol > *get_value(idx, idy - 1, idz)) -
-                    (value_plus_tol < *get_value(idx, idy - 1, idz));
-        int sign4 = (value_minus_tol > *get_value(idx, idy + 1, idz)) -
-                    (value_plus_tol < *get_value(idx, idy + 1, idz));
-        int sign5 = (value_minus_tol > *get_value(idx, idy, idz - 1)) -
-                    (value_plus_tol < *get_value(idx, idy, idz - 1));
-        int sign6 = (value_minus_tol > *get_value(idx, idy, idz + 1)) -
-                    (value_plus_tol < *get_value(idx, idy, idz + 1));
+        T current_value = data[global_index];
+        T value_minus_tol = current_value - tol;
+        T value_plus_tol = current_value + tol;
+        // T up = *get_value(idx, idy + 1, idz);
+        // T down = *get_value(idx, idy - 1, idz);
+        // T left = *get_value(idx - 1, idy, idz);
+        // T right = *get_value(idx + 1, idy, idz);
+        // T front = *get_value(idx, idy, idz + 1);
+        // T back = *get_value(idx, idy, idz - 1);
+        T up = data[global_index + global_dimensions[0]];
+        T down = data[global_index - global_dimensions[0]];
+        T left = data[global_index - 1];
+        T right = data[global_index + 1];
+        int dim0xdim1 = global_dimensions[0] * global_dimensions[1];
+        T front =
+            data[global_index + dim0xdim1];
+        T back =
+            data[global_index - dim0xdim1];
+        int sign1 = (value_minus_tol > up) - (value_plus_tol < up);
+        int sign2 = (value_minus_tol > down) - (value_plus_tol < down);
+        int sign3 = (value_minus_tol > left) - (value_plus_tol < left);
+        int sign4 = (value_minus_tol > right) - (value_plus_tol < right);
+        int sign5 = (value_minus_tol > front) - (value_plus_tol < front);
+        int sign6 = (value_minus_tol > back) - (value_plus_tol < back);
         return sign1 + sign2 + sign3 + sign4 + sign5 + sign6;
       }
     } else {
@@ -441,8 +459,8 @@ private:
         { break; }
       }
     }
-    // if (xpadding == 0)
-    //   return false;
+    if (xpadding == 0)
+      return false;
 
     for (int i = 1; i <= max_padding; ++i) {
       if (is_valid_index(idx, idy - i, idz) &&
@@ -459,14 +477,14 @@ private:
         { break; }
       }
     }
-    // if (ypadding == 0)
-    //   return false;
+    if (ypadding == 0)
+      return false;
 
     for (int i = 1; i <= max_padding; ++i) {
       if (is_valid_index(idx, idy, idz - i) &&
           is_valid_index(idx, idy, idz + i)) {
         if ((map_value(cpmap, idx, idy, idz - i) == -4) &&
-                (map_value(cpmap, idx, idy, idz + i) == -4) ||
+            (map_value(cpmap, idx, idy, idz + i) == -4) &&
             (map_value(cpmap, idx, idy, idz) == -6)) {
           zpadding = i;
         } else if ((map_value(cpmap, idx, idy, idz - i) == 4) &&
@@ -477,8 +495,8 @@ private:
         { break; }
       }
     }
-    // if (zpadding == 0)
-    //   return false;
+    if (zpadding == 0)
+      return false;
 
     // if (idx == 103 && idy == 211 && idz == 11) {
     //   std::cout << "global index = " << global_index << std::endl;
@@ -509,8 +527,6 @@ private:
 
     if ((xpadding != 0 && ypadding != 0 && zpadding != 0)) {
       T local_value_range = get_local_value_range(local_abs_max);
-      local_value_range =
-          local_value_range / (2 * (xpadding + ypadding + zpadding));
       if (local_value_range > local_val_tol)
         return true;
       else
@@ -596,8 +612,7 @@ private:
     };
 
     if (xpadding != 0 && ypadding != 0) {
-      T local_value_range =
-          get_local_value_range(local_abs_max);
+      T local_value_range = get_local_value_range(local_abs_max);
       local_interp_error /= (T)(2 * xpadding + 2 * ypadding);
       if (local_value_range > local_val_tol &&
           local_abs_max > flush_threshold &&
@@ -734,14 +749,14 @@ private:
         }
       }
       local_abs_max = std::max(std::abs(min), std::abs(max));
-      return (T) (max - min);
+      return (T)(max - min);
     };
 
     // auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
     //                               zpadding](T &local_abs_max) {
     //   T min = std::numeric_limits<T>::max();
     //   T max = -std::numeric_limits<T>::max();
-    //   T range = 0; 
+    //   T range = 0;
     //   T value = *get_value(idx, idy, idz);
     //   T left = std::abs(*get_value(idx - xpadding, idy, idz)-value);
     //   T right = std::abs(*get_value(idx + xpadding, idy, idz)-value);
