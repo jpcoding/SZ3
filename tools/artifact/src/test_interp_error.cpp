@@ -32,20 +32,32 @@ int main(int argc, char **argv) {
     error[i] = odata[i] - ddata[i];
   }
 
+  SZ::Timer timer;
+
   // normalize the data;
   float emin, emax;
+  double detection_time = 0; 
+  timer.start();
   float erange = normalization(error, emin, emax);
+  timer.stop("normalization");
 
+  float omin, omax;
+  float dmin, dmax;
+  float orange = normalization(odata, omin, omax);
 
+  float drange = normalization_range(ddata, omin, omax, orange);
 
-  SZ::Timer timer;
+  CriticalPointsCalculator odata_cp(odata.data(), N, global_dimensions.data());
+
+  CriticalPointsCalculator ddata_cp(ddata.data(), N, global_dimensions.data());
+
+  std::vector<int> odata_cp_map = odata_cp.get_critical_points_map();
+
+  std::vector<int> ddata_cp_map = ddata_cp.get_critical_points_map();
 
   // constrcut the critical point map;
 
   CriticalPointsCalculator cp_calculator(error.data(), N, global_dimensions.data());
-
-
-  double detection_time = 0;
   timer.start();
   std::vector<int> error_cp_map = cp_calculator.get_critical_points_map();
   detection_time += timer.stop("get_critical_points_map");
@@ -87,6 +99,8 @@ int main(int argc, char **argv) {
         //                                 interp_error, interp_threshold);
         // //     bool dmatch =
        bool ematch= cp_calculator.try_match2d(error_cp_map, i, expadding, eypadding);
+       bool dmatch= cp_calculator.try_match2d(error_cp_map, i, expadding, eypadding);
+
 
         if (ematch) {
           // bool omatch =
@@ -129,6 +143,9 @@ int main(int argc, char **argv) {
     int oxpadding;
     int oypadding;
     int ozpadding;
+    int dxpadding;
+    int dypadding;
+    int dzpadding;
     int match_count = 0;
 
     timer.start();
@@ -141,16 +158,19 @@ int main(int argc, char **argv) {
       // if ((idx & 1) || (idy & 1) || (idz & 1)) {
       //   continue;
       // }
+      // if (ddata_cp_map[i] == 6 || ddata_cp_map[i] == -6) {
       if (error_cp_map[i] == 6 || error_cp_map[i] == -6) {
         float interp_error = 0;
         bool ematch = cp_calculator.try_match3d(error_cp_map, i, expadding,
          eypadding, ezpadding);
+        bool dmatch = cp_calculator.try_match3d(ddata_cp_map, i, dxpadding,
+         dypadding, dzpadding);
         // bool ematch = cp_calculator.try_match3d_interp(error_cp_map, i, expadding,
         //  eypadding, ezpadding,interp_error,1e10);
         // bool dmatch = ddata_cp.try_match3d_interp(
         //     ddata_cp_map, i, dxpadding, dypadding, dzpadding, interp_error,
         //     interp_threshold);
-            
+        ematch = ematch&&dmatch;    
         if (ematch) {
           // bool omatch = odata_cp.try_match3d(odata_cp_map, i, oxpadding,
                                             //  oypadding, ozpadding);
@@ -174,8 +194,8 @@ int main(int argc, char **argv) {
     SZ::writefile("xpaddings.dat", xpaddings.data(), xpaddings.size());
     SZ::writefile("ypaddings.dat", ypaddings.data(), ypaddings.size());
     SZ::writefile("zpaddings.dat", zpaddings.data(), zpaddings.size());
-    // SZ::writefile("cp_map.dat", ddata_cp_map.data(), num_elements);
-    // SZ::writefile("cp_map_orig.dat", odata_cp_map.data(), num_elements);
+    SZ::writefile("cp_map_dcomp.dat", ddata_cp_map.data(), num_elements);
+    SZ::writefile("cp_map_orig.dat", odata_cp_map.data(), num_elements);
     SZ::writefile("cp_map_error.dat", error_cp_map.data(), num_elements);
 
   }
