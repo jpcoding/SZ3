@@ -94,7 +94,7 @@ private:
   int sample_size;               // number of elements in the input 1D slice
   int input_stride;              // stride of the input 1D slice
   std::vector<T> derivative;     // derivative of the input data 1D slice
-  double flush_threshold = 1e-7; // any value below this will be treated as 0
+  double flush_threshold = 1e-5; // any value below this will be treated as 0
 
   // Input:
   // data: detivative of a 1D array of the original data.
@@ -137,6 +137,33 @@ private:
   }
 
 
+  // void try_block_detection(T *data, int block_size, T threshold,
+  //                          int &effective_block_count,
+  //                          int &artifact_block_count) {
+  //   // input data is absolute value of second derivative
+  //   int n_block = sample_size / block_size;
+  //   effective_block_count = 0;
+  //   artifact_block_count = 0;
+  //   T boundary_jump_th= flush_threshold*5; 
+  //   for (int i = 0; i < n_block; i++) {
+  //     int block_begin = i * block_size;
+  //     int block_end = block_begin + block_size;
+  //     T block_max = block_abs_max(data, block_begin, block_end);
+  //     // T block_max = block_range(data, block_begin, block_end);
+  //     if (block_max > flush_threshold) {
+  //       effective_block_count++;
+  //       double sum = block_sum(data, block_begin, block_end);
+  //       double test_ratio =(std::abs(data[block_begin])+std::abs(data[block_end-1]))/sum ;
+  //       T left = std::abs(data[block_begin] - data[block_begin+1]);
+  //       T right = std::abs(data[block_end-1] - data[block_end-2]);
+  //       if (test_ratio >= threshold && (left >=boundary_jump_th && right >=boundary_jump_th ))
+  //       {
+  //         artifact_block_count++;
+  //       }
+  //     }
+  //   }
+  // }
+
   void try_block_detection(T *data, int block_size, T threshold,
                            int &effective_block_count,
                            int &artifact_block_count) {
@@ -154,8 +181,8 @@ private:
         effective_block_count++;
         double sum = block_sum(data, block_begin, block_end);
         double test_ratio =(std::abs(data[block_begin])+std::abs(data[block_end-1]))/sum ;
-        T left = std::abs(data[block_begin] - data[block_begin+1]);
-        T right = std::abs(data[block_end-1] - data[block_end-2]);
+        T left = std::abs(data[block_begin]);
+        T right = std::abs(data[block_end-1]);
         if (test_ratio >= threshold && (left >=boundary_jump_th && right >=boundary_jump_th ))
         {
           artifact_block_count++;
