@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
     SZ::writefile("xpaddings.dat", xpaddings.data(), xpaddings.size());
     SZ::writefile("ypaddings.dat", ypaddings.data(), ypaddings.size());
     SZ::writefile("zpaddings.dat", zpaddings.data(), zpaddings.size());
-    SZ::writefile("cp_map.dat", ddata_cp_map.data(), num_elements);
+    SZ::writefile("cp_map_dcomp.dat", ddata_cp_map.data(), num_elements);
     SZ::writefile("cp_map_orig.dat", odata_cp_map.data(), num_elements);
     SZ::writefile("interp_errors.dat", interp_errors.data(),
                   interp_errors.size());

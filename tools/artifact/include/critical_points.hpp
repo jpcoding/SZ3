@@ -593,29 +593,63 @@ private:
     if (ypadding == 0)
       return false;
 
-    T local_abs_max = 0;
-    auto get_local_value_range = [this, idx, idy, xpadding,
-                                  ypadding](T &local_abs_max) {
+    // T local_abs_max = 0;
+    // auto get_local_value_range = [this, idx, idy, xpadding,
+    //                               ypadding](T &local_abs_max) {
+    //   T min = std::numeric_limits<T>::max();
+    //   T max = -std::numeric_limits<T>::max();
+    //   for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
+    //     for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
+    //       T value = *get_value(i, j);
+    //       if (value < min)
+    //         min = value;
+    //       if (value > max)
+    //         max = value;
+    //     }
+    //   }
+    //   local_abs_max = std::max(std::abs(min), std::abs(max));
+    //   return (T)(max - min);
+    // };
+
+        T local_abs_max = 0;
+    T local_std = 0;
+    auto get_local_value_range = [this, idx, idy, xpadding, ypadding
+                                  ](T &local_abs_max, T &local_std) {
       T min = std::numeric_limits<T>::max();
       T max = -std::numeric_limits<T>::max();
+      T sum = 0;
+      int local_count = ((2 * xpadding + 1) * (2 * ypadding + 1));
+      int interp_count = 0;
       for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
         for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
-          T value = *get_value(i, j);
-          if (value < min)
-            min = value;
-          if (value > max)
-            max = value;
+            T value = *get_value(i, j);
+            if (value < min)
+              min = value;
+            if (value > max)
+              max = value;
+            sum += value;
         }
       }
+      T mean = sum / local_count;
+      for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
+        for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
+            T value = *get_value(i, j);
+            local_std += (value - mean) * (value - mean);
+        }
+      }
+      local_std = std::sqrt(local_std / local_count);
       local_abs_max = std::max(std::abs(min), std::abs(max));
       return (T)(max - min);
     };
 
+
+
     if (xpadding != 0 && ypadding != 0) {
-      T local_value_range = get_local_value_range(local_abs_max);
+      T local_value_range = get_local_value_range(local_abs_max, local_std);
       local_interp_error /= (T)(2 * xpadding + 2 * ypadding);
-      if (local_value_range > local_val_tol &&
-          local_abs_max > flush_threshold &&
+      // if (local_value_range > local_val_tol &&
+      //     local_interp_error < interp_error_threshold)
+      if (local_std > local_val_tol &&
           local_interp_error < interp_error_threshold)
         return true;
       else
@@ -732,10 +766,14 @@ private:
     //   }
 
     T local_abs_max = 0;
+    T local_std = 0;
     auto get_local_value_range = [this, idx, idy, idz, xpadding, ypadding,
-                                  zpadding](T &local_abs_max) {
+                                  zpadding](T &local_abs_max, T &local_std) {
       T min = std::numeric_limits<T>::max();
       T max = -std::numeric_limits<T>::max();
+      T sum = 0;
+      int local_count = ((2 * xpadding + 1) * (2 * ypadding + 1) *
+                      (2 * zpadding + 1));
       int interp_count = 0;
       for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
         for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
@@ -745,9 +783,21 @@ private:
               min = value;
             if (value > max)
               max = value;
+            sum += value;
           }
         }
       }
+      T mean = sum / local_count;
+      for (int i = idx - xpadding; i <= idx + xpadding; ++i) {
+        for (int j = idy - ypadding; j <= idy + ypadding; ++j) {
+          for (int k = idz - zpadding; k <= idz + zpadding; ++k) {
+            T value = *get_value(i, j, k);
+            local_std += (value - mean) * (value - mean);
+            ++interp_count;
+          }
+        }
+      }
+      local_std = std::sqrt(local_std / local_count);
       local_abs_max = std::max(std::abs(min), std::abs(max));
       return (T)(max - min);
     };
@@ -775,10 +825,12 @@ private:
 
     if ((xpadding != 0 && ypadding != 0 && zpadding != 0)) {
 
-      T local_value_range = get_local_value_range(local_abs_max);
+      T local_value_range = get_local_value_range(local_abs_max, local_std);
       interp_error = interp_error / (2.0 * (xpadding + ypadding + zpadding));
 
-      if (local_value_range > local_val_tol &&
+      // if (local_value_range > local_val_tol &&
+      //     interp_error < interp_error_threshold)
+      if (local_std > local_val_tol &&
           interp_error < interp_error_threshold)
         return true;
       else
