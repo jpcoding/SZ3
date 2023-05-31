@@ -43,6 +43,10 @@ int main(int argc, char **argv) {
 
   CriticalPointsCalculator ddata_cp(ddata.data(), N, global_dimensions.data());
 
+  float cp_tol = 1e-5;
+  odata_cp.set_cp_map_tol(cp_tol);
+  ddata_cp.set_cp_map_tol(cp_tol);
+
   double detection_time = 0;
   timer.start();
   std::vector<int> odata_cp_map = odata_cp.get_critical_points_map();
