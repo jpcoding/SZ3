@@ -158,18 +158,26 @@ int main(int argc, char **argv) {
       // if ((idx & 1) || (idy & 1) || (idz & 1)) {
       //   continue;
       // }
-      // if (ddata_cp_map[i] == 6 || ddata_cp_map[i] == -6) {
-      if (error_cp_map[i] == 6 || error_cp_map[i] == -6) {
+      if (ddata_cp_map[i] == 6 || ddata_cp_map[i] == -6) {
+      // if (error_cp_map[i] == 6 || error_cp_map[i] == -6) {
         float interp_error = 0;
         bool ematch = cp_calculator.try_match3d(error_cp_map, i, expadding,
          eypadding, ezpadding);
         bool dmatch = cp_calculator.try_match3d(ddata_cp_map, i, dxpadding,
          dypadding, dzpadding);
+        
+        // if(i == 22888780)
+        // {
+        //   std::cout << ddata_cp_map[i] << std::endl;
+        // }
+
         // bool ematch = cp_calculator.try_match3d_interp(error_cp_map, i, expadding,
         //  eypadding, ezpadding,interp_error,1e10);
         // bool dmatch = ddata_cp.try_match3d_interp(
         //     ddata_cp_map, i, dxpadding, dypadding, dzpadding, interp_error,
         //     interp_threshold);
+        // dmatch = 1;
+        // ematch = 1;
         ematch = ematch&&dmatch;    
         if (ematch) {
           // bool omatch = odata_cp.try_match3d(odata_cp_map, i, oxpadding,
