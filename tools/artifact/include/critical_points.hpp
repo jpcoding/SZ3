@@ -223,7 +223,7 @@ private:
   std::vector<int> critical_points_map;
   InterpolationWalk<T> *interps;
   double flush_threshold = 1e-7;
-  double local_val_tol = 1e-2;
+  double local_val_tol = 1e-3;
   double cp_map_tol = 1e-5;
 
   inline bool is_valid_index(int idx, int idy) {

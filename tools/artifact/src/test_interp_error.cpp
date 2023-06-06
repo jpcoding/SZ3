@@ -50,15 +50,18 @@ int main(int argc, char **argv) {
   CriticalPointsCalculator odata_cp(odata.data(), N, global_dimensions.data());
 
   CriticalPointsCalculator ddata_cp(ddata.data(), N, global_dimensions.data());
-
-  std::vector<int> odata_cp_map = odata_cp.get_critical_points_map();
-
-  std::vector<int> ddata_cp_map = ddata_cp.get_critical_points_map();
-
   // constrcut the critical point map;
-
   CriticalPointsCalculator cp_calculator(error.data(), N, global_dimensions.data());
+
+  double cp_tol = 1e-5;
+  cp_calculator.set_cp_map_tol( cp_tol );
+  odata_cp.set_cp_map_tol(cp_tol );
+  ddata_cp.set_cp_map_tol(cp_tol );
+
+
   timer.start();
+  std::vector<int> odata_cp_map = odata_cp.get_critical_points_map();
+  std::vector<int> ddata_cp_map = ddata_cp.get_critical_points_map();
   std::vector<int> error_cp_map = cp_calculator.get_critical_points_map();
   detection_time += timer.stop("get_critical_points_map");
 
@@ -68,6 +71,8 @@ int main(int argc, char **argv) {
     local_range = atof(argv[argc - 1]);
   }
   cp_calculator.set_local_range(local_range);
+  odata_cp.set_local_range(local_range );
+  ddata_cp.set_local_range(local_range );
 
   std::cout << "local_range = " << local_range << std::endl;
 
@@ -83,7 +88,10 @@ int main(int argc, char **argv) {
     ypaddings.reserve(num_elements);
     int expadding;
     int eypadding;
+    int dxpadding;
+    int dypadding;
     int match_count = 0;
+    float interp_threshold = 1e-3;
     timer.start();
     for (int i = 0; i < num_elements; i++) {
       int idx = i % global_dimensions[0];
@@ -91,17 +99,20 @@ int main(int argc, char **argv) {
       // if ((idx & 1) || (idy & 1)) {
       //   continue;
       // }
-      if (error_cp_map[i] == 4 || error_cp_map[i] == -4) {
+      if (ddata_cp_map[i] == 4 || ddata_cp_map[i] == -4) {
 
         float interp_error = 0;
+        
         // bool dmatch =
         //     cp_calculator.try_match2d_interp(ddata_cp_map, i, dxpadding, dypadding,
         //                                 interp_error, interp_threshold);
         // //     bool dmatch =
        bool ematch= cp_calculator.try_match2d(error_cp_map, i, expadding, eypadding);
-       bool dmatch= cp_calculator.try_match2d(error_cp_map, i, expadding, eypadding);
+       bool dmatch= ddata_cp.try_match2d_interp(ddata_cp_map, i, dxpadding, dypadding,
+                                        interp_error, interp_threshold);
+      //  bool omatch = (ddata_cp_map[i]!=odata_cp_map[i]);
 
-
+        ematch = (ematch && dmatch );
         if (ematch) {
           // bool omatch =
           //     odata_cp.try_match2d(odata_cp_map, i, oxpadding, oypadding);
@@ -114,8 +125,8 @@ int main(int argc, char **argv) {
           // }
           // if (!omatch) {
             match_index.push_back(i);
-            xpaddings.push_back(expadding);
-            ypaddings.push_back(eypadding);
+            xpaddings.push_back(dxpadding);
+            ypaddings.push_back(dypadding);
             interp_errors.push_back(interp_error);
             match_count++;
           // }
@@ -147,7 +158,7 @@ int main(int argc, char **argv) {
     int dypadding;
     int dzpadding;
     int match_count = 0;
-
+    float interp_threshold = 1e-3;
     timer.start();
 
     for (int i = 0; i < num_elements; i++) {
@@ -163,8 +174,8 @@ int main(int argc, char **argv) {
         float interp_error = 0;
         bool ematch = cp_calculator.try_match3d(error_cp_map, i, expadding,
          eypadding, ezpadding);
-        bool dmatch = cp_calculator.try_match3d(ddata_cp_map, i, dxpadding,
-         dypadding, dzpadding);
+        bool dmatch = ddata_cp.try_match3d_interp(ddata_cp_map, i, dxpadding,
+         dypadding, dzpadding, interp_error, interp_threshold);
         
         // if(i == 22888780)
         // {
@@ -187,9 +198,9 @@ int main(int argc, char **argv) {
           // std::cout << "dmatch: " << i << std::endl;
           // if (!omatch) {
             match_index.push_back(i);
-            xpaddings.push_back(expadding);
-            ypaddings.push_back(eypadding);
-            zpaddings.push_back(ezpadding);
+            xpaddings.push_back(dxpadding);
+            ypaddings.push_back(dypadding);
+            zpaddings.push_back(dzpadding);
             match_count++;
           // }
         }
