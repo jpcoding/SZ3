@@ -31,12 +31,19 @@ int main(int argc, char **argv) {
   // normalize the data;
   float omin, omax;
   float dmin, dmax;
+   SZ::Timer timer;
+   double detection_time = 0;
+  timer.start();
   float orange = normalization(odata, omin, omax);
 
-  float drange = normalization_range(ddata, omin, omax, orange);
+  // float drange = normalization_range(ddata, omin, omax, orange);
+  float drange = normalization(ddata, dmin, dmax);
+
+
+  detection_time += timer.stop("normalization");
   // float drange = normalization(ddata, dmin, dmax);
 
-  SZ::Timer timer;
+ 
 
   // constrcut the critical point map;
   CriticalPointsCalculator odata_cp(odata.data(), N, global_dimensions.data());
@@ -47,7 +54,7 @@ int main(int argc, char **argv) {
   odata_cp.set_cp_map_tol(cp_tol);
   ddata_cp.set_cp_map_tol(cp_tol);
 
-  double detection_time = 0;
+  
   timer.start();
   std::vector<int> odata_cp_map = odata_cp.get_critical_points_map();
 
@@ -96,13 +103,13 @@ int main(int argc, char **argv) {
         bool dmatch =
             ddata_cp.try_match2d_interp(ddata_cp_map, i, dxpadding, dypadding,
                                         interp_error, interp_threshold);
-        //     bool dmatch =
+        // bool dmatch =
         // ddata_cp.try_match2d(ddata_cp_map, i, dxpadding, dypadding);
 
         if (dmatch) {
-          // bool omatch =
-          //     odata_cp.try_match2d(odata_cp_map, i, oxpadding, oypadding);
-          bool omatch = (ddata_cp_map[i] == odata_cp_map[i]);
+          bool omatch =
+              odata_cp.try_match2d(odata_cp_map, i, oxpadding, oypadding);
+          // bool omatch = (ddata_cp_map[i] == odata_cp_map[i]);
 
           // if (i==3204420)
           // {
@@ -121,13 +128,16 @@ int main(int argc, char **argv) {
     }
     detection_time += timer.stop("pattern match");
     std::cout << "match_count: " << match_count << std::endl;
-    std::cout << "detection_time: " << detection_time << std::endl;
+    std::cout << "detection_time = " << detection_time << std::endl;
 
     SZ::writefile("match_index.dat", match_index.data(), match_index.size());
     SZ::writefile("xpaddings.dat", xpaddings.data(), xpaddings.size());
     SZ::writefile("ypaddings.dat", ypaddings.data(), ypaddings.size());
     SZ::writefile("interp_errors.dat", interp_errors.data(),
                   interp_errors.size());
+        SZ::writefile("cp_map_dcomp.dat", ddata_cp_map.data(), num_elements);
+    SZ::writefile("cp_map_orig.dat", odata_cp_map.data(), num_elements);
+    // SZ::writefile("cp_map_error.dat", error_cp_map.data(), num_elements);
 
   } else if (N == 3) {
     match_index.reserve(num_elements);

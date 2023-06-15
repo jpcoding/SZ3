@@ -553,14 +553,18 @@ private:
             map_value(cpmap, idx + i, idy) == 2 &&
             map_value(cpmap, idx, idy) == 4) {
           xpadding = i;
-          local_interp_error += interps->interp_walk(idx - i, idy);
-          local_interp_error += interps->interp_walk(idx + i, idy);
+          // local_interp_error += interps->interp_walk(idx - i, idy);
+          // local_interp_error += interps->interp_walk(idx + i, idy);
+          local_interp_error += std::pow(interps->interp_walk(idx - i, idy),2);
+          local_interp_error += std::pow(interps->interp_walk(idx + i, idy),2);
         } else if (map_value(cpmap, idx - i, idy) == -2 &&
                    map_value(cpmap, idx + i, idy) == -2 &&
                    map_value(cpmap, idx, idy) == -4) {
           xpadding = i;
-          local_interp_error += interps->interp_walk(idx - i, idy);
-          local_interp_error += interps->interp_walk(idx + i, idy);
+          // local_interp_error += interps->interp_walk(idx - i, idy);
+          // local_interp_error += interps->interp_walk(idx + i, idy);
+          local_interp_error += std::pow(interps->interp_walk(idx - i, idy),2);
+          local_interp_error += std::pow(interps->interp_walk(idx + i, idy),2);
         } else {
           break;
         }
@@ -577,14 +581,16 @@ private:
             map_value(cpmap, idx, idy + i) == 2 &&
             map_value(cpmap, idx, idy) == 4) {
           ypadding = i;
-          local_interp_error += interps->interp_walk(idx, idy - i);
-          local_interp_error += interps->interp_walk(idx, idy + i);
+          // local_interp_error += interps->interp_walk(idx, idy - i);
+          // local_interp_error += interps->interp_walk(idx, idy + i);
+          local_interp_error += std::pow(interps->interp_walk(idx, idy - i),2);
+          local_interp_error += std::pow(interps->interp_walk(idx, idy + i),2);
         } else if (map_value(cpmap, idx, idy - i) == -2 &&
                    map_value(cpmap, idx, idy + i) == -2 &&
                    map_value(cpmap, idx, idy) == -4) {
           ypadding = i;
-          local_interp_error += interps->interp_walk(idx, idy - i);
-          local_interp_error += interps->interp_walk(idx, idy + i);
+          local_interp_error += std::pow(interps->interp_walk(idx, idy - i),2);
+          local_interp_error += std::pow(interps->interp_walk(idx, idy + i),2);
         } else {
           break;
         }
@@ -645,6 +651,7 @@ private:
     if (xpadding != 0 && ypadding != 0) {
       T local_value_range = get_local_value_range(local_abs_max, local_std);
       local_interp_error /= (T)(2 * xpadding + 2 * ypadding);
+      local_interp_error = std::sqrt(local_interp_error);
       // if (local_value_range > local_val_tol &&
       //     local_interp_error < interp_error_threshold)
       if (local_std > local_val_tol &&

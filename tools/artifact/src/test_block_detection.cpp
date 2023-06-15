@@ -65,7 +65,11 @@ int main(int argc, char **argv) {
   SZ::readfile<float>(argv[1], num_elements, input_data.data());
 
   float data_min, dat_max;
+  double detection_time = 0.0;
+  timer.start();
+
   float range = normalization(input_data, data_min, dat_max);
+  detection_time += timer.stop("normalization");
   // block detection
   float threhshold = 0.90;
   if (argc == (3 + N + 1)) {
@@ -81,6 +85,9 @@ int main(int argc, char **argv) {
   int detect_blocksize;
   int min_block_size = 4;
   int max_block_size = 16;
+  std::vector<int> effective_block_count(max_block_size-min_block_size+1,0);
+  std::vector<int> artifact_block_count(max_block_size-min_block_size+1,0);
+  std::vector<double> detect_ratios(max_block_size-min_block_size+1,0);
   if (N == 2) {
     // if input data is 2d, sample on two directions, sample 10%
     // 1. detect along y direction
@@ -97,17 +104,16 @@ int main(int argc, char **argv) {
     int detect_block_size_y = 0;
     int y_effective_block_count = 0;
     int y_artifact_block_count = 0;
-    timer.start();
 
+
+    
     for (detect_blocksize = min_block_size; detect_blocksize <= max_block_size;
          detect_blocksize++) {
+      timer.start();
       int current_block_size = detect_blocksize;
       int current_effective_block_count = 0;
       int current_artifact_block_count = 0;
       double current_detect_ratio = 0;
-
-
-
       // std::cout << "current block size: " << current_block_size << std::endl;
       for (int i = x_sample_begin; i < x_sample_end; i++) {
         int begin = i * x_sample_stride;
@@ -129,6 +135,15 @@ int main(int argc, char **argv) {
       }
       current_detect_ratio = (1.0 * current_artifact_block_count) /
                              (1.0 * current_effective_block_count);
+      if (current_detect_ratio > detect_ratio_y) {
+        detect_ratio_y = current_detect_ratio;
+        detect_block_size_y = current_block_size;
+        y_effective_block_count = current_effective_block_count;
+        y_artifact_block_count = current_artifact_block_count;
+      }
+      effective_block_count[detect_blocksize-min_block_size] +=  current_effective_block_count;
+      artifact_block_count[detect_blocksize-min_block_size] += current_artifact_block_count;
+      detection_time += timer.stop();
       std::cout << "current_effective_block_count = "
                 << current_effective_block_count << std::endl;
       std::cout << "current_artifact_block_count = "
@@ -136,12 +151,7 @@ int main(int argc, char **argv) {
       std::cout << "current block size = " << current_block_size << std::endl
                 << "current detect ratio = " << current_detect_ratio
                 << std::endl;
-      if (current_detect_ratio > detect_ratio_y) {
-        detect_ratio_y = current_detect_ratio;
-        detect_block_size_y = current_block_size;
-        y_effective_block_count = current_effective_block_count;
-        y_artifact_block_count = current_artifact_block_count;
-      }
+
     }
     // timer.stop("block detection");
     // std::cout << "block size = " << detect_block_size_y << std::endl;
@@ -153,9 +163,10 @@ int main(int argc, char **argv) {
     int detect_block_size_x = 0;
     int x_effective_block_count = 0;
     int x_artifact_block_count = 0;
-
+    
     for (detect_blocksize = min_block_size; detect_blocksize <= max_block_size;
          detect_blocksize++) {
+      timer.start();
       int current_block_size = detect_blocksize;
       int current_effective_block_count = 0;
       int current_artifact_block_count = 0;
@@ -176,6 +187,15 @@ int main(int argc, char **argv) {
       }
       current_detect_ratio = (double)current_artifact_block_count /
                              (double)(current_effective_block_count);
+            if (current_detect_ratio > detect_ratio_x) {
+        detect_ratio_x = current_detect_ratio;
+        detect_block_size_x = current_block_size;
+        x_effective_block_count = current_effective_block_count;
+        x_artifact_block_count = current_artifact_block_count;
+      }
+      effective_block_count[detect_blocksize-min_block_size] +=  current_effective_block_count;
+      artifact_block_count[detect_blocksize-min_block_size] += current_artifact_block_count;
+      detection_time += timer.stop();
       std::cout << "current_effective_block_count = "
                 << current_effective_block_count << std::endl;
       std::cout << "current_artifact_block_count = "
@@ -183,15 +203,11 @@ int main(int argc, char **argv) {
       std::cout << "current block size = " << current_block_size << std::endl
                 << "current detect ratio = " << current_detect_ratio
                 << std::endl;
-      if (current_detect_ratio > detect_ratio_x) {
-        detect_ratio_x = current_detect_ratio;
-        detect_block_size_x = current_block_size;
-        x_effective_block_count = current_effective_block_count;
-        x_artifact_block_count = current_artifact_block_count;
-      }
+
     }
 
-    timer.stop("block detection");
+    // timer.stop("block detection");
+    std::cout << "detection time = " << detection_time << std::endl;
 
     std::cout << "block size x = " << detect_block_size_x << std::endl;
     std::cout << "detect ratio x = " << detect_ratio_x << std::endl;
@@ -204,6 +220,12 @@ int main(int argc, char **argv) {
     std::cout << "y_effective_block_count = " << y_effective_block_count
               << std::endl;
     std::cout << "y_artifact_block_count = " << y_artifact_block_count << std::endl;
+
+    for (int i =0; i < max_block_size-min_block_size+1; i++) {
+      detect_ratios[i] = (double)artifact_block_count[i]/(double)effective_block_count[i];
+      std::cout << "stat::blocksize= " << i+min_block_size << std::endl;
+      std::cout << "stat::blockratio= " << detect_ratios[i] << std::endl;
+    }
 
     // // decision on 2D data
     // if (detect_ratio_x > detect_ratio_y) {
@@ -230,13 +252,15 @@ int main(int argc, char **argv) {
     int x_sample_end = num_xsample / 4 * 3;
 
     // 1. detect along z direction
-    timer.start();
+    
     int detect_block_size_z = 0;
     double detect_ratio_z = 0;
     int artifact_block_count_z = 0;
     int effective_block_count_z = 0;
+    
     for (detect_blocksize = min_block_size; detect_blocksize <= max_block_size;
          detect_blocksize++) {
+      timer.start();
       int current_block_size = detect_blocksize;
       int current_effective_block_count = 0;
       int current_artifact_block_count = 0;
@@ -259,6 +283,18 @@ int main(int argc, char **argv) {
       }
       current_detect_ratio = (double)current_artifact_block_count /
                              (double)(current_effective_block_count);
+
+      if (current_detect_ratio > detect_ratio_z) {
+        detect_ratio_z = current_detect_ratio;
+        detect_block_size_z = current_block_size;
+        artifact_block_count_z = current_artifact_block_count;
+        effective_block_count_z = current_effective_block_count;
+      }
+      effective_block_count[detect_blocksize-min_block_size] +=  current_effective_block_count;
+      artifact_block_count[detect_blocksize-min_block_size] += current_artifact_block_count;
+
+      detection_time += timer.stop();
+
       std::cout << "current_effective_block_count = "
                 << current_effective_block_count << std::endl;
       std::cout << "current_artifact_block_count = "
@@ -266,12 +302,7 @@ int main(int argc, char **argv) {
       std::cout << "current block size = " << current_block_size << std::endl
                 << "current detect ratio = " << current_detect_ratio
                 << std::endl;
-      if (current_detect_ratio > detect_ratio_z) {
-        detect_ratio_z = current_detect_ratio;
-        detect_block_size_z = current_block_size;
-        artifact_block_count_z = current_artifact_block_count;
-        effective_block_count_z = current_effective_block_count;
-      }
+
     }
     std::cout << "z direction block size = " << detect_block_size_z
               << std::endl;
@@ -286,6 +317,7 @@ int main(int argc, char **argv) {
     int effective_block_count_y = 0;
     for (detect_blocksize = min_block_size; detect_blocksize <= max_block_size;
          detect_blocksize++) {
+      timer.start();
       int current_block_size = detect_blocksize;
       int current_effective_block_count = 0;
       int current_artifact_block_count = 0;
@@ -311,6 +343,15 @@ int main(int argc, char **argv) {
                              (double)(current_effective_block_count);
       current_detect_ratio = (double)current_artifact_block_count /
                              (double)(current_effective_block_count);
+      if (current_detect_ratio > detect_ratio_y) {
+        detect_ratio_y = current_detect_ratio;
+        detect_block_size_y = current_block_size;
+        artifact_block_count_y = current_artifact_block_count;
+        effective_block_count_y = current_effective_block_count;
+      }
+      effective_block_count[detect_blocksize-min_block_size] +=  current_effective_block_count;
+      artifact_block_count[detect_blocksize-min_block_size] += current_artifact_block_count;
+      detection_time += timer.stop();
       std::cout << "current_effective_block_count = "
                 << current_effective_block_count << std::endl;
       std::cout << "current_artifact_block_count = "
@@ -318,12 +359,7 @@ int main(int argc, char **argv) {
       std::cout << "current block size = " << current_block_size << std::endl
                 << "current detect ratio = " << current_detect_ratio
                 << std::endl;
-      if (current_detect_ratio > detect_ratio_y) {
-        detect_ratio_y = current_detect_ratio;
-        detect_block_size_y = current_block_size;
-        artifact_block_count_y = current_artifact_block_count;
-        effective_block_count_y = current_effective_block_count;
-      }
+
     }
 
     std::cout << "y direction block size = " << detect_block_size_y
@@ -340,6 +376,7 @@ int main(int argc, char **argv) {
 
     for (detect_blocksize = min_block_size; detect_blocksize <= max_block_size;
          detect_blocksize++) {
+      timer.start();
       int current_block_size = detect_blocksize;
       int current_effective_block_count = 0;
       int current_artifact_block_count = 0;
@@ -364,6 +401,15 @@ int main(int argc, char **argv) {
       }
       current_detect_ratio = (double)current_artifact_block_count /
                              (double)(current_effective_block_count);
+            if (current_detect_ratio > detect_ratio_x) {
+        detect_ratio_x = current_detect_ratio;
+        detect_block_size_x = current_block_size;
+        artifact_block_count_x = current_artifact_block_count;
+        effective_block_count_x = current_effective_block_count;
+      }
+      effective_block_count[detect_blocksize-min_block_size] +=  current_effective_block_count;
+      artifact_block_count[detect_blocksize-min_block_size] += current_artifact_block_count;
+      detection_time += timer.stop();
       std::cout << "current_effective_block_count = "
                 << current_effective_block_count << std::endl;
       std::cout << "current_artifact_block_count = "
@@ -371,14 +417,11 @@ int main(int argc, char **argv) {
       std::cout << "current block size = " << current_block_size << std::endl
                 << "current detect ratio = " << current_detect_ratio
                 << std::endl;
-      if (current_detect_ratio > detect_ratio_x) {
-        detect_ratio_x = current_detect_ratio;
-        detect_block_size_x = current_block_size;
-        artifact_block_count_x = current_artifact_block_count;
-        effective_block_count_x = current_effective_block_count;
-      }
+
     }
-    timer.stop("block detection");
+    // timer.stop("block detection");
+  
+    std::cout << "detection time = " << detection_time << std::endl;
 
     std::cout << "block size x = " << detect_block_size_x << std::endl;
     std::cout << "detect ratio x = " << detect_ratio_x << std::endl;
@@ -400,6 +443,13 @@ int main(int argc, char **argv) {
               << std::endl;
     std::cout << "artifact block count z = " << artifact_block_count_z
               << std::endl;
+
+    
+    for (int i =0; i < max_block_size-min_block_size+1; i++) {
+      detect_ratios[i] = (double)artifact_block_count[i]/(double)effective_block_count[i];
+      std::cout << "stat::blocksize= " << i+min_block_size << std::endl;
+      std::cout << "stat::blockratio= " << detect_ratios[i] << std::endl;
+    }
 
     majority_vote(detect_block_size_x, detect_ratio_x, detect_block_size_y,
                   detect_ratio_y, detect_block_size_z, detect_ratio_z);

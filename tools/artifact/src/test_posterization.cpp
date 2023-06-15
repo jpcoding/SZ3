@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
   SZ::readfile<float>(argv[1], num_elements, data.data());
   float data_min, dat_max;
     SZ::Timer timer;
-              double detect_time = 0;
+  double detect_time = 0;
     timer.start();
   float range = normalization( data, data_min, dat_max);
   detect_time+= timer.stop("normalization");
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
 // }
 //   timer.stop("Rearrange label ");
 
-  SZ::writefile("segmentation_map.dat", segmentation_map.data(),
-                segmentation_map.size());
+  // SZ::writefile("segmentation_map.dat", segmentation_map.data(),
+  //               segmentation_map.size());
   return 0;
 }
