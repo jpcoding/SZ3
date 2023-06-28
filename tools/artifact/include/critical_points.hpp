@@ -696,6 +696,35 @@ private:
     if (ypadding == 0)
       return false;
 
+    // check the signs of the corner points 
+    int center = map_value(cpmap, idx, idy);
+    if( center > 0)
+    {
+    for(int i = -xpadding; i <= xpadding; ++i){
+      for(int j = -ypadding; j <= ypadding; ++j){
+        if(i == 0 || j == 0)
+          continue;
+        if(map_value(cpmap, idx + i, idy + j) < 0)
+          return false;
+      }
+    }
+    }
+    else if (center < 0)
+    {
+    for(int i = -xpadding; i <= xpadding; ++i){
+      for(int j = -ypadding; j <= ypadding; ++j){
+        if(i == 0 || j == 0)
+          continue;
+        if(map_value(cpmap, idx + i, idy + j) > 0)
+          return false;
+      }
+    }
+    }
+    else {
+      return false;
+    }
+
+
     T local_abs_max = 0;
     auto get_local_value_range = [this, idx, idy, xpadding,
                                   ypadding](T &local_abs_max) {
@@ -733,7 +762,7 @@ private:
 
   bool pattern_match3d(std::vector<int> &cpmap, int idx, int idy, int idz,
                        int &xpadding, int &ypadding, int &zpadding,
-                       int max_padding = 7) {
+                       int max_padding = 5) {
     xpadding = 0;
     ypadding = 0;
     zpadding = 0;
@@ -796,6 +825,51 @@ private:
     }
     if (zpadding == 0)
       return false;
+
+    // check the signs of the corner points
+    // they have to be the same sign or 0 
+    int center_sign = map_value(cpmap, idx, idy, idz);
+    if (center_sign > 0)
+    {
+      for(int i = -xpadding; i <= xpadding; i++)
+      {
+        for(int j = -ypadding; j <= ypadding; j++)
+        {
+          for(int k = -zpadding; k <= zpadding; k++)
+          {
+            if (i ==0 || j == 0 || k == 0)
+              continue;
+            if (map_value(cpmap, idx+i, idy+j, idz+k) < 0)
+            {
+              return false;
+            }
+          }
+        }
+      }
+    }
+    else if (center_sign < 0)
+    {
+      for (int i = -xpadding; i <= xpadding; i++)
+      {
+        for (int j = -ypadding; j <= ypadding; j++)
+        {
+          for (int k = -zpadding; k <= zpadding; k++)
+          {
+            if (i == 0 || j == 0 || k == 0)
+              continue;
+            if (map_value(cpmap, idx + i, idy + j, idz + k) > 0)
+            {
+              return false;
+            }
+          }
+        }
+      }
+    }
+    else
+    {
+      return false;
+    }
+
 
     // if (idx == 103 && idy == 211 && idz == 11) {
     //   std::cout << "global index = " << global_index << std::endl;
@@ -967,7 +1041,7 @@ private:
   bool pattern_match3d_interp(std::vector<int> &cpmap, int idx, int idy,
                               int idz, int &xpadding, int &ypadding,
                               int &zpadding, T &interp_error,
-                              T interp_error_threshold, int max_padding = 7) {
+                              T interp_error_threshold, int max_padding = 5) {
     xpadding = 0;
     ypadding = 0;
     zpadding = 0;

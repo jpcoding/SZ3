@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
 
         bool dmatch =
             ddata_cp.try_match2d(ddata_cp_map, i, dxpadding, dypadding);
-        dmatch = dmatch &&((ddata_cp_map[i] != odata_cp_map[i]));
+        // dmatch = dmatch &&((ddata_cp_map[i] != odata_cp_map[i]));
 
         if (dmatch ) {
           dmatch_count++;
