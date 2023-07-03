@@ -710,8 +710,8 @@ private:
           continue;
         if(map_value(cpmap, idx + i, idy + j) < 0)
         {
-          new_ypadding = std::abs(j) - 1;
-          new_xpadding = std::abs(i) - 1;
+          new_ypadding = std::min(std::abs(j) - 1, new_ypadding);
+          new_xpadding = std::min(std::abs(i) - 1, new_xpadding);
         }
       }
     }
@@ -726,8 +726,8 @@ private:
           continue;
         if(map_value(cpmap, idx + i, idy + j) > 0)
         {
-          new_ypadding = std::abs(j) - 1;
-          new_xpadding = std::abs(i) - 1;
+          new_ypadding = std::min(std::abs(j) - 1, new_ypadding);
+          new_xpadding = std::min(std::abs(i) - 1, new_xpadding);
         }
       }
     }
@@ -864,9 +864,9 @@ private:
               continue;
             if (map_value(cpmap, idx+i, idy+j, idz+k) < 0)
             {
-              new_ypadding = std::abs(j) - 1;
-              new_xpadding = std::abs(i) - 1;
-              new_zpadding = std::abs(k) - 1;
+          new_ypadding = std::min(std::abs(j) - 1, new_ypadding);
+          new_xpadding = std::min(std::abs(i) - 1, new_xpadding);
+          new_zpadding = std::min(std::abs(k) - 1, new_zpadding);
             }
           }
         }
@@ -888,9 +888,9 @@ private:
               continue;
             if (map_value(cpmap, idx + i, idy + j, idz + k) > 0)
             {
-              new_ypadding = std::abs(j) - 1;
-              new_xpadding = std::abs(i) - 1;
-              new_zpadding = std::abs(k) - 1;
+          new_ypadding = std::min(std::abs(j) - 1, new_ypadding);
+          new_xpadding = std::min(std::abs(i) - 1, new_xpadding);
+          new_zpadding = std::min(std::abs(k) - 1, new_zpadding);
             }
           }
         }
