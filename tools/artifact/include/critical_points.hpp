@@ -698,31 +698,46 @@ private:
 
     // check the signs of the corner points 
     int center = map_value(cpmap, idx, idy);
+    int new_xpadding = xpadding;
+    int new_ypadding = ypadding;
     if( center > 0)
     {
     for(int i = -xpadding; i <= xpadding; ++i){
+      if (i ==0)
+        continue;
       for(int j = -ypadding; j <= ypadding; ++j){
-        if(i == 0 || j == 0)
+        if(j == 0)
           continue;
         if(map_value(cpmap, idx + i, idy + j) < 0)
-          return false;
+        {
+          new_ypadding = std::abs(j) - 1;
+          new_xpadding = std::abs(i) - 1;
+        }
       }
     }
     }
     else if (center < 0)
     {
     for(int i = -xpadding; i <= xpadding; ++i){
+      if (i ==0)
+        continue;
       for(int j = -ypadding; j <= ypadding; ++j){
-        if(i == 0 || j == 0)
+        if(j == 0)
           continue;
         if(map_value(cpmap, idx + i, idy + j) > 0)
-          return false;
+        {
+          new_ypadding = std::abs(j) - 1;
+          new_xpadding = std::abs(i) - 1;
+        }
       }
     }
     }
     else {
       return false;
     }
+
+    xpadding = new_xpadding;
+    ypadding = new_ypadding;
 
 
     T local_abs_max = 0;
@@ -826,6 +841,10 @@ private:
     if (zpadding == 0)
       return false;
 
+    int new_xpadding = xpadding;
+    int new_ypadding = ypadding;
+    int new_zpadding = zpadding;
+
     // check the signs of the corner points
     // they have to be the same sign or 0 
     int center_sign = map_value(cpmap, idx, idy, idz);
@@ -833,15 +852,21 @@ private:
     {
       for(int i = -xpadding; i <= xpadding; i++)
       {
+        if(i == 0)
+          continue;
         for(int j = -ypadding; j <= ypadding; j++)
         {
+          if(j == 0)
+            continue;
           for(int k = -zpadding; k <= zpadding; k++)
           {
-            if (i ==0 || j == 0 || k == 0)
+            if (k == 0)
               continue;
             if (map_value(cpmap, idx+i, idy+j, idz+k) < 0)
             {
-              return false;
+              new_ypadding = std::abs(j) - 1;
+              new_xpadding = std::abs(i) - 1;
+              new_zpadding = std::abs(k) - 1;
             }
           }
         }
@@ -851,15 +876,21 @@ private:
     {
       for (int i = -xpadding; i <= xpadding; i++)
       {
+        if (i == 0)
+          continue;
         for (int j = -ypadding; j <= ypadding; j++)
         {
+          if (j == 0)
+            continue;
           for (int k = -zpadding; k <= zpadding; k++)
           {
-            if (i == 0 || j == 0 || k == 0)
+            if (k == 0)
               continue;
             if (map_value(cpmap, idx + i, idy + j, idz + k) > 0)
             {
-              return false;
+              new_ypadding = std::abs(j) - 1;
+              new_xpadding = std::abs(i) - 1;
+              new_zpadding = std::abs(k) - 1;
             }
           }
         }
@@ -869,6 +900,10 @@ private:
     {
       return false;
     }
+
+    xpadding = new_xpadding;
+    ypadding = new_ypadding;
+    zpadding = new_zpadding;
 
 
     // if (idx == 103 && idy == 211 && idz == 11) {
