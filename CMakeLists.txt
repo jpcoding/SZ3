@@ -73,7 +73,7 @@ add_subdirectory(tools/sz3)
 
 
 
-option(BUILD_sz3c_FILTER "build the sz3c" OFF)
+option(BUILD_sz3c_FILTER "build the sz3c" ON)
 if(BUILD_sz3c_FILTER)
 	add_subdirectory(tools/sz3c)
 endif()
