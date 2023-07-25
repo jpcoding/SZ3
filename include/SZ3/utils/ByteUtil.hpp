@@ -7,6 +7,7 @@
 
 #include "SZ3/def.hpp"
 #include <cstring>
+#include <stdio.h>
 
 namespace SZ {
 
@@ -228,6 +229,64 @@ namespace SZ {
         }
         return lfBuf_cur.value;
     }
+
+    // *** modified from Sheng's code start ***
+    void
+    convertIntArray2ByteArray_fast_1b_to_result_sz(const uchar *intArray, size_t intArrayLength, uchar *&compressed_pos)
+    {
+        size_t byteLength = 0;
+        size_t i, j;
+        if (intArrayLength % 8 == 0)
+            byteLength = intArrayLength / 8;
+        else
+            byteLength = intArrayLength / 8 + 1;
+
+        size_t n = 0;
+        int tmp, type;
+        for (i = 0; i < byteLength; i++)
+        {
+            tmp = 0;
+            for (j = 0; j < 8 && n < intArrayLength; j++)
+            {
+                type = intArray[n];
+                if (type == 1)
+                    tmp = (tmp | (1 << (7 - j)));
+                n++;
+            }
+            *(compressed_pos++) = (uchar)tmp;
+        }
+    }
+
+    void convertByteArray2IntArray_fast_1b_sz(size_t intArrayLength, const uchar *&compressed_pos, size_t byteArrayLength, uchar *intArray)
+    {
+        if (intArrayLength > byteArrayLength * 8)
+        {
+            printf("Error: intArrayLength > byteArrayLength*8\n");
+            printf("intArrayLength=%zu, byteArrayLength = %zu", intArrayLength, byteArrayLength);
+            exit(0);
+        }
+        size_t n = 0, i;
+        int tmp;
+        for (i = 0; i < byteArrayLength - 1; i++)
+        {
+            tmp = *(compressed_pos++);
+            intArray[n++] = (tmp & 0x80) >> 7;
+            intArray[n++] = (tmp & 0x40) >> 6;
+            intArray[n++] = (tmp & 0x20) >> 5;
+            intArray[n++] = (tmp & 0x10) >> 4;
+            intArray[n++] = (tmp & 0x08) >> 3;
+            intArray[n++] = (tmp & 0x04) >> 2;
+            intArray[n++] = (tmp & 0x02) >> 1;
+            intArray[n++] = (tmp & 0x01) >> 0;
+        }
+        tmp = *(compressed_pos++);
+        for (int i = 0; n < intArrayLength; n++, i++)
+        {
+            intArray[n] = (tmp & (1 << (7 - i))) >> (7 - i);
+        }
+    }
+    // *** modified from Sheng's code end ***
+
 
 };
 #endif //SZ3_BYTEUTIL_HPP
