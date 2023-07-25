@@ -3,6 +3,7 @@ project(SZ3 VERSION 3.1.7)
 include(GNUInstallDirs)
 include(CTest)
 
+option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data" OFF)
 if (SZ_ANALYSIS)
   add_compile_definitions(-DSZ_ANALYSIS)
 endif()
