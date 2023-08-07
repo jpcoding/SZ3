@@ -148,6 +148,7 @@ namespace SZ {
             block_sift_on = cfg.GetBoolean("ArtifactSettings", "block_sift_on", block_sift_on);
             block_iso_on = cfg.GetBoolean("ArtifactSettings", "block_iso_on", block_iso_on);
             block_isovalue =  cfg.GetReal("ArtifactSettings", "block_isovalue", block_isovalue);
+            pattern_check_on = cfg.GetBoolean("ArtifactSettings", "pattern_check_on", pattern_check_on);
 
         }
 
@@ -258,7 +259,9 @@ namespace SZ {
         bool block_flush_on = 0;
         bool block_sift_on =0;
         bool block_iso_on = 0;
+        bool pattern_check_on = 1;
         double block_isovalue=0;
+        double pattern_eb_rate = 1e-23;
 
     };
 

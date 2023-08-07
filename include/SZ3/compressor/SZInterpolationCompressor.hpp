@@ -15,9 +15,11 @@
 #include "SZ3/def.hpp"
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/utils/ByteUtil.hpp"
+#include <cstddef>
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include "SZ3/utils/critical_points.hpp"
 
 
 namespace SZ
@@ -85,9 +87,20 @@ namespace SZ
             read(original_min,buffer_pos );
             std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
             std::cout << "noise_rate = " << noise_rate << std::endl;
+            read(pattern_search_on, buffer_pos);
+
 
             srand(3333);
             init();
+
+            if(pattern_search_on ==1 )
+            {
+                pattern_map_uchar.resize(num_elements);
+                convertByteArray2IntArray_fast_1b_sz(num_elements, buffer_pos, (num_elements-1)/8+1, pattern_map_uchar.data());
+                std::cout << "pattern_search_on = " << pattern_search_on << std::endl;
+            }
+
+
             size_t num_flushed_elements = 0;
             if(block_flush_on ==1 || block_sift_on==1){
                 num_flushed_elements = compute_auxilliary_data_decompress(decData);
@@ -176,6 +189,9 @@ namespace SZ
             block_sift_on = conf.block_sift_on;
             block_iso_on = conf.block_iso_on;
             isovalue=conf.block_isovalue;
+            pattern_search_on=conf.pattern_check_on;
+            pattern_eb_rate = conf.pattern_eb_rate;
+
 
 
             if(block_sift_on || block_flush_on) std::cout << "detection_block_size = " << detection_block_size << std::endl;
@@ -186,6 +202,16 @@ namespace SZ
 
             if(noise_rate != 0)  srand(3333);
             init();
+
+            if(pattern_search_on ==1)
+            {
+                std::cout << "pattern_search_on = " << pattern_search_on << std::endl;
+                auto cp_calculator = SZ::CriticalPointsCalculator(data, N, global_dimensions.data()); 
+                auto pattern_map = cp_calculator.get_critical_points_map();
+                pattern_map_uchar = int2uchar(pattern_map.data(), num_elements);
+                writefile("pattern_map.dat", pattern_map_uchar.data(), num_elements);
+            }
+
             
 
             // For data range check.
@@ -207,7 +233,7 @@ namespace SZ
             size_t interp_compressed_size = 0;
 
             double eb = quantizer.get_eb();
-            double eb_final;
+            double eb_final; // eb for the highest level
             double eb_reduction_factor;
             if(interpolator_id == 0)
             {
@@ -267,7 +293,7 @@ namespace SZ
             }
             assert(quant_inds.size() <= num_elements);
             encoder.preprocess_encode(quant_inds, 0);
-            size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
+            size_t bufferSize = 1.5 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
 
             uchar *buffer = new uchar[bufferSize];
             uchar *buffer_pos = buffer;
@@ -279,6 +305,7 @@ namespace SZ
             write(sift_mode, buffer_pos);
             write(block_flush_on, buffer_pos);
             write(block_sift_on, buffer_pos);
+    
 
             // add auxilliary array
             write(detection_block_size, buffer_pos);
@@ -292,6 +319,9 @@ namespace SZ
             write(detection_eb_rate, buffer_pos);
             write(original_max, buffer_pos);
             write(original_min, buffer_pos);
+            write(pattern_search_on, buffer_pos);
+            if(pattern_search_on)
+                SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(pattern_map_uchar.data(), pattern_map_uchar.size(), buffer_pos);
 
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
@@ -309,7 +339,8 @@ namespace SZ
                                                      compressed_size);
             lossless.postcompress_data(buffer);
             //            timer.stop("Lossless");
-            // writefile("compressed.dat",data, num_elements);
+            writefile("compressed.dat",data, num_elements);
+
 
             #ifdef SZ_ANALYSIS
             writefile("pred.dat",my_pred.data(), num_elements);
@@ -398,6 +429,10 @@ namespace SZ
                 {
                     quantizer.set_eb(current_base_eb * detection_eb_rate);
                 }
+                if ( pattern_search_on && pattern_map_uchar[idx]==1)
+                {
+                    quantizer.set_eb(current_base_eb * pattern_eb_rate);
+                }
                 if (noise_rate != 0)
                 {
                     T noise = 2.0 * rand() / RAND_MAX - 1.0;
@@ -429,6 +464,10 @@ namespace SZ
                 if (block_sift_on && (current_level == 1) && significant_block[idx])
                 {
                     quantizer.set_eb(current_base_eb * detection_eb_rate);
+                }
+                if ( pattern_search_on && pattern_map_uchar[idx]==1)
+                {
+                    quantizer.set_eb(current_base_eb * pattern_eb_rate);
                 }
                 if (noise_rate != 0)
                 {
@@ -1367,6 +1406,16 @@ namespace SZ
             return num_flushed_elements;
         }
 
+        std::vector<uchar> int2uchar(int *int_data, const size_t datasize)
+        {
+            std::vector<uchar> uchar_data(datasize, 0);
+            for (size_t i = 0; i < datasize; i++)
+            {
+                uchar_data[i] = (int_data[i]==4 || int_data[i]==-4 || int_data[i]==-6 || int_data[i]==6);
+            }
+            return uchar_data;
+        }
+
         int interpolation_level = -1;
         uint blocksize;
         int interpolator_id;
@@ -1405,11 +1454,15 @@ namespace SZ
         double current_base_eb;
         bool block_flush_on;
         bool block_sift_on;
+        bool pattern_search_on;
+        double pattern_eb_rate;
         size_t num_detection_block =0;
         bool block_iso_on=0;
         double isovalue=0;
         T original_max; // for data range check 
         T original_min; // for data range check
+
+        std::vector<uchar> pattern_map_uchar;
 
         // Analysis utils; 
         // This is for conditional compilation not comments
