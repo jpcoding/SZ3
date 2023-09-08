@@ -15,6 +15,8 @@
 #define SZ_UINT64 8
 #define SZ_INT64 9
 
+
+
 void usage() {
     printf("Note: SZ3 command line arguments are backward compatible with SZ2, \n");
     printf("      use -h2 to show the supported SZ2 command line arguments. \n");
@@ -134,7 +136,9 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
 
     char outputFilePath[1024];
     if (cmpPath == nullptr) {
-        sprintf(outputFilePath, "%s.sz", inPath);
+        // sprintf(outputFilePath, "%s.sz", inPath);
+        snprintf(outputFilePath, 1024, "%s.sz", inPath);
+
     } else {
         strcpy(outputFilePath, cmpPath);
     }
@@ -162,7 +166,9 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
 
     char outputFilePath[1024];
     if (decPath == nullptr) {
-        sprintf(outputFilePath, "%s.out", cmpPath);
+        // sprintf(outputFilePath, "%s.out", cmpPath);
+        snprintf(outputFilePath, 1024, "%s.out", cmpPath);
+
     } else {
         strcpy(outputFilePath, decPath);
     }
@@ -177,6 +183,8 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
         auto ori_data = SZ::readfile<T>(inPath, totalNbEle);
         assert(totalNbEle == conf.num);
         SZ::verify<T>(ori_data.get(), decData, conf.num);
+        printf("SSIM = %.6f\n", SZ::calculateSSIM(ori_data.get(), decData, conf));
+
     }
     delete[]decData;
 
@@ -379,7 +387,8 @@ int main(int argc, char *argv[]) {
     if (inPath != nullptr && cmpPath == nullptr && decPath != nullptr) {
         compression = true;
         decompression = true;
-        sprintf(cmpPathTmp, "%s.sz.tmp", inPath);
+        // sprintf(cmpPathTmp, "%s.sz.tmp", inPath);
+        snprintf(cmpPathTmp, 1024, "%s.sz.tmp", inPath);
         cmpPath = cmpPathTmp;
         delCmpPath = true;
     }
@@ -457,11 +466,11 @@ int main(int argc, char *argv[]) {
         if (dataType == SZ_FLOAT) {
             compress<float>(inPath, cmpPath, conf);
         } else if (dataType == SZ_DOUBLE) {
-            compress<double>(inPath, cmpPath, conf);
+            // compress<double>(inPath, cmpPath, conf);
         } else if (dataType == SZ_INT32) {
-            compress<int32_t>(inPath, cmpPath, conf);
+            // compress<int32_t>(inPath, cmpPath, conf);
         } else if (dataType == SZ_INT64) {
-            compress<int64_t>(inPath, cmpPath, conf);
+            // compress<int64_t>(inPath, cmpPath, conf);
         } else {
             printf("Error: data type not supported \n");
             usage();
@@ -477,11 +486,11 @@ int main(int argc, char *argv[]) {
         if (dataType == SZ_FLOAT) {
             decompress<float>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
         } else if (dataType == SZ_DOUBLE) {
-            decompress<double>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
+            // decompress<double>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
         } else if (dataType == SZ_INT32) {
-            decompress<int32_t>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
+            // decompress<int32_t>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
         } else if (dataType == SZ_INT64) {
-            decompress<int64_t>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
+            // decompress<int64_t>(inPath, cmpPath, decPath, conf, binaryOutput, printCmpResults);
         } else {
             printf("Error: data type not supported \n");
             usage();

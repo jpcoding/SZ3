@@ -17,14 +17,14 @@
 #include <cstring>
 #include <cmath>
 
-namespace SZ {
-    template<class T, uint N, class Quantizer, class Encoder, class Lossless>
-    class SZInterpolationCompressor {
+namespace SZ
+{
+    template <class T, uint N, class Quantizer, class Encoder, class Lossless>
+    class SZInterpolationCompressor
+    {
     public:
-
-
-        SZInterpolationCompressor(Quantizer quantizer, Encoder encoder, Lossless lossless) :
-                quantizer(quantizer), encoder(encoder), lossless(lossless) {
+        SZInterpolationCompressor(Quantizer quantizer, Encoder encoder, Lossless lossless) : quantizer(quantizer), encoder(encoder), lossless(lossless)
+        {
 
             static_assert(std::is_base_of<concepts::QuantizerInterface<T>, Quantizer>::value,
                           "must implement the quatizer interface");
@@ -34,12 +34,14 @@ namespace SZ {
                           "must implement the lossless interface");
         }
 
-        T *decompress(uchar const *cmpData, const size_t &cmpSize, size_t num) {
+        T *decompress(uchar const *cmpData, const size_t &cmpSize, size_t num)
+        {
             T *dec_data = new T[num];
             return decompress(cmpData, cmpSize, dec_data);
         }
 
-        T *decompress(uchar const *cmpData, const size_t &cmpSize, T *decData) {
+        T *decompress(uchar const *cmpData, const size_t &cmpSize, T *decData)
+        {
             size_t remaining_length = cmpSize;
             uchar *buffer = lossless.decompress(cmpData, remaining_length);
             uchar const *buffer_pos = buffer;
@@ -48,83 +50,133 @@ namespace SZ {
             read(blocksize, buffer_pos, remaining_length);
             read(interpolator_id, buffer_pos, remaining_length);
             read(direction_sequence_id, buffer_pos, remaining_length);
+            read(sift_mode, buffer_pos, remaining_length);
+            read(block_flush_on, buffer_pos, remaining_length);
+            read(block_sift_on, buffer_pos, remaining_length);
 
+            // read auxilliary data
+            read(detection_block_size, buffer_pos);
+            size_t num_detection_block = 0;
+            read(num_detection_block, buffer_pos);
+            Timer timer;
+            // timer.start();
+            if (block_flush_on == 1)
+            {
+                flushed_block_id = std::vector<uchar>(num_detection_block);
+                convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, flushed_block_id.data());
+            }
+            // flushed_block_id = std::vector<uchar>(num_detection_block);
+            // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, flushed_block_id.data());
+            if (block_sift_on == 1)
+            {
+                significant_block_id = std::vector<uchar>(num_detection_block);
+                convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
+            }
+            // timer.stop("read auxilliary data");
+            // significant_block_id = std::vector<uchar>(num_detection_block);
+            // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
+            // read additional variable
+            read(noise_rate, buffer_pos);
+            read(detection_eb_rate, buffer_pos);
+            std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
+            std::cout << "noise_rate = " << noise_rate << std::endl;
+
+            srand(3333);
             init();
+
+            auto num_flushed_elements = compute_auxilliary_data_decompress(decData);
 
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
-            quant_inds = encoder.decode(buffer_pos, num_elements);
+            quant_inds = encoder.decode(buffer_pos, num_elements - num_flushed_elements);
 
             encoder.postprocess_decode();
 
             lossless.postdecompress_data(buffer);
             double eb = quantizer.get_eb();
+            double eb_final = eb / pow(c, interpolation_level - 1);
 
-            *decData = quantizer.recover(0, quant_inds[quant_index++]);
+            std::cout << "start decompression\n";
+            // *decData = quantizer.recover(0, quant_inds[quant_index++]);
+            recover(0, *decData, 0);
 
-            double reduction_factor;
-            double real_eb_ratio;
-            if( interpolators[interpolator_id] == "linear")
+            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
             {
-                reduction_factor = sqrt(27/8);
-            }
-            else 
-            {
-                reduction_factor = sqrt(4.462681);
-            }
-            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
-
-            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
                 // if (level >= 3) {
                 //     quantizer.set_eb(eb * eb_ratio);
                 // } else {
                 //     quantizer.set_eb(eb);
                 // }
-                quantizer.set_eb(eb * real_eb_ratio);
-                real_eb_ratio *= reduction_factor;
+                current_level = level;
+                current_base_eb = eb_final;
+                quantizer.set_eb(eb_final);
+                eb_final *= c;
+
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
-                        SZ::multi_dimensional_range<T, N>>(decData,
-                                                           std::begin(global_dimensions), std::end(global_dimensions),
-                                                           stride * blocksize, 0);
+                    SZ::multi_dimensional_range<T, N>>(decData,
+                                                       std::begin(global_dimensions), std::end(global_dimensions),
+                                                       stride * blocksize, 0);
                 auto inter_begin = inter_block_range->begin();
                 auto inter_end = inter_block_range->end();
-                for (auto block = inter_begin; block != inter_end; ++block) {
+                for (auto block = inter_begin; block != inter_end; ++block)
+                {
                     auto end_idx = block.get_global_index();
-                    for (int i = 0; i < N; i++) {
+                    for (int i = 0; i < N; i++)
+                    {
                         end_idx[i] += stride * blocksize;
-                        if (end_idx[i] > global_dimensions[i] - 1) {
+                        if (end_idx[i] > global_dimensions[i] - 1)
+                        {
                             end_idx[i] = global_dimensions[i] - 1;
                         }
                     }
                     block_interpolation(decData, block.get_global_index(), end_idx, PB_recover,
                                         interpolators[interpolator_id], direction_sequence_id, stride);
-
                 }
             }
             quantizer.postdecompress_data();
-//            timer.stop("Interpolation Decompress");
+            //            timer.stop("Interpolation Decompress");
 
             return decData;
         }
 
         // compress given the error bound
-        uchar *compress(const Config &conf, T *data, size_t &compressed_size) {
+        uchar *compress(const Config &conf, T *data, size_t &compressed_size)
+        {
             std::copy_n(conf.dims.begin(), N, global_dimensions.begin());
             blocksize = conf.interpBlockSize;
             interpolator_id = conf.interpAlgo;
             direction_sequence_id = conf.interpDirection;
+            // assign additional variable
+            detection_block_size = conf.detection_block_size;
+            detection_threshold = conf.detection_threshold;
+            detection_eb_rate = conf.detection_eb_rate;
+            noise_rate = conf.noise_rate;
+            sift_mode = conf.block_sift_mode;
+            block_flush_on = conf.block_flush_on;
+            block_sift_on = conf.block_sift_on;
+            std::cout << "detection_block_size = " << detection_block_size << std::endl;
+            std::cout << "detection_threshold = " << detection_threshold << std::endl;
+            std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
+            std::cout << "noise_rate = " << noise_rate << std::endl;
 
+            srand(3333);
             init();
+            Timer timer;
+            timer.start();
+            compute_auxilliary_data(conf, data);
+            timer.stop("Auxilliary Data Compress");
 
             quant_inds.reserve(num_elements);
             size_t interp_compressed_size = 0;
 
             double eb = quantizer.get_eb();
+            double eb_final = eb / pow(c, interpolation_level - 1);
 
-            quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
+            // quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
+            quantize(0, *data, 0);
 
-            Timer timer;
+            // Timer timer;
             timer.start();
 
             double reduction_factor;
@@ -139,33 +191,36 @@ namespace SZ {
             }
             real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
 
-            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
+            for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
+            {
                 // if (level >= 3) {
                 //     quantizer.set_eb(eb * eb_ratio);
                 // } else {
                 //     quantizer.set_eb(eb);
                 // }
+                current_level = level;
+                current_base_eb = eb_final;
+                quantizer.set_eb(eb_final);
+                eb_final *= c;
 
-                quantizer.set_eb(eb * real_eb_ratio);
-                // std::cout<< "eb = " << eb <<std::endl;
-                // std::cout<< "real_eb_ratio = " << real_eb_ratio <<std::endl;
-                // std::cout<< "level" << level << std::endl; 
-                real_eb_ratio *= reduction_factor;
                 size_t stride = 1U << (level - 1);
 
                 auto inter_block_range = std::make_shared<
-                        SZ::multi_dimensional_range<T, N>>(data, std::begin(global_dimensions),
-                                                           std::end(global_dimensions),
-                                                           blocksize * stride, 0);
+                    SZ::multi_dimensional_range<T, N>>(data, std::begin(global_dimensions),
+                                                       std::end(global_dimensions),
+                                                       blocksize * stride, 0);
 
                 auto inter_begin = inter_block_range->begin();
                 auto inter_end = inter_block_range->end();
 
-                for (auto block = inter_begin; block != inter_end; ++block) {
+                for (auto block = inter_begin; block != inter_end; ++block)
+                {
                     auto end_idx = block.get_global_index();
-                    for (int i = 0; i < N; i++) {
+                    for (int i = 0; i < N; i++)
+                    {
                         end_idx[i] += blocksize * stride;
-                        if (end_idx[i] > global_dimensions[i] - 1) {
+                        if (end_idx[i] > global_dimensions[i] - 1)
+                        {
                             end_idx[i] = global_dimensions[i] - 1;
                         }
                     }
@@ -175,10 +230,10 @@ namespace SZ {
                 }
             }
             assert(quant_inds.size() == num_elements);
-//            timer.stop("Prediction & Quantization");
+            //            timer.stop("Prediction & Quantization");
 
-//            writefile("pred.dat", preds.data(), num_elements);
-//            writefile("quant.dat", quant_inds.data(), num_elements);
+            //            writefile("pred.dat", preds.data(), num_elements);
+            //            writefile("quant.dat", quant_inds.data(), num_elements);
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
 
@@ -189,117 +244,191 @@ namespace SZ {
             write(blocksize, buffer_pos);
             write(interpolator_id, buffer_pos);
             write(direction_sequence_id, buffer_pos);
+            write(sift_mode, buffer_pos);
+            write(block_flush_on, buffer_pos);
+            write(block_sift_on, buffer_pos);
+
+            // add auxilliary array
+            write(detection_block_size, buffer_pos);
+            size_t num_detection_block = flushed_block_id.size();
+            write(num_detection_block, buffer_pos);
+            if (block_flush_on)
+                convertIntArray2ByteArray_fast_1b_to_result_sz(flushed_block_id.data(), flushed_block_id.size(), buffer_pos);
+            if (block_sift_on)
+                convertIntArray2ByteArray_fast_1b_to_result_sz(significant_block_id.data(), significant_block_id.size(), buffer_pos);
+            // add additional variable
+            write(noise_rate, buffer_pos);
+            write(detection_eb_rate, buffer_pos);
 
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
-
 
             timer.start();
             encoder.save(buffer_pos);
             encoder.encode(quant_inds, buffer_pos);
             encoder.postprocess_encode();
-//            timer.stop("Coding");
+            //            timer.stop("Coding");
             assert(buffer_pos - buffer < bufferSize);
-
+            // writefile("compressed.dat",data, num_elements);
             timer.start();
             uchar *lossless_data = lossless.compress(buffer,
                                                      buffer_pos - buffer,
                                                      compressed_size);
             lossless.postcompress_data(buffer);
-//            timer.stop("Lossless");
-
+            //            timer.stop("Lossless");
+            // writefile("compressed.dat",data, num_elements);
             compressed_size += interp_compressed_size;
             return lossless_data;
         }
 
     private:
-
-        enum PredictorBehavior {
-            PB_predict_overwrite, PB_predict, PB_recover
+        enum PredictorBehavior
+        {
+            PB_predict_overwrite,
+            PB_predict,
+            PB_recover
         };
 
-        void init() {
+        void init()
+        {
             assert(blocksize % 2 == 0 && "Interpolation block size should be even numbers");
             num_elements = 1;
             interpolation_level = -1;
-            for (int i = 0; i < N; i++) {
-                if (interpolation_level < ceil(log2(global_dimensions[i]))) {
-                    interpolation_level = (uint) ceil(log2(global_dimensions[i]));
+            for (int i = 0; i < N; i++)
+            {
+                if (interpolation_level < ceil(log2(global_dimensions[i])))
+                {
+                    interpolation_level = (uint)ceil(log2(global_dimensions[i]));
                 }
                 num_elements *= global_dimensions[i];
             }
 
             dimension_offsets[N - 1] = 1;
-            for (int i = N - 2; i >= 0; i--) {
+            for (int i = N - 2; i >= 0; i--)
+            {
                 dimension_offsets[i] = dimension_offsets[i + 1] * global_dimensions[i + 1];
             }
 
             dimension_sequences = std::vector<std::array<int, N>>();
             auto sequence = std::array<int, N>();
-            for (int i = 0; i < N; i++) {
+            for (int i = 0; i < N; i++)
+            {
                 sequence[i] = i;
             }
-            do {
+            do
+            {
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
         }
 
-        inline void quantize(size_t idx, T &d, T pred) {
-            quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+        inline void quantize(size_t idx, T &d, T pred)
+        {
+            if (block_flush_on && flushed_block[idx])
+            {
+                d = 0;
+            }
+            else
+            {
+                auto default_eb = quantizer.get_eb();
+                if (block_sift_on && (current_level == 1) && significant_block[idx])
+                {
+                    quantizer.set_eb(current_base_eb * detection_eb_rate);
+                }
+                if (noise_rate != 0)
+                {
+                    T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    if (fabs(pred) > 1e-2)
+                        pred += noise * noise_rate * default_eb;
+                }
+                quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+                quantizer.set_eb(default_eb);
+            }
         }
 
-        inline void recover(size_t idx, T &d, T pred) {
-            d = quantizer.recover(pred, quant_inds[quant_index++]);
+        inline void recover(size_t idx, T &d, T pred)
+        {
+            if (block_flush_on && flushed_block[idx])
+            {
+                d = 0;
+            }
+            else
+            {
+                auto default_eb = quantizer.get_eb();
+                if (block_sift_on && (current_level == 1) && significant_block[idx])
+                {
+                    quantizer.set_eb(current_base_eb * detection_eb_rate);
+                }
+                if (noise_rate != 0)
+                {
+                    T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    if (fabs(pred) > 1e-2)
+                        pred += noise * noise_rate * default_eb;
+                }
+                d = quantizer.recover(pred, quant_inds[quant_index++]);
+                quantizer.set_eb(default_eb);
+            }
         };
-
 
         double block_interpolation_1d(T *data, size_t begin, size_t end, size_t stride,
                                       const std::string &interp_func,
-                                      const PredictorBehavior pb) {
+                                      const PredictorBehavior pb)
+        {
             size_t n = (end - begin) / stride + 1;
-            if (n <= 1) {
+            if (n <= 1)
+            {
                 return 0;
             }
             double predict_error = 0;
 
             size_t stride3x = 3 * stride;
             size_t stride5x = 5 * stride;
-            if (interp_func == "linear" || n < 5) {
-                if (pb == PB_predict_overwrite) {
-                    for (size_t i = 1; i + 1 < n; i += 2) {
+            if (interp_func == "linear" || n < 5)
+            {
+                if (pb == PB_predict_overwrite)
+                {
+                    for (size_t i = 1; i + 1 < n; i += 2)
+                    {
                         T *d = data + begin + i * stride;
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
                     }
-                    if (n % 2 == 0) {
+                    if (n % 2 == 0)
+                    {
                         T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
-                            quantize(d - data, *d, *(d - stride));
-                        } else {
-                            quantize(d - data, *d, *(d - stride));
-                            // quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
-                        }
+                        quantize(d - data, *d, *(d - stride));
+                        // if (n < 4) {
+                        //     quantize(d - data, *d, *(d - stride));
+                        // } else {
+                        //     quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                        // }
                     }
-                } else {
-                    for (size_t i = 1; i + 1 < n; i += 2) {
+                }
+                else
+                {
+                    for (size_t i = 1; i + 1 < n; i += 2)
+                    {
                         T *d = data + begin + i * stride;
                         recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
                     }
-                    if (n % 2 == 0) {
+                    if (n % 2 == 0)
+                    {
                         T *d = data + begin + (n - 1) * stride;
                         if (n < 4) {
                             recover(d - data, *d, *(d - stride));
                         } else {
-                             recover(d - data, *d, *(d - stride));
-                            // recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                            recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         }
                     }
                 }
-            } else {
-                if (pb == PB_predict_overwrite) {
+            }
+            else
+            {
+                if (pb == PB_predict_overwrite)
+                {
 
                     T *d;
                     size_t i;
-                    for (i = 3; i + 3 < n; i += 2) {
+                    for (i = 3; i + 3 < n; i += 2)
+                    {
                         d = data + begin + i * stride;
                         quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
@@ -309,17 +438,20 @@ namespace SZ {
 
                     d = data + begin + i * stride;
                     quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    if (n % 2 == 0) {
+                    if (n % 2 == 0)
+                    {
                         d = data + begin + (n - 1) * stride;
                         quantize(d - data, *d, *(d - stride));
                         // quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
                     }
-
-                } else {
+                }
+                else
+                {
                     T *d;
 
                     size_t i;
-                    for (i = 3; i + 3 < n; i += 2) {
+                    for (i = 3; i + 3 < n; i += 2)
+                    {
                         d = data + begin + i * stride;
                         recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                     }
@@ -330,7 +462,8 @@ namespace SZ {
                     d = data + begin + i * stride;
                     recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
 
-                    if (n % 2 == 0) {
+                    if (n % 2 == 0)
+                    {
                         d = data + begin + (n - 1) * stride;
                         recover(d - data, *d, *(d - stride));
                         // recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
@@ -341,157 +474,811 @@ namespace SZ {
             return predict_error;
         }
 
-        template<uint NN = N>
+        template <uint NN = N>
         typename std::enable_if<NN == 1, double>::type
         block_interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end, const PredictorBehavior pb,
-                            const std::string &interp_func, const int direction, size_t stride = 1) {
+                            const std::string &interp_func, const int direction, size_t stride = 1)
+        {
             return block_interpolation_1d(data, begin[0], end[0], stride, interp_func, pb);
         }
 
-        template<uint NN = N>
+        template <uint NN = N>
         typename std::enable_if<NN == 2, double>::type
         block_interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end, const PredictorBehavior pb,
-                            const std::string &interp_func, const int direction, size_t stride = 1) {
+                            const std::string &interp_func, const int direction, size_t stride = 1)
+        {
             double predict_error = 0;
             size_t stride2x = stride * 2;
+            auto default_eb = quantizer.get_eb();
+
+            quantizer.set_eb(default_eb * c1);
             const std::array<int, N> dims = dimension_sequences[direction];
-            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x) {
+            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
+            {
                 size_t begin_offset = begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]];
                 predict_error += block_interpolation_1d(data, begin_offset,
                                                         begin_offset +
-                                                        (end[dims[0]] - begin[dims[0]]) * dimension_offsets[dims[0]],
+                                                            (end[dims[0]] - begin[dims[0]]) * dimension_offsets[dims[0]],
                                                         stride * dimension_offsets[dims[0]], interp_func, pb);
             }
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
+            quantizer.set_eb(default_eb);
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
                 size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]];
                 predict_error += block_interpolation_1d(data, begin_offset,
                                                         begin_offset +
-                                                        (end[dims[1]] - begin[dims[1]]) * dimension_offsets[dims[1]],
+                                                            (end[dims[1]] - begin[dims[1]]) * dimension_offsets[dims[1]],
                                                         stride * dimension_offsets[dims[1]], interp_func, pb);
             }
             return predict_error;
         }
 
-        template<uint NN = N>
+        template <uint NN = N>
         typename std::enable_if<NN == 3, double>::type
         block_interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end, const PredictorBehavior pb,
-                            const std::string &interp_func, const int direction, size_t stride = 1) {
+                            const std::string &interp_func, const int direction, size_t stride = 1)
+        {
             double predict_error = 0;
             size_t stride2x = stride * 2;
+
+            auto default_eb = quantizer.get_eb();
+            quantizer.set_eb(default_eb * c2);
+
             const std::array<int, N> dims = dimension_sequences[direction];
-            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x) {
-                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
+            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
+            {
+                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
+                {
                     size_t begin_offset = begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                           k * dimension_offsets[dims[2]];
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
-                                                            (end[dims[0]] - begin[dims[0]]) *
-                                                            dimension_offsets[dims[0]],
+                                                                (end[dims[0]] - begin[dims[0]]) *
+                                                                    dimension_offsets[dims[0]],
                                                             stride * dimension_offsets[dims[0]], interp_func, pb);
                 }
             }
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
-                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
+
+            quantizer.set_eb(default_eb * c1);
+
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
+                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
+                {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
                                           k * dimension_offsets[dims[2]];
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
-                                                            (end[dims[1]] - begin[dims[1]]) *
-                                                            dimension_offsets[dims[1]],
+                                                                (end[dims[1]] - begin[dims[1]]) *
+                                                                    dimension_offsets[dims[1]],
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
                 }
             }
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
-                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
+
+            quantizer.set_eb(default_eb);
+
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
+                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride)
+                {
                     size_t begin_offset = i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                           begin[dims[2]] * dimension_offsets[dims[2]];
                     predict_error += block_interpolation_1d(data, begin_offset,
                                                             begin_offset +
-                                                            (end[dims[2]] - begin[dims[2]]) *
-                                                            dimension_offsets[dims[2]],
+                                                                (end[dims[2]] - begin[dims[2]]) *
+                                                                    dimension_offsets[dims[2]],
                                                             stride * dimension_offsets[dims[2]], interp_func, pb);
                 }
             }
             return predict_error;
         }
 
-
-        template<uint NN = N>
+        template <uint NN = N>
         typename std::enable_if<NN == 4, double>::type
         block_interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end, const PredictorBehavior pb,
-                            const std::string &interp_func, const int direction, size_t stride = 1) {
+                            const std::string &interp_func, const int direction, size_t stride = 1)
+        {
             double predict_error = 0;
             size_t stride2x = stride * 2;
             max_error = 0;
             const std::array<int, N> dims = dimension_sequences[direction];
-            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x) {
-                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
+            for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
+            {
+                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
+                {
                     for (size_t t = (begin[dims[3]] ? begin[dims[3]] + stride2x : 0);
-                         t <= end[dims[3]]; t += stride2x) {
+                         t <= end[dims[3]]; t += stride2x)
+                    {
                         size_t begin_offset =
-                                begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
-                                k * dimension_offsets[dims[2]] +
-                                t * dimension_offsets[dims[3]];
+                            begin[dims[0]] * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
+                            k * dimension_offsets[dims[2]] +
+                            t * dimension_offsets[dims[3]];
                         predict_error += block_interpolation_1d(data, begin_offset,
                                                                 begin_offset +
-                                                                (end[dims[0]] - begin[dims[0]]) *
-                                                                dimension_offsets[dims[0]],
+                                                                    (end[dims[0]] - begin[dims[0]]) *
+                                                                        dimension_offsets[dims[0]],
                                                                 stride * dimension_offsets[dims[0]], interp_func, pb);
                     }
                 }
             }
             max_error = 0;
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
-                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x) {
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
+                for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
+                {
                     for (size_t t = (begin[dims[3]] ? begin[dims[3]] + stride2x : 0);
-                         t <= end[dims[3]]; t += stride2x) {
+                         t <= end[dims[3]]; t += stride2x)
+                    {
                         size_t begin_offset =
-                                i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
-                                k * dimension_offsets[dims[2]] +
-                                t * dimension_offsets[dims[3]];
+                            i * dimension_offsets[dims[0]] + begin[dims[1]] * dimension_offsets[dims[1]] +
+                            k * dimension_offsets[dims[2]] +
+                            t * dimension_offsets[dims[3]];
                         predict_error += block_interpolation_1d(data, begin_offset,
                                                                 begin_offset +
-                                                                (end[dims[1]] - begin[dims[1]]) *
-                                                                dimension_offsets[dims[1]],
+                                                                    (end[dims[1]] - begin[dims[1]]) *
+                                                                        dimension_offsets[dims[1]],
                                                                 stride * dimension_offsets[dims[1]], interp_func, pb);
                     }
                 }
             }
             max_error = 0;
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
-                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
+                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride)
+                {
                     for (size_t t = (begin[dims[3]] ? begin[dims[3]] + stride2x : 0);
-                         t <= end[dims[3]]; t += stride2x) {
+                         t <= end[dims[3]]; t += stride2x)
+                    {
                         size_t begin_offset = i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
                                               begin[dims[2]] * dimension_offsets[dims[2]] +
                                               t * dimension_offsets[dims[3]];
                         predict_error += block_interpolation_1d(data, begin_offset,
                                                                 begin_offset +
-                                                                (end[dims[2]] - begin[dims[2]]) *
-                                                                dimension_offsets[dims[2]],
+                                                                    (end[dims[2]] - begin[dims[2]]) *
+                                                                        dimension_offsets[dims[2]],
                                                                 stride * dimension_offsets[dims[2]], interp_func, pb);
                     }
                 }
             }
 
             max_error = 0;
-            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride) {
-                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride) {
-                    for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride : 0); k <= end[dims[2]]; k += stride) {
+            for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
+            {
+                for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride : 0); j <= end[dims[1]]; j += stride)
+                {
+                    for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride : 0); k <= end[dims[2]]; k += stride)
+                    {
                         size_t begin_offset =
-                                i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
-                                k * dimension_offsets[dims[2]] +
-                                begin[dims[3]] * dimension_offsets[dims[3]];
+                            i * dimension_offsets[dims[0]] + j * dimension_offsets[dims[1]] +
+                            k * dimension_offsets[dims[2]] +
+                            begin[dims[3]] * dimension_offsets[dims[3]];
                         predict_error += block_interpolation_1d(data, begin_offset,
                                                                 begin_offset +
-                                                                (end[dims[3]] - begin[dims[3]]) *
-                                                                dimension_offsets[dims[3]],
+                                                                    (end[dims[3]] - begin[dims[3]]) *
+                                                                        dimension_offsets[dims[3]],
                                                                 stride * dimension_offsets[dims[3]], interp_func, pb);
                     }
                 }
             }
             return predict_error;
         }
+
+        void compute_auxilliary_data(const Config &conf, T *data)
+        {
+
+            if (N == 2)
+            {
+                // TODO: add corner case when dimensions are not divisible by block size
+                int block_size = detection_block_size;
+                const auto &dims = conf.dims;
+                int nx = (int)ceil(dims[0] * 1.0 / block_size);
+                int ny = (int)ceil(dims[1] * 1.0 / block_size);
+                flushed_block = std::vector<uchar>(num_elements, 0);
+                flushed_block_id = std::vector<uchar>(nx * ny, 0);
+                Timer timer;
+                timer.start();
+                // compute statistics
+                int block_id = 0;
+                int flushed_count = 0;
+                // using variance or value range for significant blocks
+                std::vector<double> block_significance;
+                T *x_data_pos = data;
+                for (int i = 0; i < nx; i++)
+                {
+                    T *y_data_pos = x_data_pos;
+                    for (int j = 0; j < ny; j++)
+                    {
+                        T block_max = std::numeric_limits<T>::min();
+                        T block_min = std::numeric_limits<T>::max();
+                        // compute average
+                        double sum = 0;
+                        T *xx_data_pos = y_data_pos;
+                        int actual_block_size = 0;
+                        for (int ii = 0; ii < block_size; ii++)
+                        {
+                            // if (i * block_size + ii >= dims[0])
+                            //     break;
+                            T *yy_data_pos = xx_data_pos;
+                            for (int jj = 0; jj < block_size; jj++)
+                            {
+                                // if (j * block_size + jj >= dims[1])
+                                //     break;
+                                sum += *yy_data_pos;
+                                actual_block_size++;
+                                if (*yy_data_pos > block_max)
+                                    block_max = *yy_data_pos;
+                                if (*yy_data_pos < block_min)
+                                    block_min = *yy_data_pos;
+                                yy_data_pos++;
+                            }
+                            xx_data_pos += dims[1];
+                        }
+                        T max_abs_val = std::max(std::abs(block_max), std::abs(block_min));
+                        T block_range = block_max - block_min;
+                        if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
+                        {
+                            T *xx_data_pos = y_data_pos;
+                            for (int ii = 0; ii < block_size; ii++)
+                            {
+                                // if (i * block_size + ii >= dims[0])
+                                //     break;
+                                T *yy_data_pos = xx_data_pos;
+                                for (int jj = 0; jj < block_size; jj++)
+                                {
+                                    // if (j * block_size + jj >= dims[1])
+                                    //     break;
+                                    *yy_data_pos = 0;
+                                    flushed_block[yy_data_pos - data] = 1;
+                                    yy_data_pos++;
+                                }
+                                xx_data_pos += dims[1];
+                            }
+                            flushed_block_id[block_id] = 1;
+                            flushed_count++;
+                            // skip the variance
+                            if (block_sift_on)
+                                block_significance.push_back(0);
+                        }
+                        else if (block_sift_on)
+                        {
+                            // compute block significance
+                            if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
+                            {
+                                block_significance.push_back(block_range);
+                            }
+                            else if (sift_mode == SZ::BLOCK_SIFT_MODE::VARIANCE)
+                            {
+                                double average = sum / actual_block_size;
+                                double variance = 0;
+                                T *xx_data_pos = y_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    // if (i * block_size + ii >= dims[0])
+                                    //     break;
+                                    T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        // if (j * block_size + jj >= dims[1])
+                                        //     break;
+                                        variance += (*yy_data_pos - average) * (*yy_data_pos - average);
+                                        yy_data_pos++;
+                                    }
+                                    xx_data_pos += dims[1];
+                                }
+                                variance /= actual_block_size;
+                                block_significance.push_back(variance);
+                            }
+                        }
+                        block_id++;
+                        y_data_pos += block_size;
+                    }
+                    x_data_pos += block_size * dims[1];
+                }
+                std::cout << "flushed_count = " << flushed_count << ", percent = " << flushed_count * 1.0 / (nx * ny) << std::endl;
+                if (block_sift_on)
+                {
+                    double threshold, percent;
+                    percent = detection_threshold;
+                    {
+                        auto block_significance_tmp(block_significance);
+                        std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
+                        threshold = block_significance_tmp[(int)(percent * block_significance.size())];
+                    }
+                    std::cout << percent * 100 << "% threshold = " << threshold << std::endl;
+                    significant_block = std::vector<uchar>(num_elements, 0);
+                    significant_block_id = std::vector<uchar>(nx * ny, 0);
+                    block_id = 0;
+                    x_data_pos = data;
+                    for (int i = 0; i < nx; i++)
+                    {
+                        T *y_data_pos = x_data_pos;
+                        for (int j = 0; j < ny; j++)
+                        {
+                            if (block_significance[block_id] > threshold)
+                            {
+                                T *xx_data_pos = y_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    if (i * block_size + ii >= dims[0])
+                                        break;
+                                    T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        if (j * block_size + jj >= dims[1])
+                                            break;
+                                        significant_block[yy_data_pos - data] = 1;
+                                        yy_data_pos++;
+                                    }
+                                    xx_data_pos += dims[1];
+                                }
+                                significant_block_id[block_id] = 1;
+                            }
+                            block_id++;
+                            y_data_pos += block_size;
+                        }
+                        x_data_pos += block_size * dims[1];
+                    }
+                }
+                timer.stop("detect");
+            }
+            else if (N == 3)
+            {
+                // TODO: add corner case when dimensions are not divisible by block size
+                int block_size = detection_block_size;
+                const auto &dims = conf.dims;
+                int nx = (int)ceil(dims[0] * 1.0 / block_size);
+                int ny = (int)ceil(dims[1] * 1.0 / block_size);
+                int nz = (int)ceil(dims[2] * 1.0 / block_size);
+                flushed_block = std::vector<uchar>(num_elements, 0);
+                flushed_block_id = std::vector<uchar>(nx * ny * nz, 0);
+                int actual_block_size;
+                Timer timer;
+                timer.start();
+                // compute statistics
+                int block_id = 0;
+                int flushed_count = 0;
+                // using variance for significant blocks
+                std::vector<double> block_significance;
+                T *x_data_pos = data;
+                for (int i = 0; i < nx; i++)
+                {
+                    T *y_data_pos = x_data_pos;
+                    for (int j = 0; j < ny; j++)
+                    {
+                        T *z_data_pos = y_data_pos;
+                        for (int k = 0; k < nz; k++)
+                        {
+                            T block_max = std::numeric_limits<T>::min();
+                            T block_min = std::numeric_limits<T>::max();
+                            actual_block_size = 0;
+                            // compute average
+                            double sum = 0;
+                            T *xx_data_pos = z_data_pos;
+                            for (int ii = 0; ii < block_size; ii++)
+                            {
+                                if (i * block_size + ii >= dims[0])
+                                    break;
+                                T *yy_data_pos = xx_data_pos;
+                                for (int jj = 0; jj < block_size; jj++)
+                                {
+                                    if (j * block_size + jj >= dims[1])
+                                        break;
+                                    T *zz_data_pos = yy_data_pos;
+                                    for (int kk = 0; kk < block_size; kk++)
+                                    {
+                                        if (k * block_size + kk >= dims[2])
+                                            break;
+                                        sum += *zz_data_pos;
+                                        actual_block_size++;
+                                        if (*zz_data_pos > block_max)
+                                            block_max = *zz_data_pos;
+                                        if (*zz_data_pos < block_min)
+                                            block_min = *zz_data_pos;
+                                        zz_data_pos++;
+                                    }
+                                    yy_data_pos += dims[2];
+                                }
+                                xx_data_pos += dims[1] * dims[2];
+                            }
+                            T max_abs_val = std::max(std::abs(block_max), std::abs(block_min));
+
+                            T block_range = block_max - block_min;
+                            if (block_flush_on && max_abs_val < quantizer.get_eb() * 0.1)
+                            {
+                                T *xx_data_pos = z_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    if (i * block_size + ii >= dims[0])
+                                        break;
+                                    T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        if (j * block_size + jj >= dims[1])
+                                            break;
+                                        T *zz_data_pos = yy_data_pos;
+                                        for (int kk = 0; kk < block_size; kk++)
+                                        {
+                                            if (k * block_size + kk >= dims[2])
+                                                break;
+                                            *zz_data_pos = 0;
+                                            flushed_block[zz_data_pos - data] = 1;
+                                            zz_data_pos++;
+                                        }
+                                        yy_data_pos += dims[2];
+                                    }
+                                    xx_data_pos += dims[1] * dims[2];
+                                }
+                                flushed_block_id[block_id] = 1;
+                                flushed_count++;
+                                // skip the variance
+                                if (block_sift_on)
+                                    block_significance.push_back(0);
+                            }
+                            else if (block_sift_on)
+                            {
+                                // compute variance
+                                if (sift_mode == SZ::BLOCK_SIFT_MODE::RANGE)
+                                {
+                                    block_significance.push_back(block_range);
+                                }
+                                else if (sift_mode == SZ::BLOCK_SIFT_MODE::VARIANCE)
+                                {
+                                    double average = sum / actual_block_size;
+                                    double variance = 0;
+                                    T *xx_data_pos = z_data_pos;
+                                    for (int ii = 0; ii < block_size; ii++)
+                                    {
+                                        if (i * block_size + ii >= dims[0])
+                                            break;
+                                        T *yy_data_pos = xx_data_pos;
+                                        for (int jj = 0; jj < block_size; jj++)
+                                        {
+                                            if (j * block_size + jj >= dims[1])
+                                                break;
+                                            T *zz_data_pos = yy_data_pos;
+                                            for (int kk = 0; kk < block_size; kk++)
+                                            {
+                                                if (k * block_size + kk >= dims[2])
+                                                    break;
+                                                variance += (*zz_data_pos - average) * (*zz_data_pos - average);
+                                                zz_data_pos++;
+                                            }
+                                            yy_data_pos += dims[2];
+                                        }
+                                        xx_data_pos += dims[1] * dims[2];
+                                    }
+                                    variance /= actual_block_size;
+                                    block_significance.push_back(variance);
+                                }
+                            }
+                            block_id++;
+                            z_data_pos += block_size;
+                        }
+                        y_data_pos += block_size * dims[2];
+                    }
+                    x_data_pos += block_size * dims[1] * dims[2];
+                }
+                // writefile("variance.dat",block_significance.data(), block_significance.size());
+                // writefile("var_blocks.dat", flushed_block_id.data(), flushed_block_id.size());
+                // std::cout << "block_significance.size() = " << block_significance.size() << std::endl;
+                std::cout<<"acyual_block_size = "<<actual_block_size<<std::endl;
+                std::cout << "flushed_count = " << flushed_count << ", percent = " << flushed_count * 1.0 / (nx * ny * nz) << std::endl;
+                if (block_sift_on)
+                {
+                    double threshold;
+                    double percent = detection_threshold;
+                    { // destroy tmp after use
+                        auto block_significance_tmp(block_significance);
+                        std::sort(block_significance_tmp.begin(), block_significance_tmp.end());
+                        threshold = block_significance_tmp[(int)(percent * block_significance.size())];
+                    }
+                    std::cout << percent * 100 << "% " << SZ::BLOCK_SIFT_MODE_STR[sift_mode] << " threshold = " << threshold << std::endl;
+                    significant_block = std::vector<uchar>(num_elements, 0);
+                    significant_block_id = std::vector<uchar>(nx * ny * nz, 0);
+                    block_id = 0;
+                    x_data_pos = data;
+                    for (int i = 0; i < nx; i++)
+                    {
+                        T *y_data_pos = x_data_pos;
+                        for (int j = 0; j < ny; j++)
+                        {
+                            T *z_data_pos = y_data_pos;
+                            for (int k = 0; k < nz; k++)
+                            {
+                                if (block_significance[block_id] > threshold)
+                                {
+                                    T *xx_data_pos = z_data_pos;
+                                    for (int ii = 0; ii < block_size; ii++)
+                                    {
+                                        if (i * block_size + ii >= dims[0])
+                                            break;
+                                        T *yy_data_pos = xx_data_pos;
+                                        for (int jj = 0; jj < block_size; jj++)
+                                        {
+                                            if (j * block_size + jj >= dims[1])
+                                                break;
+                                            T *zz_data_pos = yy_data_pos;
+                                            for (int kk = 0; kk < block_size; kk++)
+                                            {
+                                                if (k * block_size + kk >= dims[2])
+                                                    break;
+                                                significant_block[zz_data_pos - data] = 1;
+                                                zz_data_pos++;
+                                            }
+                                            yy_data_pos += dims[2];
+                                        }
+                                        xx_data_pos += dims[1] * dims[2];
+                                    }
+                                    significant_block_id[block_id] = 1;
+                                }
+                                block_id++;
+                                z_data_pos += block_size;
+                            }
+                            y_data_pos += block_size * dims[2];
+                        }
+                        x_data_pos += block_size * dims[1] * dims[2];
+                    }
+                }
+                timer.stop("detect");
+            }
+        }
+
+        size_t compute_auxilliary_data_decompress(const T *data)
+        {
+            size_t num_flushed_elements;
+            if (N == 2)
+            {
+                // TODO: add corner case when dimensions are not divisible by block size
+                int block_size = detection_block_size;
+                const auto &dims = global_dimensions;
+                int nx = (int)ceil(dims[0] * 1.0 / block_size);
+                int ny = (int)ceil(dims[1] * 1.0 / block_size);
+                flushed_block = std::vector<uchar>(num_elements, 0);
+                significant_block = std::vector<uchar>(num_elements, 0);
+                int block_id = 0;
+                num_flushed_elements = 0;
+                const T *x_data_pos = data;
+                for (int i = 0; i < nx; i++)
+                {
+                    const T *y_data_pos = x_data_pos;
+                    for (int j = 0; j < ny; j++)
+                    {
+                        if (block_flush_on && block_sift_on && flushed_block_id[block_id] && significant_block_id[block_id])
+                        {
+                            int actual_block_size = 0;
+                            const T *xx_data_pos = y_data_pos;
+                            for (int ii = 0; ii < block_size; ii++)
+                            {
+                                if (i * block_size + ii >= dims[0])
+                                    break;
+                                const T *yy_data_pos = xx_data_pos;
+                                for (int jj = 0; jj < block_size; jj++)
+                                {
+                                    if (j * block_size + jj >= dims[1])
+                                        break;
+                                    flushed_block[yy_data_pos - data] = 1;
+                                    actual_block_size++;
+                                    significant_block[yy_data_pos - data] = 1;
+                                    yy_data_pos += 1;
+                                }
+                                xx_data_pos += dims[1];
+                            }
+                            num_flushed_elements += actual_block_size;
+                        }
+                        else if (block_flush_on && flushed_block_id[block_id])
+                        {
+                            int actual_block_size = 0;
+                            const T *xx_data_pos = y_data_pos;
+                            for (int ii = 0; ii < block_size; ii++)
+                            {
+                                if (i * block_size + ii >= dims[0])
+                                    break;
+                                const T *yy_data_pos = xx_data_pos;
+                                for (int jj = 0; jj < block_size; jj++)
+                                {
+                                    if (j * block_size + jj >= dims[1])
+                                        break;
+                                    flushed_block[yy_data_pos - data] = 1;
+                                    yy_data_pos += 1;
+                                }
+                                xx_data_pos += dims[1];
+                            }
+                            num_flushed_elements += actual_block_size;
+                        }
+                        else if (block_sift_on && significant_block_id[block_id])
+                        {
+                            const T *xx_data_pos = y_data_pos;
+                            for (int ii = 0; ii < block_size; ii++)
+                            {
+                                if (i * block_size + ii >= dims[0])
+                                    break;
+                                const T *yy_data_pos = xx_data_pos;
+                                for (int jj = 0; jj < block_size; jj++)
+                                {
+                                    if (j * block_size + jj >= dims[1])
+                                        break;
+                                    significant_block[yy_data_pos - data] = 1;
+                                    yy_data_pos += 1;
+                                }
+                                xx_data_pos += dims[1];
+                            }
+                        }
+                        block_id++;
+                        y_data_pos += block_size;
+                    }
+                    x_data_pos += block_size * dims[1];
+                }
+            }
+            else if (N == 3)
+            {
+                // TODO: add corner case when dimensions are not divisible by block size
+                int block_size = detection_block_size;
+                const auto &dims = global_dimensions;
+                int nx = (int)ceil(1.0 * dims[0] / block_size);
+                int ny = (int)ceil(1.0 * dims[1] / block_size);
+                int nz = (int)ceil(1.0 * dims[2] / block_size);
+                flushed_block = std::vector<uchar>(num_elements, 0);
+                significant_block = std::vector<uchar>(num_elements, 0);
+                int block_id = 0;
+                num_flushed_elements = 0;
+                const T *x_data_pos = data;
+                for (int i = 0; i < nx; i++)
+                {
+                    const T *y_data_pos = x_data_pos;
+                    for (int j = 0; j < ny; j++)
+                    {
+                        const T *z_data_pos = y_data_pos;
+                        for (int k = 0; k < nz; k++)
+                        {
+                            if (block_flush_on && block_sift_on && flushed_block_id[block_id] && significant_block_id[block_id])
+                            {
+                                int actual_block_size = 0;
+                                const T *xx_data_pos = z_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    if (i * block_size + ii >= dims[0])
+                                        break;
+                                    const T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        if (j * block_size + jj >= dims[1])
+                                            break;
+                                        const T *zz_data_pos = yy_data_pos;
+                                        for (int kk = 0; kk < block_size; kk++)
+                                        {
+                                            if (k * block_size + kk >= dims[2])
+                                                break;
+                                            flushed_block[zz_data_pos - data] = 1;
+                                            significant_block[zz_data_pos - data] = 1;
+                                            zz_data_pos++;
+                                            actual_block_size++;
+                                        }
+                                        yy_data_pos += dims[2];
+                                    }
+                                    xx_data_pos += dims[1] * dims[2];
+                                }
+                                num_flushed_elements += actual_block_size;
+                            }
+                            else if (block_flush_on && flushed_block_id[block_id])
+                            {
+                                int actual_block_size = 0;
+                                const T *xx_data_pos = z_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    if (i * block_size + ii >= dims[0])
+                                        break;
+                                    const T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        if (j * block_size + jj >= dims[1])
+                                            break;
+                                        const T *zz_data_pos = yy_data_pos;
+                                        for (int kk = 0; kk < block_size; kk++)
+                                        {
+                                            if (k * block_size + kk >= dims[2])
+                                                break;
+                                            flushed_block[zz_data_pos - data] = 1;
+                                            zz_data_pos++;
+                                            actual_block_size++;
+                                        }
+                                        yy_data_pos += dims[2];
+                                    }
+                                    xx_data_pos += dims[1] * dims[2];
+                                }
+                                num_flushed_elements += actual_block_size;
+                            }
+                            else if (block_sift_on && significant_block_id[block_id])
+                            {
+                                const T *xx_data_pos = z_data_pos;
+                                for (int ii = 0; ii < block_size; ii++)
+                                {
+                                    if (i * block_size + ii >= dims[0])
+                                        break;
+                                    const T *yy_data_pos = xx_data_pos;
+                                    for (int jj = 0; jj < block_size; jj++)
+                                    {
+                                        if (j * block_size + jj >= dims[1])
+                                            break;
+                                        const T *zz_data_pos = yy_data_pos;
+                                        for (int kk = 0; kk < block_size; kk++)
+                                        {
+                                            if (k * block_size + kk >= dims[2])
+                                                break;
+                                            significant_block[zz_data_pos - data] = 1;
+                                            zz_data_pos++;
+                                        }
+                                        yy_data_pos += dims[2];
+                                    }
+                                    xx_data_pos += dims[1] * dims[2];
+                                }
+                            }
+                            block_id++;
+                            z_data_pos += block_size;
+                        }
+                        y_data_pos += block_size * dims[2];
+                    }
+                    x_data_pos += block_size * dims[1] * dims[2];
+                }
+            }
+            return num_flushed_elements;
+        }
+
+        // *** modified from Sheng's code start ***
+        void
+        convertIntArray2ByteArray_fast_1b_to_result_sz(const uchar *intArray, size_t intArrayLength, uchar *&compressed_pos)
+        {
+            size_t byteLength = 0;
+            size_t i, j;
+            if (intArrayLength % 8 == 0)
+                byteLength = intArrayLength / 8;
+            else
+                byteLength = intArrayLength / 8 + 1;
+
+            size_t n = 0;
+            int tmp, type;
+            for (i = 0; i < byteLength; i++)
+            {
+                tmp = 0;
+                for (j = 0; j < 8 && n < intArrayLength; j++)
+                {
+                    type = intArray[n];
+                    if (type == 1)
+                        tmp = (tmp | (1 << (7 - j)));
+                    n++;
+                }
+                *(compressed_pos++) = (uchar)tmp;
+            }
+        }
+
+        void convertByteArray2IntArray_fast_1b_sz(size_t intArrayLength, const uchar *&compressed_pos, size_t byteArrayLength, uchar *intArray)
+        {
+            if (intArrayLength > byteArrayLength * 8)
+            {
+                printf("Error: intArrayLength > byteArrayLength*8\n");
+                printf("intArrayLength=%zu, byteArrayLength = %zu", intArrayLength, byteArrayLength);
+                exit(0);
+            }
+            size_t n = 0, i;
+            int tmp;
+            for (i = 0; i < byteArrayLength - 1; i++)
+            {
+                tmp = *(compressed_pos++);
+                intArray[n++] = (tmp & 0x80) >> 7;
+                intArray[n++] = (tmp & 0x40) >> 6;
+                intArray[n++] = (tmp & 0x20) >> 5;
+                intArray[n++] = (tmp & 0x10) >> 4;
+                intArray[n++] = (tmp & 0x08) >> 3;
+                intArray[n++] = (tmp & 0x04) >> 2;
+                intArray[n++] = (tmp & 0x02) >> 1;
+                intArray[n++] = (tmp & 0x01) >> 0;
+            }
+            tmp = *(compressed_pos++);
+            for (int i = 0; n < intArrayLength; n++, i++)
+            {
+                intArray[n] = (tmp & (1 << (7 - i))) >> (7 - i);
+            }
+        }
+        // *** modified from Sheng's code end ***
 
         int interpolation_level = -1;
         uint blocksize;
@@ -509,11 +1296,25 @@ namespace SZ {
         std::array<size_t, N> dimension_offsets;
         std::vector<std::array<int, N>> dimension_sequences;
         int direction_sequence_id;
+        // added for artifact mitigation
+        int current_level = 0;
+        double c = sqrt(4.4159889);
+        double c1 = 1.0 / sqrt(1.640625);
+        double c2 = 1.0 / 1.640625;
+        double c3 = 1.0 / sqrt(4.4159889);
+        int detection_block_size = 16;
+        double detection_threshold = 0.9;
+        double detection_eb_rate = c3;
+        double noise_rate = 0;
+        std::vector<uchar> flushed_block;
+        std::vector<uchar> flushed_block_id;
+        std::vector<uchar> significant_block;
+        std::vector<uchar> significant_block_id;
+        uint8_t sift_mode = SZ::BLOCK_SIFT_MODE::RANGE;
+        double current_base_eb;
+        bool block_flush_on;
+        bool block_sift_on;
     };
-
-
 };
 
-
 #endif
-

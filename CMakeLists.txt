@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.18)
-project(SZ3 VERSION 3.1.5.4)
+project(SZ3 VERSION 3.1.7)
 include(GNUInstallDirs)
 include(CTest)
 
 option(BUILD_SHARED_LIBS "build shared libraries by default" ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
+if (MSVC)
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
 set(default_build_type "Release")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type was set. Setting build type to ${default_build_type}.")
@@ -33,7 +35,11 @@ target_compile_features(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME} INTERFACE OpenMP::OpenMP_CXX)
 
-option(SZ3_USE_BUNDLED_ZSTD "prefer the bundled version of Zstd" OFF)
+if (MSVC)
+    option(SZ3_USE_BUNDLED_ZSTD "prefer the bundled version of Zstd" ON)
+else()
+    option(SZ3_USE_BUNDLED_ZSTD "prefer the bundled version of Zstd" OFF)
+endif()
 option(SZ3_DEBUG_TIMINGS "print debug timing information" ON)
 
 if(SZ3_DEBUG_TIMINGS)
@@ -56,12 +62,27 @@ if (GSL_FOUND)
   target_link_libraries(${PROJECT_NAME} INTERFACE GSL::gsl)
 endif()
 
-add_subdirectory(examples)
+add_subdirectory(tools/sz3)
+
+
+
+
+option(BUILD_sz3c_FILTER "build the sz3c" OFF)
+if(BUILD_sz3c_FILTER)
+	add_subdirectory(tools/sz3c)
+endif()
+
 
 option(BUILD_H5Z_FILTER "build the H5Z-SZ3 filter" OFF)
 if(BUILD_H5Z_FILTER)
 	add_subdirectory(tools/H5Z-SZ3)
 endif()
+
+option(BUILD_MDZ "build MDZ (MMD-SZ)" OFF)
+if(BUILD_MDZ)
+  add_subdirectory(tools/mdz)
+endif()
+
 
 install(TARGETS ${PROJECT_NAME} 
   EXPORT SZ3Targets
