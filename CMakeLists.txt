@@ -3,6 +3,12 @@ project(SZ3 VERSION 3.1.7)
 include(GNUInstallDirs)
 include(CTest)
 
+option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data" OFF)
+if (SZ_ANALYSIS)
+  add_compile_definitions(-DSZ_ANALYSIS)
+endif()
+
+
 option(BUILD_SHARED_LIBS "build shared libraries by default" ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if (MSVC)
@@ -67,7 +73,7 @@ add_subdirectory(tools/sz3)
 
 
 
-option(BUILD_sz3c_FILTER "build the sz3c" OFF)
+option(BUILD_sz3c_FILTER "build the sz3c" ON)
 if(BUILD_sz3c_FILTER)
 	add_subdirectory(tools/sz3c)
 endif()

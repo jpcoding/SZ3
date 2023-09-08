@@ -10,5 +10,14 @@ cmake-build-release
 install
 testbuild
 install
+<<<<<<< HEAD
 .clangd
 .cache
+=======
+*cache
+.github
+.cache
+.ccls-cache
+.DS_Store
+debug*
+>>>>>>> c464e7e2f1262938b58669cf8ce286e3aab4431f
