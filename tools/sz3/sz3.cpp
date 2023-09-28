@@ -408,7 +408,7 @@ int main(int argc, char *argv[]) {
     } else if (r4 == 0) {
         conf = SZ::Config(r3, r2, r1);
     } else {
-        conf = SZ::Config(r4, r3, r2, r1);
+        conf = SZ::Config(r4, r3, r2, r1); // r1 is the fastest dimension 
     }
     if (compression && conPath != nullptr) {
         conf.loadcfg(conPath);

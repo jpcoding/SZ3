@@ -149,6 +149,12 @@ namespace SZ {
             block_iso_on = cfg.GetBoolean("ArtifactSettings", "block_iso_on", block_iso_on);
             block_isovalue =  cfg.GetReal("ArtifactSettings", "block_isovalue", block_isovalue);
             pattern_check_on = cfg.GetBoolean("ArtifactSettings", "pattern_check_on", pattern_check_on);
+            block_diff_on = cfg.GetBoolean("ArtifactSettings", "block_diff_on", block_diff_on);
+            diff_thresh = cfg.GetReal("ArtifactSettings", "block_diff_thresh", diff_thresh);
+
+            use_stochastic_quantize = cfg.GetBoolean("ArtifactSettings", "use_stochastic_quantize", use_stochastic_quantize);
+            use_stochastic_decompress = cfg.GetBoolean("ArtifactSettings", "use_stochastic_decompress", use_stochastic_decompress);
+            use_stochastic_predict = cfg.GetBoolean("ArtifactSettings", "use_stochastic_predict", use_stochastic_predict);
 
         }
 
@@ -183,6 +189,11 @@ namespace SZ {
             write(block_sift_mode, c);
             write(block_sift_on, c);
             write(block_flush_on, c);
+            write(use_stochastic_decompress, c);
+            write(use_stochastic_quantize, c);
+            write(use_stochastic_predict, c);
+
+            
 
         };
 
@@ -217,6 +228,9 @@ namespace SZ {
             read(block_sift_mode, c);
             read(block_sift_on, c);
             read(block_flush_on, c);
+            read(use_stochastic_decompress, c);
+            read(use_stochastic_quantize, c);
+            read(use_stochastic_predict, c);
         }
 
         void print() {
@@ -259,9 +273,16 @@ namespace SZ {
         bool block_flush_on = 0;
         bool block_sift_on =0;
         bool block_iso_on = 0;
-        bool pattern_check_on = 1;
+        bool pattern_check_on = 0;
         double block_isovalue=0;
         double pattern_eb_rate = 1e-23;
+
+        bool block_diff_on = 0;
+        double diff_thresh = 0.1;
+
+        bool use_stochastic_quantize=0;
+        bool use_stochastic_predict=0;
+        bool use_stochastic_decompress=0;
 
     };
 

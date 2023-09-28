@@ -1,6 +1,7 @@
 #ifndef _SZ_INTERPOLATION_COMPRESSSOR_HPP
 #define _SZ_INTERPOLATION_COMPRESSSOR_HPP
 
+#include "SZ3/encoder/HuffmanEncoder.hpp"
 #include "SZ3/predictor/Predictor.hpp"
 #include "SZ3/predictor/LorenzoPredictor.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
@@ -19,7 +20,9 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <random>
 #include "SZ3/utils/critical_points.hpp"
+#include "SZ3/compressor/SZInterpCompressorHelp.hpp"
 
 
 namespace SZ
@@ -59,12 +62,19 @@ namespace SZ
             read(block_flush_on, buffer_pos, remaining_length);
             read(block_sift_on, buffer_pos, remaining_length);
 
+            read(use_stochastic_predict, buffer_pos);
+            read(use_stochastic_quantize, buffer_pos);
+            read(use_stochastic_decompress, buffer_pos);
+
             // read auxilliary data
             read(detection_block_size, buffer_pos);
             read(num_detection_block, buffer_pos);
             std::cout<<"num_detection_block = " << num_detection_block <<std::endl; 
             Timer timer;
             timer.start();
+
+
+            
             if (block_flush_on == 1)
             {
                 flushed_block_id = std::vector<uchar>(num_detection_block);
@@ -77,9 +87,7 @@ namespace SZ
                 significant_block_id = std::vector<uchar>(num_detection_block);
                 convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
             }
-            timer.stop("read auxilliary data");
-            // significant_block_id = std::vector<uchar>(num_detection_block);
-            // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
+
             // read additional variable
             read(noise_rate, buffer_pos);
             read(detection_eb_rate, buffer_pos);
@@ -100,11 +108,27 @@ namespace SZ
                 std::cout << "pattern_search_on = " << pattern_search_on << std::endl;
             }
 
+            read(block_diff_on, buffer_pos);
+            read(block_diff_thresh, buffer_pos);
+            if (block_diff_on ==1)
+            {
+                std::cout << "recover block data = "<< std::endl;
+                significant_block_id.resize(num_detection_block,0);
+                convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1, significant_block_id.data());
+                SZ::compute_aux_diff_decompress(global_dimensions.data(), N,
+                detection_block_size, significant_block_id, significant_block);
+            }
+            timer.stop("read auxilliary data");
 
             size_t num_flushed_elements = 0;
             if(block_flush_on ==1 || block_sift_on==1){
                 num_flushed_elements = compute_auxilliary_data_decompress(decData);
             }
+
+            artifact_sift_on = block_sift_on || block_flush_on || block_iso_on || block_diff_on;
+
+
+
 
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
@@ -192,6 +216,13 @@ namespace SZ
             pattern_search_on=conf.pattern_check_on;
             pattern_eb_rate = conf.pattern_eb_rate;
 
+            block_diff_on = conf.block_diff_on;
+            block_diff_thresh = conf.diff_thresh;
+
+            use_stochastic_quantize = conf.use_stochastic_quantize;
+            use_stochastic_predict= conf.use_stochastic_predict;
+            use_stochastic_decompress = conf.use_stochastic_decompress;
+
 
 
             if(block_sift_on || block_flush_on) std::cout << "detection_block_size = " << detection_block_size << std::endl;
@@ -199,8 +230,15 @@ namespace SZ
             if(block_sift_on ) std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
             if(noise_rate != 0) std::cout << "noise_rate = " << noise_rate << std::endl;
             if(block_iso_on) std::cout << "isovalue = " << isovalue << std::endl;
+            if(block_diff_on) std::cout << "block_diff_thresh = " << block_diff_thresh << std::endl;
 
-            if(noise_rate != 0)  srand(3333);
+            // if(noise_rate != 0)  srand(3333);
+            // srand(3333);
+
+            // random generator 
+            // seeding 
+
+
             init();
 
             if(pattern_search_on ==1)
@@ -228,6 +266,17 @@ namespace SZ
                 compute_auxilliary_data(conf, data);
                 timer.stop("Auxilliary Data Compress");
             }
+            
+            if(block_diff_on ==1)
+            {
+                timer.start();
+                
+                SZ::compute_aux_diff_compress(conf, data, detection_block_size, 
+                significant_block_id, significant_block);
+                timer.stop("Diff Data Compress");
+            }
+
+            artifact_sift_on = block_sift_on || block_flush_on || block_iso_on || block_diff_on;
 
             quant_inds.reserve(num_elements);
             size_t interp_compressed_size = 0;
@@ -317,16 +366,22 @@ namespace SZ
             write(sift_mode, buffer_pos);
             write(block_flush_on, buffer_pos);
             write(block_sift_on, buffer_pos);
+
+            write(use_stochastic_predict, buffer_pos);
+            write(use_stochastic_quantize, buffer_pos);
+            write(use_stochastic_decompress, buffer_pos);
     
 
             // add auxilliary array
             write(detection_block_size, buffer_pos);
+            num_detection_block = significant_block_id.size();
             write(num_detection_block, buffer_pos);
             if (block_flush_on)
                 convertIntArray2ByteArray_fast_1b_to_result_sz(flushed_block_id.data(), flushed_block_id.size(), buffer_pos);
             if (block_sift_on)
                 convertIntArray2ByteArray_fast_1b_to_result_sz(significant_block_id.data(), significant_block_id.size(), buffer_pos);
-            // add additional variable
+
+             // add additional variable
             write(noise_rate, buffer_pos);
             write(detection_eb_rate, buffer_pos);
             write(original_max, buffer_pos);
@@ -334,6 +389,13 @@ namespace SZ
             write(pattern_search_on, buffer_pos);
             if(pattern_search_on)
                 SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(pattern_map_uchar.data(), pattern_map_uchar.size(), buffer_pos);
+            
+            write(block_diff_on, buffer_pos);
+            write(block_diff_thresh, buffer_pos);
+            if (block_diff_on)
+                SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(significant_block_id.data(), significant_block_id.size(), buffer_pos);
+
+
 
             quantizer.save(buffer_pos);
             quantizer.postcompress_data();
@@ -360,6 +422,49 @@ namespace SZ
             writefile("decompressed.dat",data, num_elements);
             writefile("level.dat",my_level.data(), num_elements);
             std::cout<<"[ANALYSIS COMPILATION MODE]"<<std::endl;
+
+            // Try huffman encoding on inorder quantization and level-wise quantization integers 
+            SZ::HuffmanEncoder<int> huff_coding = SZ::HuffmanEncoder<int>();
+
+            uchar *test_buffer = new uchar[bufferSize];
+            uchar *test_buffer_pos = test_buffer;
+            huff_coding.preprocess_encode(my_quant_inds, 0);
+            huff_coding.save(test_buffer_pos);
+            huff_coding.encode(my_quant_inds, test_buffer_pos);
+            huff_coding.postprocess_encode();
+            size_t comsize=0;
+            uchar *lossless_data2 = lossless.compress(test_buffer,
+                                                     test_buffer_pos - test_buffer,
+                                                     comsize);
+            // lossless.postcompress_data(test_buffer);
+
+            std::cout << "[inorder]comsize = " << comsize << std::endl;
+            free(test_buffer);
+
+            // try it on level-wise quantization integers 
+            SZ::HuffmanEncoder<int> huff_coding2 = SZ::HuffmanEncoder<int>();
+
+            uchar *test_buffer2 = new uchar[bufferSize];
+            uchar *test_buffer_pos2 = test_buffer2;
+            huff_coding2.preprocess_encode(quant_inds, 0);
+            huff_coding2.save(test_buffer_pos2);
+            huff_coding2.encode(quant_inds, test_buffer_pos2);
+            huff_coding2.postprocess_encode();
+
+            size_t comsize2=0;
+            uchar *lossless_data3 = lossless.compress(test_buffer2,
+                                                     test_buffer_pos2 - test_buffer2,
+                                                     comsize2);
+            // lossless.postcompress_data(test_buffer2);
+
+            std::cout << "[level-wise]comsize = " << comsize2 << std::endl;
+
+            // std::cout << "[level-wise] huffman encoding size = " << test_buffer_pos2 - test_buffer2 << std::endl;
+            free(test_buffer2);
+
+
+            writefile("quant_level.dat",quant_inds.data(), quant_inds.size());
+
             #endif 
 
             compressed_size += interp_compressed_size;
@@ -405,6 +510,16 @@ namespace SZ
                 dimension_sequences.push_back(sequence);
             } while (std::next_permutation(sequence.begin(), sequence.end()));
 
+            mt = std::mt19937(3333);
+            uniform_dist = std::uniform_real_distribution<T>(0.0, 1);
+            // uniform_dist = std::uniform_real_distribution<T>(0.45, 0.55);
+
+            normal_dist = std::normal_distribution<T>(0.5,0.12);
+
+            bernoulli_dist = std::bernoulli_distribution(0.1);
+
+        
+
             #ifdef SZ_ANALYSIS
             my_level.resize(num_elements);
             my_quant_inds.resize(num_elements);
@@ -437,28 +552,61 @@ namespace SZ
             else
             {
                 auto default_eb = quantizer.get_eb();
-                if (block_sift_on && (current_level == 1) && significant_block[idx])
+                if (artifact_sift_on && (current_level == 1) && significant_block[idx])
                 {
-                    quantizer.set_eb(current_base_eb * detection_eb_rate);
+                    quantizer.set_eb(default_eb * detection_eb_rate);
                 }
                 if ( pattern_search_on && pattern_map_uchar[idx]==1)
                 {
-                    quantizer.set_eb(current_base_eb * pattern_eb_rate);
+                    quantizer.set_eb(default_eb * pattern_eb_rate);
                 }
-                if (noise_rate != 0)
+                if (use_stochastic_predict ==1  && noise_rate!=0 && current_level ==1)
                 {
-                    T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    // T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    // int quant_noise = rand() &1;
+                    // pred += quant_noise*default_eb;
+                    // T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb; 
+                    // pred += noise;
+
+                    // if (fabs(pred) > 1e-2)
+                    //     pred += noise * noise_rate * default_eb;
+                    T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb; 
                     if (fabs(pred) > 1e-2)
-                        pred += noise * noise_rate * default_eb;
+                        pred += noise;
                 }
-                quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+                if (use_stochastic_quantize ==1&& current_level ==1)
+                {
+                    // std::cout<<"stochastic quantize "<< idx << std::endl;
+                    // int rand_quant = rand() &1; 
+                    // quant_inds.push_back(quantizer.stochastic_quantize_and_overwrite(d, pred,rand_quant ));
+
+                    // add noise to the decompressed data
+                    // int noise_quant =  
+                    // T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
+                    // quant_inds.push_back(quantizer.quantize_and_overwrite_with_noise(d, pred,noise ));
+
+                    T prob = uniform_dist(mt);
+                    // T prob = normal_dist(mt);
+                    // T prob = (T)bernoulli_dist(mt);
+                    quant_inds.push_back(quantizer.quantize_and_overwrite_prob(d, pred,prob ));
+                }
+                else if(use_stochastic_decompress ==1 && current_level ==1)
+                {
+                    T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
+                    quant_inds.push_back(quantizer.quantize_and_overwrite_with_noise(d, pred,noise ));
+                }
+                else {
+                    quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+                }
+
+                
                 quantizer.set_eb(default_eb);
             }
-            range_check(d);
+            // range_check(d);
 
             #ifdef SZ_ANALYSIS
             my_level[idx] = current_level;
-            my_quant_inds[idx] = *quant_inds.end();
+            my_quant_inds[idx] = quant_inds.back();
             my_pred[idx] = pred;
             #endif
 
@@ -473,24 +621,42 @@ namespace SZ
             else
             {
                 auto default_eb = quantizer.get_eb();
-                if (block_sift_on && (current_level == 1) && significant_block[idx])
+                if (artifact_sift_on && (current_level == 1) && significant_block[idx])
                 {
-                    quantizer.set_eb(current_base_eb * detection_eb_rate);
+                    quantizer.set_eb(default_eb * detection_eb_rate);
                 }
                 if ( pattern_search_on && pattern_map_uchar[idx]==1)
                 {
-                    quantizer.set_eb(current_base_eb * pattern_eb_rate);
+                    quantizer.set_eb(default_eb * pattern_eb_rate);
                 }
-                if (noise_rate != 0)
+                if (use_stochastic_predict==1 && noise_rate != 0  && current_level ==1 )
                 {
-                    T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    // T noise = 2.0 * rand() / RAND_MAX - 1.0;
+                    // int quant_noise = rand() &1; 
+                    T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb; 
+
+                    // pred += quant_noise*default_eb;
                     if (fabs(pred) > 1e-2)
-                        pred += noise * noise_rate * default_eb;
+                        pred += noise;
                 }
-                d = quantizer.recover(pred, quant_inds[quant_index++]);
+                if (use_stochastic_quantize==1 && current_level ==1)
+                {
+                    // T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
+                    // d=quantizer.recover_with_noise(pred, quant_inds[quant_index++],noise);
+                    // d=quantizer.stochastic_recover(pred, quant_inds[quant_index++],idx);
+                    d = quantizer.recover(pred, quant_inds[quant_index++]);
+                }
+                else if(use_stochastic_decompress ==1 && current_level ==1)
+                {
+                    T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
+                    d=quantizer.recover_with_noise(pred, quant_inds[quant_index++],noise);
+                }
+                else  {
+                    d = quantizer.recover(pred, quant_inds[quant_index++]);
+                }
                 quantizer.set_eb(default_eb);
             }
-            range_check(d);
+            // range_check(d);
         };
 
         double block_interpolation_1d(T *data, size_t begin, size_t end, size_t stride,
@@ -893,7 +1059,7 @@ namespace SZ
                     for (int j = 0; j < ny; j++)
                     {
                         int block_size_j = (j + 1) * block_size > dims[1] ? dims[1] - j * block_size : block_size;
-                        T block_max = std::numeric_limits<T>::min();
+                        T block_max = -std::numeric_limits<T>::max();
                         T block_min = std::numeric_limits<T>::max();
                         T block_distance_to_isovalue=std::numeric_limits<T>::max();
                         // compute average
@@ -1048,7 +1214,7 @@ namespace SZ
                         for (int k = 0; k < nz; k++)
                         {
                             int block_size_k = (k + 1) * block_size > dims[2] ? dims[2] - k * block_size : block_size;
-                            T block_max = std::numeric_limits<T>::min();
+                            T block_max = -std::numeric_limits<T>::max();
                             T block_min = std::numeric_limits<T>::max();
                             T block_isovalue_distance = std::numeric_limits<T>::max();
                             // actual_block_size = 0;
@@ -1170,8 +1336,8 @@ namespace SZ
                         threshold = block_significance_tmp[(size_t)(percent * block_significance.size())];
                     }
                     std::cout << percent * 100 << "% " << SZ::BLOCK_SIFT_MODE_STR[sift_mode] << " threshold = " << threshold << std::endl;
-                    significant_block = std::vector<uchar>(num_elements, 0);
-                    significant_block_id = std::vector<uchar>(nx * ny * nz, 0);
+                    significant_block = std::vector<uchar>(num_elements, 0); // per datapoint 
+                    significant_block_id = std::vector<uchar>(nx * ny * nz, 0); // per block 
                     block_id = 0;
                     x_data_pos = data;
                     for (int i = 0; i < nx; i++)
@@ -1313,9 +1479,9 @@ namespace SZ
                             }
                         }
                         block_id++;
-                        y_data_pos += block_size;
+                        y_data_pos += block_size_j;
                     }
-                    x_data_pos += block_size * dims[1];
+                    x_data_pos += block_size_i * dims[1];
                 }
             }
             else if (N == 3)
@@ -1459,8 +1625,8 @@ namespace SZ
         double noise_rate = 0;
         std::vector<uchar> flushed_block;
         std::vector<uchar> flushed_block_id;
-        std::vector<uchar> significant_block;
-        std::vector<uchar> significant_block_id;
+        std::vector<uchar> significant_block; // per datapoint 
+        std::vector<uchar> significant_block_id; // per block 
         uint8_t sift_mode = SZ::BLOCK_SIFT_MODE::RANGE;
         double current_base_eb;
         bool block_flush_on;
@@ -1474,6 +1640,22 @@ namespace SZ
         T original_min; // for data range check
 
         std::vector<uchar> pattern_map_uchar;
+
+        bool block_diff_on; 
+        bool block_diff_thresh;
+
+        bool artifact_sift_on;
+
+        bool use_stochastic_quantize=false;
+        bool use_stochastic_predict=false;
+        bool use_stochastic_decompress=false;
+
+        std::mt19937 mt;
+        std::uniform_real_distribution<T> uniform_dist;
+        std::normal_distribution<T> normal_dist;
+        std::bernoulli_distribution bernoulli_dist;
+
+        std::normal_distribution<T> norml_dist_predict = std::normal_distribution<T>(0, 1);
 
         // Analysis utils; 
         // This is for conditional compilation not comments

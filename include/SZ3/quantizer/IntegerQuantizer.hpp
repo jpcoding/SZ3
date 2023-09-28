@@ -1,12 +1,17 @@
 #ifndef _SZ_INTEGER_QUANTIZER_HPP
 #define _SZ_INTEGER_QUANTIZER_HPP
 
+#include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <cassert>
 #include <iostream>
+#include <math.h>
 #include <vector>
 #include "SZ3/def.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
+#include "SZ3/utils/Timer.hpp"
+#include <random>
 
 namespace SZ {
 
@@ -61,6 +66,88 @@ namespace SZ {
         int quantize_and_overwrite(T &data, T pred,bool save_unpred=true) {
             T diff = data - pred;
             int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            // 1 or 2 
+            if (quant_index < this->radius * 2) {
+                quant_index >>= 1; // 2 ->1 3->1 
+                // quant_index +- 1?
+                // quant_index += 1/0  // 2
+                int half_index = quant_index; // 2 
+                quant_index <<= 1;  // 2-> 4 
+
+                // quant_index = quant_index + p(distance)
+                // quant_index * 2  or quant_index 
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index; 
+                } else {
+                    quant_index_shifted = this->radius + half_index; // 1+ radius
+                }
+                T decompressed_data = pred + quant_index * this->error_bound ;
+                if (fabs(decompressed_data - data) > this->error_bound) {
+                    // printf("data: %.7f, pred: %.7f, diff: %.7f, quant_index: %d, decompressed_data: %.7f, eb: %.7f, error: %.7f \n", data, pred,
+                        //    diff, quant_index, decompressed_data, this->error_bound, fabs(decompressed_data - data));
+                    if(save_unpred)
+                        unpred.push_back(data);
+                    return 0;
+                } else {
+                    data = decompressed_data;
+                    return quant_index_shifted;
+                }
+                return quant_index_shifted;
+            } else {
+                if(save_unpred)
+                    unpred.push_back(data);
+                return 0;
+            }
+        }
+
+
+        int quantize_and_overwrite_prob(T &data, T pred, T probability, bool save_unpred=true) {
+            T diff = data - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            // 1 or 2 
+            if (quant_index < this->radius * 2) {
+                quant_index >>= 1; 
+                int half_index = quant_index; 
+                // introcude random quantization here
+                T distance = fabs(diff) - half_index*2 * this->error_bound;
+                int direction = distance>0? 1:-1; // direction of quantization, if orig is 2, 1 means toward 4, -1 means toward 0 
+                int rand_quant = fabs(distance)/(2.0*this->error_bound) > probability? 1:0; // magnitude of quantization 0 or 1,1 means quantization to a farther integer
+                quant_index  += direction*rand_quant;
+                half_index = quant_index;
+                quant_index <<= 1;
+
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index; 
+                } else {
+                    quant_index_shifted = this->radius + half_index; // 1+ radius
+                }
+                T decompressed_data = pred + quant_index * this->error_bound ;
+                if (fabs(decompressed_data - data) > 2*this->error_bound) {
+                    // printf("data: %.7f, pred: %.7f, diff: %.7f, quant_index: %d, decompressed_data: %.7f, eb: %.7f, error: %.7f \n", data, pred,
+                        //    diff, quant_index, decompressed_data, this->error_bound, fabs(decompressed_data - data));
+                    if(save_unpred)
+                        unpred.push_back(data);
+                    return 0;
+                } else {
+                    data = decompressed_data;
+                    return quant_index_shifted;
+                }
+                return quant_index_shifted;
+            } else {
+                if(save_unpred)
+                    unpred.push_back(data);
+                return 0;
+            }
+        }
+
+
+        int quantize_and_overwrite_with_noise(T &data, T pred, T  rand_noise, bool save_unpred=true) {
+            T diff = data - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
             if (quant_index < this->radius * 2) {
                 quant_index >>= 1;
                 int half_index = quant_index;
@@ -72,8 +159,9 @@ namespace SZ {
                 } else {
                     quant_index_shifted = this->radius + half_index;
                 }
-                T decompressed_data = pred + quant_index * this->error_bound;
-                if (fabs(decompressed_data - data) > this->error_bound) {
+                T decompressed_data = pred + quant_index * this->error_bound+ rand_noise; 
+                T updated_bound = this->error_bound + std::fabs(rand_noise);
+                if (fabs(decompressed_data - data) > updated_bound) {
                     if(save_unpred)
                         unpred.push_back(data);
                     return 0;
@@ -81,12 +169,78 @@ namespace SZ {
                     data = decompressed_data;
                     return quant_index_shifted;
                 }
+                data = decompressed_data;
+                return quant_index_shifted;
             } else {
                 if(save_unpred)
                     unpred.push_back(data);
                 return 0;
             }
         }
+
+
+        int stochastic_quantize_and_overwrite(T &data, T pred, int rand_index , bool save_unpred=true)
+        {
+            T diff = data - pred; 
+            // SZ::Timer timer;
+            // timer.start();
+            // srand(index);
+            // int quantization_rand = rand() & 1;
+            int quantization_rand = rand_index; // rand_index = 1 or 0 
+            // timer.stop("random generator");
+            int quant_index = (int) std::floor(std::fabs(diff)/this->error_bound);
+            int shifted_quant_index;
+            // int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal); 
+            if (quant_index < this->radius )
+            {       
+                if (diff < 0)
+                {
+                    quant_index = -quant_index-quantization_rand;
+                    shifted_quant_index = quant_index + this->radius;
+                }
+                else
+                {
+                    quant_index = quant_index+quantization_rand;
+                    shifted_quant_index = this->radius + quant_index;
+                }
+                T decompressed_data = pred + quant_index * this->error_bound;
+                if (fabs(decompressed_data - data) > this->error_bound) {
+                    if(save_unpred)
+                        unpred.push_back(data);
+                    std::cout<<"unpred"<<std::endl;
+                    return 0;
+                } else {
+                    data = decompressed_data;
+                    return shifted_quant_index;
+                }
+
+            }else {
+                if(save_unpred)
+                    unpred.push_back(data);
+                return 0;
+            }
+        }
+
+        /*
+        Do not use this
+        */
+        T stochastic_recover(T pred, int shifted_quant_index, size_t data_index)
+        {
+            if (shifted_quant_index !=0) {
+                // srand(data_index);
+                // int quantization_rand = rand() & 1;
+                int quant_index = shifted_quant_index - this->radius;
+                // if (quant_index < 0)
+                //     quant_index = quant_index - quantization_rand;
+                // else
+                //     quant_index = quant_index + quantization_rand;
+                T decompressed_data = pred + quant_index * this->error_bound;
+                return decompressed_data;
+            } else {
+                return recover_unpred();
+            }
+        }
+
 
         int quantize_and_overwrite(T ori, T pred, T &dest,bool save_unpred=true) {
             T diff = ori - pred;
@@ -120,6 +274,7 @@ namespace SZ {
             }
         }
 
+
         void insert_unpred(T ori){
             unpred.push_back(ori);
         }
@@ -142,8 +297,21 @@ namespace SZ {
             }
         }
 
+        T recover_with_noise(T pred, int quant_index, T rand_noise) {
+            if (quant_index) {
+                return recover_pred(pred, quant_index)+ rand_noise;
+            } else {
+                return recover_unpred();
+            }
+        }
 
 
+
+        T stochastic_recover_pred(T pred, int quant_index) {
+            // return pred + quant_index * this->error_bound;
+            // int index = ; 
+            return pred + (quant_index + (rand() & 1)) * this->error_bound;
+        }
 
         T recover_pred(T pred, int quant_index) {
             return pred + 2 * (quant_index - this->radius) * this->error_bound;
@@ -188,6 +356,8 @@ namespace SZ {
             c += sizeof(size_t);
             memcpy(c, unpred_idx.data(), unpred_idx.size() * sizeof(size_t));
             c += unpred_idx.size() * sizeof(size_t);
+
+            std::cout << "unpred size" << unpred.size() << std::endl;
 
 
         };
