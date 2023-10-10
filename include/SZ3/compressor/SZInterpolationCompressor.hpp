@@ -348,7 +348,7 @@ namespace SZ
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
             {
                 // direction_sequence_id = direction_choice(mt);
-                std::cout << "direction_sequence_id = " << direction_sequence_id << std::endl;
+                // std::cout << "direction_sequence_id = " << direction_sequence_id << std::endl;
                 // for (int i = 0; i < N; i++)
                 // {
                 //     std::cout << dimension_sequences[direction_sequence_id][i] << " ";
@@ -674,8 +674,6 @@ namespace SZ
                     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
                 }
                 else {
-                    // if(idx == 10000) std::cout<< "pred = " << pred << std::endl;
-                    // if(current_level == 8) std::cout<< "index = "<< idx  << ", pred = " << pred << std::endl;
                     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
                 }
 
@@ -764,9 +762,6 @@ namespace SZ
                     d=quantizer.recover(pred, quant_inds[quant_index++]);
                 }
                 else  {
-                    // if(idx == 10000) std::cout<< "pred = " << pred << std::endl;
-                    // if(current_level == 8) std::cout<< "index = "<< idx  << ", pred = " << pred << std::endl;
-
                     d = quantizer.recover(pred, quant_inds[quant_index++]);
                 }
                 quantizer.set_eb(default_eb);
@@ -795,8 +790,6 @@ namespace SZ
                     {
                         T *d = data + begin + i * stride;
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " <<interp_linear(*(d - stride), *(d + stride)) << std::endl;
-
                     }
                     if (n % 2 == 0)
                     {
@@ -816,17 +809,16 @@ namespace SZ
                     {
                         T *d = data + begin + i * stride;
                         recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " <<interp_linear(*(d - stride), *(d + stride)) << std::endl;
-
                     }
                     if (n % 2 == 0)
                     {
                         T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
-                            recover(d - data, *d, *(d - stride));
-                        } else {
-                            recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
-                        }
+                        recover(d - data, *d, *(d - stride));
+                        // if (n < 4) {
+                        //     recover(d - data, *d, *(d - stride));
+                        // } else {
+                        //     recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
+                        // }
                     }
 
                 }
@@ -848,25 +840,6 @@ namespace SZ
                         
                         quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " << *d << std::endl;
-                        // if(bernoulli_dist(mt) ==1 && 0)
-                        // {
-                        // // quantize(d - data, *d,
-                        //         //  trigonometric_interp(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        // int choice = interp_indices[uni_choose(mt)];
-                        // quantize(d - data, *d,
-                        //          interp_linear(*(d - stride*choice), *(d + stride*choice)));   
-                                 
-                        // // quantize(d - data, *d,
-                        // //          interp_cubic(*(d + stride*interp_indices[uni_choose(mt)]), *(d + stride*interp_indices[uni_choose(mt)]),
-                        // //          *(d + stride*interp_indices[uni_choose(mt)]),*(d + stride*interp_indices[uni_choose(mt)])));
-                        // }
-                        // else {
-
-                        // quantize(d - data, *d,
-                        //          interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                        // }
-                        if(current_level ==8) counter++;
                     }
                     d = data + begin + stride;
                     quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
@@ -890,8 +863,7 @@ namespace SZ
                         d = data + begin + i * stride;
                         recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                         
-                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " << *d << std::endl;
-// if(bernoulli_dist(mt) ==1 && 0)
+                        // if(bernoulli_dist(mt) ==1 && 0)
                         // {
                         // // recover(d - data, *d,
                         // //  trigonometric_interp(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
@@ -907,7 +879,6 @@ namespace SZ
                         //          interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                       
                         // }
-                        if(current_level ==8) counter++;
                     }
                     d = data + begin + stride;
 
@@ -1009,7 +980,6 @@ namespace SZ
                                                             stride * dimension_offsets[dims[1]], interp_func, pb);
                 }
             }
-
             // quantizer.set_eb(default_eb);
 
             for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0); i <= end[dims[0]]; i += stride)
