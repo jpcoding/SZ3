@@ -155,7 +155,12 @@ namespace SZ {
             use_stochastic_quantize = cfg.GetBoolean("ArtifactSettings", "use_stochastic_quantize", use_stochastic_quantize);
             use_stochastic_decompress = cfg.GetBoolean("ArtifactSettings", "use_stochastic_decompress", use_stochastic_decompress);
             use_stochastic_predict = cfg.GetBoolean("ArtifactSettings", "use_stochastic_predict", use_stochastic_predict);
-
+            use_stochastic_eb = cfg.GetBoolean("ArtifactSettings", "use_stochastic_eb", use_stochastic_eb);
+            use_random_predictor = cfg.GetBoolean("ArtifactSettings", "use_random_predictor", use_random_predictor);
+            normal_std = cfg.GetReal("ArtifactSettings", "normal_std", normal_std);
+            uniform_lower = cfg.GetReal("ArtifactSettings", "uniform_lower", uniform_lower);
+            normal_mean = cfg.GetReal("ArtifactSettings", "normal_mean", normal_mean);
+            bernoulli_p = cfg.GetReal("ArtifactSettings", "bernoulli_p", bernoulli_p);
         }
 
 
@@ -192,6 +197,8 @@ namespace SZ {
             write(use_stochastic_decompress, c);
             write(use_stochastic_quantize, c);
             write(use_stochastic_predict, c);
+            write(use_stochastic_eb, c);
+
 
             
 
@@ -231,6 +238,7 @@ namespace SZ {
             read(use_stochastic_decompress, c);
             read(use_stochastic_quantize, c);
             read(use_stochastic_predict, c);
+            read(use_stochastic_eb, c);
         }
 
         void print() {
@@ -283,6 +291,12 @@ namespace SZ {
         bool use_stochastic_quantize=0;
         bool use_stochastic_predict=0;
         bool use_stochastic_decompress=0;
+        bool use_stochastic_eb = 0;
+        bool use_random_predictor = 0;
+        float normal_mean = 0.0;
+        float normal_std = 1.0;
+        float uniform_lower = 0.0;
+        float bernoulli_p = 0.5;
 
     };
 

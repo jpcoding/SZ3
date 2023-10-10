@@ -16,11 +16,14 @@
 #include "SZ3/def.hpp"
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/utils/ByteUtil.hpp"
+#include <array>
 #include <cstddef>
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 #include <random>
+#include <vector>
 #include "SZ3/utils/critical_points.hpp"
 #include "SZ3/compressor/SZInterpCompressorHelp.hpp"
 
@@ -65,6 +68,11 @@ namespace SZ
             read(use_stochastic_predict, buffer_pos);
             read(use_stochastic_quantize, buffer_pos);
             read(use_stochastic_decompress, buffer_pos);
+            read(use_stochastic_eb, buffer_pos);
+            read(normal_mean, buffer_pos);
+            read(normal_std, buffer_pos);
+            read(uniform_lower, buffer_pos);
+            read(bernoulli_p, buffer_pos);
 
             // read auxilliary data
             read(detection_block_size, buffer_pos);
@@ -155,6 +163,9 @@ namespace SZ
             std::cout << "start decompression\n";
             // *decData = quantizer.recover(0, quant_inds[quant_index++]);
             recover(0, *decData, 0);
+            
+            std::uniform_int_distribution<int> direction_choice(0, dimension_sequences.size()-1);
+
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
             {
@@ -163,10 +174,20 @@ namespace SZ
                 // } else {
                 //     quantizer.set_eb(eb);
                 // }
+
+                // direction_sequence_id = direction_choice(mt);
+                // std::cout << "direction_sequence_id = " << direction_sequence_id << std::endl;
+                // for (int i = 0; i < N; i++)
+                // {
+                //     std::cout << dimension_sequences[direction_sequence_id][i] << " ";
+                // }
+                // std::cout << std::endl;
+
                 current_level = level;
                 current_base_eb = eb_final;
                 quantizer.set_eb(eb_final);
                 eb_final *= eb_reduction_factor;
+
 
                 size_t stride = 1U << (level - 1);
                 auto inter_block_range = std::make_shared<
@@ -192,6 +213,7 @@ namespace SZ
             }
             quantizer.postdecompress_data();
             //            timer.stop("Interpolation Decompress");
+            std::cout << "counter = " << counter << std::endl;
 
             return decData;
         }
@@ -222,6 +244,11 @@ namespace SZ
             use_stochastic_quantize = conf.use_stochastic_quantize;
             use_stochastic_predict= conf.use_stochastic_predict;
             use_stochastic_decompress = conf.use_stochastic_decompress;
+            use_stochastic_eb = conf.use_stochastic_eb;
+            normal_std = conf.normal_std;
+            normal_mean = conf.normal_mean;
+            uniform_lower = conf.uniform_lower;
+            bernoulli_p = conf.bernoulli_p;
 
 
 
@@ -281,6 +308,8 @@ namespace SZ
             quant_inds.reserve(num_elements);
             size_t interp_compressed_size = 0;
 
+            rand_collector.resize(num_elements);
+
             double eb = quantizer.get_eb();
             double eb_final; // eb for the highest level
             double eb_reduction_factor;
@@ -302,20 +331,29 @@ namespace SZ
             // Timer timer;
             timer.start();
 
-            double reduction_factor;
-            double real_eb_ratio;
-            if( interpolators[interpolator_id] == "linear")
-            {
-                reduction_factor = sqrt(27/8);
-            }
-            else 
-            {
-                reduction_factor = sqrt(4.462681);
-            }
-            real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+            // double reduction_factor;
+            // double real_eb_ratio;
+            // if( interpolators[interpolator_id] == "linear")
+            // {
+            //     reduction_factor = sqrt(27/8);
+            // }
+            // else 
+            // {
+            //     reduction_factor = sqrt(4.462681);
+            // }
+            // real_eb_ratio = pow(1/reduction_factor, interpolation_level-1);
+
+            std::uniform_int_distribution<int> direction_choice(0, dimension_sequences.size()-1);
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--)
             {
+                // direction_sequence_id = direction_choice(mt);
+                std::cout << "direction_sequence_id = " << direction_sequence_id << std::endl;
+                // for (int i = 0; i < N; i++)
+                // {
+                //     std::cout << dimension_sequences[direction_sequence_id][i] << " ";
+                // }
+                // std::cout << std::endl;
                 // if (level >= 3) {
                 //     quantizer.set_eb(eb * eb_ratio);
                 // } else {
@@ -325,6 +363,7 @@ namespace SZ
                 current_base_eb = eb_final;
                 quantizer.set_eb(eb_final);
                 eb_final *= eb_reduction_factor;
+
 
                 size_t stride = 1U << (level - 1);
 
@@ -370,6 +409,11 @@ namespace SZ
             write(use_stochastic_predict, buffer_pos);
             write(use_stochastic_quantize, buffer_pos);
             write(use_stochastic_decompress, buffer_pos);
+            write(use_stochastic_eb, buffer_pos);
+            write(normal_mean, buffer_pos);
+            write(normal_std, buffer_pos);
+            write(uniform_lower, buffer_pos);
+            write(bernoulli_p, buffer_pos);
     
 
             // add auxilliary array
@@ -414,6 +458,8 @@ namespace SZ
             lossless.postcompress_data(buffer);
             //            timer.stop("Lossless");
             writefile("compressed.dat",data, num_elements);
+            writefile("rand.dat",rand_collector.data(), num_elements);
+            std::cout << "rand counter = " << counter << std::endl; 
 
 
             #ifdef SZ_ANALYSIS
@@ -511,12 +557,12 @@ namespace SZ
             } while (std::next_permutation(sequence.begin(), sequence.end()));
 
             mt = std::mt19937(3333);
-            uniform_dist = std::uniform_real_distribution<T>(0.0, 1);
+            uniform_dist = std::uniform_real_distribution<T>(uniform_lower, 1);
             // uniform_dist = std::uniform_real_distribution<T>(0.45, 0.55);
 
-            normal_dist = std::normal_distribution<T>(0.5,0.12);
+            normal_dist = std::normal_distribution<T>(normal_mean, normal_std);
 
-            bernoulli_dist = std::bernoulli_distribution(0.1);
+            bernoulli_dist = std::bernoulli_distribution(bernoulli_p);
 
         
 
@@ -545,7 +591,7 @@ namespace SZ
 
         inline void quantize(size_t idx, T &d, T pred)
         {
-            if (block_flush_on && flushed_block[idx])
+            if (block_flush_on==1 && flushed_block[idx])
             {
                 d = 0;
             }
@@ -595,7 +641,41 @@ namespace SZ
                     T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
                     quant_inds.push_back(quantizer.quantize_and_overwrite_with_noise(d, pred,noise ));
                 }
+                else if(use_stochastic_eb ==1 )
+                {
+                    // T rand = 1-fabs(normal_dist(mt));
+                    // T rand = normal_dist(mt);
+                    // rand = rand <=0 ? 0.001: rand;
+                    // rand = rand >1 ? 1: rand;
+                    // T prob = rand ;
+                    T rand = uniform_dist(mt);
+
+                    // T prob = rand < 0.4? 0.4: rand;
+                    // T rand; 
+                    // do{
+                    //     rand = normal_dist(mt);
+                    // } while (rand <= 0 || rand > 1);
+                    
+
+                    // T rand;
+                    // if(bernoulli_dist(mt) ==1)
+                    // {
+                    //     rand = 1-fabs(normal_dist(mt));
+                    //     rand = rand <=0 ? 0.001: rand;
+                    // }
+                    // else {
+                    //     rand = uniform_dist(mt);
+                    // }
+                    if(rand <=0) rand = 1e-5;
+                    rand_collector[idx] = rand;
+                    counter++;
+                    T prob = rand ;
+                    quantizer.set_eb(default_eb * prob);
+                    quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+                }
                 else {
+                    // if(idx == 10000) std::cout<< "pred = " << pred << std::endl;
+                    // if(current_level == 8) std::cout<< "index = "<< idx  << ", pred = " << pred << std::endl;
                     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
                 }
 
@@ -614,7 +694,7 @@ namespace SZ
 
         inline void recover(size_t idx, T &d, T pred)
         {
-            if (block_flush_on && flushed_block[idx])
+            if (block_flush_on==1 && flushed_block[idx])
             {
                 d = 0;
             }
@@ -651,7 +731,42 @@ namespace SZ
                     T noise = (2.0 * uniform_dist(mt) - 1.0)*noise_rate*default_eb;
                     d=quantizer.recover_with_noise(pred, quant_inds[quant_index++],noise);
                 }
+                else if(use_stochastic_eb ==1 )
+                {
+                    // T rand = 1-fabs(normal_dist(mt));
+                    
+                    // T rand = normal_dist(mt);
+                    // rand = rand <=0 ? 0.001: rand;
+                    // rand = rand >1 ? 1: rand;
+                    // T prob = rand ;
+
+                    T rand = uniform_dist(mt);
+                    // T rand; 
+                    // do{
+                    //     rand = normal_dist(mt);
+                    // } while (rand <= 0 || rand > 1);
+
+                    // T prob = rand < 0.4? 0.4: rand;
+                    
+                    // T rand;
+                    // if(bernoulli_dist(mt) ==1)
+                    // {
+                    //     rand = 1-fabs(normal_dist(mt));
+                    //     rand = rand <=0 ? 0.001: rand;
+                    // }
+                    // else {
+                    //     rand = uniform_dist(mt);
+                    // }
+
+                    if(rand <=0) rand = 1e-5;
+                    T prob = rand ;
+                    quantizer.set_eb(default_eb * prob);
+                    d=quantizer.recover(pred, quant_inds[quant_index++]);
+                }
                 else  {
+                    // if(idx == 10000) std::cout<< "pred = " << pred << std::endl;
+                    // if(current_level == 8) std::cout<< "index = "<< idx  << ", pred = " << pred << std::endl;
+
                     d = quantizer.recover(pred, quant_inds[quant_index++]);
                 }
                 quantizer.set_eb(default_eb);
@@ -662,7 +777,7 @@ namespace SZ
         double block_interpolation_1d(T *data, size_t begin, size_t end, size_t stride,
                                       const std::string &interp_func,
                                       const PredictorBehavior pb)
-        {
+        { 
             size_t n = (end - begin) / stride + 1;
             if (n <= 1)
             {
@@ -680,6 +795,8 @@ namespace SZ
                     {
                         T *d = data + begin + i * stride;
                         quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
+                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " <<interp_linear(*(d - stride), *(d + stride)) << std::endl;
+
                     }
                     if (n % 2 == 0)
                     {
@@ -691,6 +808,7 @@ namespace SZ
                         //     quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         // }
                     }
+
                 }
                 else
                 {
@@ -698,6 +816,8 @@ namespace SZ
                     {
                         T *d = data + begin + i * stride;
                         recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
+                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " <<interp_linear(*(d - stride), *(d + stride)) << std::endl;
+
                     }
                     if (n % 2 == 0)
                     {
@@ -708,10 +828,15 @@ namespace SZ
                             recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
                         }
                     }
+
                 }
             }
             else
             {
+                std::array<int, 2> interp_indices = {1, 3};
+                std::array<int, 2> interp_signs = {1, -1};
+
+
                 if (pb == PB_predict_overwrite)
                 {
 
@@ -720,8 +845,28 @@ namespace SZ
                     for (i = 3; i + 3 < n; i += 2)
                     {
                         d = data + begin + i * stride;
+                        
                         quantize(d - data, *d,
                                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " << *d << std::endl;
+                        // if(bernoulli_dist(mt) ==1 && 0)
+                        // {
+                        // // quantize(d - data, *d,
+                        //         //  trigonometric_interp(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        // int choice = interp_indices[uni_choose(mt)];
+                        // quantize(d - data, *d,
+                        //          interp_linear(*(d - stride*choice), *(d + stride*choice)));   
+                                 
+                        // // quantize(d - data, *d,
+                        // //          interp_cubic(*(d + stride*interp_indices[uni_choose(mt)]), *(d + stride*interp_indices[uni_choose(mt)]),
+                        // //          *(d + stride*interp_indices[uni_choose(mt)]),*(d + stride*interp_indices[uni_choose(mt)])));
+                        // }
+                        // else {
+
+                        // quantize(d - data, *d,
+                        //          interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        // }
+                        if(current_level ==8) counter++;
                     }
                     d = data + begin + stride;
                     quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
@@ -744,6 +889,25 @@ namespace SZ
                     {
                         d = data + begin + i * stride;
                         recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        
+                        if(current_level ==8 ) std::cout << "index =" << d - data << ", value = " << *d << std::endl;
+// if(bernoulli_dist(mt) ==1 && 0)
+                        // {
+                        // // recover(d - data, *d,
+                        // //  trigonometric_interp(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                        // int choice = interp_indices[uni_choose(mt)];
+                        // recover(d - data, *d,
+                        //          interp_linear(*(d - stride*choice), *(d + stride*choice)));   
+                        // // recover(d - data, *d,
+                        //     //  interp_cubic(*(d + stride*interp_indices[uni_choose(mt)]), *(d + stride*interp_indices[uni_choose(mt)]),
+                        //     //  *(d + stride*interp_indices[uni_choose(mt)]),*(d + stride*interp_indices[uni_choose(mt)])));
+                        // }
+                        // else {
+                        // recover(d - data, *d,
+                        //          interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
+                      
+                        // }
+                        if(current_level ==8) counter++;
                     }
                     d = data + begin + stride;
 
@@ -815,6 +979,7 @@ namespace SZ
             // quantizer.set_eb(default_eb * c2);
 
             const std::array<int, N> dims = dimension_sequences[direction];
+
             for (size_t j = (begin[dims[1]] ? begin[dims[1]] + stride2x : 0); j <= end[dims[1]]; j += stride2x)
             {
                 for (size_t k = (begin[dims[2]] ? begin[dims[2]] + stride2x : 0); k <= end[dims[2]]; k += stride2x)
@@ -1649,13 +1814,24 @@ namespace SZ
         bool use_stochastic_quantize=false;
         bool use_stochastic_predict=false;
         bool use_stochastic_decompress=false;
+        bool use_stochastic_eb=false;
 
         std::mt19937 mt;
         std::uniform_real_distribution<T> uniform_dist;
         std::normal_distribution<T> normal_dist;
         std::bernoulli_distribution bernoulli_dist;
+        std::uniform_real_distribution<T> uniform_dist2;
 
-        std::normal_distribution<T> norml_dist_predict = std::normal_distribution<T>(0, 1);
+        float normal_std = 1.0;
+        float normal_mean = 0.0;
+        float uniform_lower = 0.0;
+        float bernoulli_p = 0;
+
+        std::vector<T> rand_collector;
+        int counter = 0;
+
+        // use to choose the index
+        std::uniform_int_distribution<int> uni_choose = std::uniform_int_distribution<int>(0, 1);
 
         // Analysis utils; 
         // This is for conditional compilation not comments

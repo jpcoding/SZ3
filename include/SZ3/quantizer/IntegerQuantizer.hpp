@@ -66,16 +66,10 @@ namespace SZ {
         int quantize_and_overwrite(T &data, T pred,bool save_unpred=true) {
             T diff = data - pred;
             int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
-            // 1 or 2 
             if (quant_index < this->radius * 2) {
-                quant_index >>= 1; // 2 ->1 3->1 
-                // quant_index +- 1?
-                // quant_index += 1/0  // 2
-                int half_index = quant_index; // 2 
-                quant_index <<= 1;  // 2-> 4 
-
-                // quant_index = quant_index + p(distance)
-                // quant_index * 2  or quant_index 
+                quant_index >>= 1; 
+                int half_index = quant_index;
+                quant_index <<= 1;  
                 int quant_index_shifted;
                 if (diff < 0) {
                     quant_index = -quant_index;

@@ -5,6 +5,9 @@
 #ifndef SZ_INTERPOLATORS_HPP
 #define SZ_INTERPOLATORS_HPP
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 namespace SZ {
     template<class T>
     inline T interp_linear(T a, T b) {
@@ -85,5 +88,18 @@ namespace SZ {
         }
         return pchip;
     }
+    
+
+    template <class T>
+    inline T trigonometric_interp(T a, T b, T c, T d) 
+    {
+        T x0 = (a* std::cos(0*0* 2*M_PI/4) + b* std::cos(0*1*2*M_PI/4) + c* std::cos(0*2* 2*M_PI/4) + d* std::cos(0*3*2*M_PI/4))/4.0;
+        T x1 = (a* std::cos(1*0* 2*M_PI/4) + b* std::cos(1*1*2*M_PI/4) + c* std::cos(1*2* 2*M_PI/4) + d* std::cos(1*3*2*M_PI/4))/4.0;
+        T x2 = (a* std::cos(2*0* 2*M_PI/4) + b* std::cos(2*1*2*M_PI/4) + c* std::cos(2*2* 2*M_PI/4) + d* std::cos(2*3*2*M_PI/4))/4.0;
+        T x3 = (a* std::cos(3*0* 2*M_PI/4) + b* std::cos(3*1*2*M_PI/4) + c* std::cos(3*2* 2*M_PI/4) + d* std::cos(3*3*2*M_PI/4))/4.0;
+        T result = x0+x1*cos(3*M_PI/4)+x2*cos(2*3*M_PI/4)+x3*cos(3*3*M_PI/4);
+        return result;
+    }
 }
+
 #endif //SZ_INTERPOLATORS_HPP
