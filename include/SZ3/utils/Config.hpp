@@ -35,8 +35,17 @@ namespace SZ {
     enum BLOCK_SIFT_MODE{
         VARIANCE, RANGE, BLOCK_MAX,ISOVALUE
     };
+
+    enum REGION_ERROR_CONTROL_MODE{
+        REDUCE_EB, COMPENSATE_EB
+    };
+    constexpr const char *REGION_ERROR_CONTROL_MODE_STR[] = {"REDUCE_EB", "COMPENSATE_EB"};
+    constexpr REGION_ERROR_CONTROL_MODE REGION_ERROR_CONTROL_MODE_OPTIONS[] = {REDUCE_EB, COMPENSATE_EB};
+
     constexpr const char *BLOCK_SIFT_MODE_STR[] = {"VARIANCE", "RANGE", "BLOCK_MAX", "ISOVALUE"};
     constexpr BLOCK_SIFT_MODE BLOCK_SIFT_MODE_OPTIONS[] = {VARIANCE, RANGE, BLOCK_MAX, ISOVALUE};
+
+
 
     template<class T>
     const char *enum2Str(T e) {
@@ -161,6 +170,25 @@ namespace SZ {
             uniform_lower = cfg.GetReal("ArtifactSettings", "uniform_lower", uniform_lower);
             normal_mean = cfg.GetReal("ArtifactSettings", "normal_mean", normal_mean);
             bernoulli_p = cfg.GetReal("ArtifactSettings", "bernoulli_p", bernoulli_p);
+            random_seed = cfg.GetInteger("ArtifactSettings", "random_seed", random_seed);
+
+            block_noise_rng_threshold = cfg.GetReal("ArtifactSettings", "block_noise_rng_threshold", block_noise_rng_threshold);
+            post_block_noise_rng_on = cfg.GetBoolean("ArtifactSettings", "post_block_noise_rng_on", post_block_noise_rng_on);
+
+            region_error_on = cfg.GetBoolean("ArtifactSettings", "region_error_on", region_error_on);
+            region_error_control_start_level = cfg.GetInteger("ArtifactSettings", "region_error_control_start_level", region_error_control_start_level);
+            regional_error_block_size = cfg.GetInteger("ArtifactSettings", "regional_error_block_size", regional_error_block_size);
+            region_error_control_threshold = cfg.GetReal("ArtifactSettings", "region_error_control_threshold", region_error_control_threshold);
+            auto region_error_control_mode_str = cfg.Get("ArtifactSettings", "region_error_control_mode", "");
+            if(region_error_control_mode_str == REGION_ERROR_CONTROL_MODE_STR[REDUCE_EB]){
+                region_error_control_mode = REDUCE_EB;
+            }
+            else if(region_error_control_mode_str == REGION_ERROR_CONTROL_MODE_STR[COMPENSATE_EB])
+            {
+                region_error_control_mode = COMPENSATE_EB;
+            }
+            region_error_control_eb_reduction = cfg.GetReal("ArtifactSettings", "region_error_control_eb_reduction", region_error_control_eb_reduction);
+            region_error_control_eb_compensation = cfg.GetReal("ArtifactSettings", "region_error_control_eb_compensation", region_error_control_eb_compensation);
         }
 
 
@@ -198,6 +226,9 @@ namespace SZ {
             write(use_stochastic_quantize, c);
             write(use_stochastic_predict, c);
             write(use_stochastic_eb, c);
+            write(random_seed, c);
+            write(post_block_noise_rng_on, c);
+            write(block_noise_rng_threshold, c);
 
 
             
@@ -239,6 +270,9 @@ namespace SZ {
             read(use_stochastic_quantize, c);
             read(use_stochastic_predict, c);
             read(use_stochastic_eb, c);
+            read(random_seed, c);
+            read(post_block_noise_rng_on, c);
+            read(block_noise_rng_threshold, c);
         }
 
         void print() {
@@ -297,6 +331,21 @@ namespace SZ {
         float normal_std = 1.0;
         float uniform_lower = 0.0;
         float bernoulli_p = 0.5;
+        int random_seed = 2333;
+
+        double block_noise_rng_threshold = 0.0;
+        bool post_block_noise_rng_on = 0;
+
+        // for region error control
+        bool region_error_on = 1;
+        int region_error_control_start_level = 3;
+        int regional_error_block_size = 4; 
+        double region_error_control_threshold = 0.9;
+        uint8_t region_error_control_mode = REDUCE_EB;
+        double region_error_control_eb_reduction = 0.5;
+        double region_error_control_eb_compensation = 0.5;
+
+
 
     };
 

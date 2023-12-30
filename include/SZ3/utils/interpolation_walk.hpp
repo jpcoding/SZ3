@@ -10,6 +10,9 @@
 namespace SZ {
 template <class T> class InterpolationWalk {
 
+// copied from artifact design
+// the dimension is in revserse order 
+
 public:
   InterpolationWalk(T *data, int N, size_t *global_dimensions) {
     this->input_data = data;
@@ -18,8 +21,9 @@ public:
     this->global_dimensions.resize(N);
     for (int i = 0; i < N; i++) {
       this->num_elements *= global_dimensions[i];
-      this->global_dimensions[i] = global_dimensions[i];
+      this->global_dimensions[N-i-1] = global_dimensions[i];
     }
+
   }
 
   // Deconstructor

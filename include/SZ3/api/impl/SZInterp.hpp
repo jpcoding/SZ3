@@ -16,7 +16,7 @@
 
 
 template<class T, SZ::uint N>
-char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
+char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize, const T *oriData = nullptr) {
 
 
     assert(N == conf.N);
@@ -27,7 +27,7 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
             SZ::LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
-    char *cmpData = (char *) sz.compress(conf, data, outSize);
+    char *cmpData = (char *) sz.compress(conf, data, outSize, oriData);
     return cmpData;
 }
 

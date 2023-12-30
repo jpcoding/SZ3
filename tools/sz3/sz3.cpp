@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <string>
 #include "SZ3/api/sz.hpp"
 
 
@@ -144,9 +145,10 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     }
     SZ::writefile(outputFilePath, bytes, outSize);
 
-    printf("compression ratio = %.2f \n", conf.num * 1.0 * sizeof(T) / outSize);
-    printf("compression time = %f\n", compress_time);
-    printf("compressed data file = %s\n", outputFilePath);
+
+    printf("[Compress]compression ratio = %.2f \n", conf.num * 1.0 * sizeof(T) / outSize);
+    printf("[Compress]compression time = %f\n", compress_time);
+    printf("[Compress]compressed data file = %s\n", outputFilePath);
 
     delete[]data;
     delete[]bytes;
@@ -187,6 +189,13 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
 
     }
     delete[]decData;
+
+    
+    std::string path ;
+    path.assign(inPath, strlen(inPath));
+    std::string base_filename = path.substr(path.find_last_of("/\\") + 1);
+
+    printf("fille %s , compression ratio = %.6f\n",base_filename.c_str() ,  conf.num * sizeof(T) * 1.0 / cmpSize);
 
     printf("compression ratio = %f\n", conf.num * sizeof(T) * 1.0 / cmpSize);
     printf("decompression time = %f seconds.\n", compress_time);

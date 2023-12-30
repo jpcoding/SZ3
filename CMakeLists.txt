@@ -69,6 +69,7 @@ if (GSL_FOUND)
 endif()
 
 add_subdirectory(tools/sz3)
+# add_subdirectory(tools/heated_wall)
 
 
 
