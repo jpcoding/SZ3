@@ -11,7 +11,7 @@
 
 
 template<class T, SZ::uint N>
-char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize, const T *oriData = nullptr) {
+char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize) {
 
     assert(N == conf.N);
     SZ::calAbsErrorBound(conf, data);
@@ -20,7 +20,7 @@ char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize, const T
     if (conf.cmprAlgo == SZ::ALGO_LORENZO_REG) {
         cmpData = (char *) SZ_compress_LorenzoReg<T, N>(conf, data, outSize);
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP) {
-        cmpData = (char *) SZ_compress_Interp<T, N>(conf, data, outSize, oriData);
+        cmpData = (char *) SZ_compress_Interp<T, N>(conf, data, outSize);
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP_LORENZO) {
         cmpData = (char *) SZ_compress_Interp_lorenzo<T, N>(conf, data, outSize);
     }

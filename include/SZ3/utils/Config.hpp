@@ -6,6 +6,7 @@
 #define SZ_Config_HPP
 
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <numeric>
 #include "SZ3/def.hpp"
@@ -345,8 +346,10 @@ namespace SZ {
         double region_error_control_eb_reduction = 0.5;
         double region_error_control_eb_compensation = 0.5;
 
-
-
+        // for debug
+        struct PASS_DATA{
+        std::shared_ptr<void> processed_data_prt;
+        } PASS_DATA;
     };
 
 

@@ -6,8 +6,10 @@
 #define SZ3_BYTEUTIL_HPP
 
 #include "SZ3/def.hpp"
+#include <cstddef>
 #include <cstring>
 #include <stdio.h>
+#include <vector>
 
 namespace SZ {
 
@@ -257,6 +259,33 @@ namespace SZ {
         }
     }
 
+    void Bitmap_to_Bytes(const std::vector<uchar> &bitmap, std::vector<uchar> &result_map)
+    {
+        size_t byteLength = 0;
+        size_t i, j;
+        size_t bitmap_size = bitmap.size();
+        if (bitmap_size % 8 == 0)
+            byteLength = bitmap_size / 8;
+        else
+            byteLength = bitmap_size / 8 + 1;
+        result_map.resize(byteLength,0);
+        int tmp, type;
+        size_t n = 0;
+        for (i = 0; i < byteLength; i++)
+        {
+            tmp = 0;
+            for (j = 0; j < 8 && n < bitmap_size; j++)
+            {
+                type = bitmap[n];
+                if (type == 1)
+                    tmp = (tmp | (1 << (7 - j)));
+                n++;
+            }
+            result_map[i] = static_cast<uchar>(tmp);
+        }
+    }
+
+
     void convertByteArray2IntArray_fast_1b_sz(size_t intArrayLength, const uchar *&compressed_pos, size_t byteArrayLength, uchar *intArray)
     {
         if (intArrayLength > byteArrayLength * 8)
@@ -284,6 +313,11 @@ namespace SZ {
         {
             intArray[n] = (tmp & (1 << (7 - i))) >> (7 - i);
         }
+    }
+
+    void Bytes_to_Bitmap(size_t intArrayLength, const uchar *&compressed_pos, size_t byteArrayLength, uchar *intArray)
+    {
+        convertByteArray2IntArray_fast_1b_sz(intArrayLength,  compressed_pos,  byteArrayLength, intArray);
     }
     // *** modified from Sheng's code end ***
 

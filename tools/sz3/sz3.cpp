@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <memory>
 #include <string>
 #include "SZ3/api/sz.hpp"
 
@@ -129,12 +130,10 @@ template<class T>
 void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     T *data = new T[conf.num];
     SZ::readfile<T>(inPath, conf.num, data);
-
     size_t outSize;
     SZ::Timer timer(true);
     char *bytes = SZ_compress<T>(conf, data, outSize);
     double compress_time = timer.stop();
-
     char outputFilePath[1024];
     if (cmpPath == nullptr) {
         // sprintf(outputFilePath, "%s.sz", inPath);
@@ -149,6 +148,10 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     printf("[Compress]compression ratio = %.2f \n", conf.num * 1.0 * sizeof(T) / outSize);
     printf("[Compress]compression time = %f\n", compress_time);
     printf("[Compress]compressed data file = %s\n", outputFilePath);
+
+    // vreify decompressed data at compression time
+    std::shared_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
+    SZ::verify<T>(data, data_copy->data(), conf.num);
 
     delete[]data;
     delete[]bytes;

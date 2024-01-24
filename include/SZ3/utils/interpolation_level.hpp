@@ -19,8 +19,8 @@ public:
     for (int i = 0; i < N; i++) {
       this->num_elements *= global_dimensions[i];
       this->global_dimensions[i] = global_dimensions[i]; // the last one is the fastest dimension
-      std::cout << "global_dimensions[" << i << "] = " << global_dimensions[i]
-                << std::endl;
+      // std::cout << "global_dimensions[" << i << "] = " << global_dimensions[i]
+      //           << std::endl;
     }
   }
   InterpolationLevel() {}

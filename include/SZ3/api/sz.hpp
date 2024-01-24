@@ -51,7 +51,7 @@ conf.absErrorBound = 1E-3; // absolute error bound 1e-3
 char *compressedData = SZ_compress(conf, data, outSize);
  */
 template<class T>
-char *SZ_compress(const SZ::Config &conf, const T *data, size_t &cmpSize) {
+char *SZ_compress( SZ::Config &conf, const T *data, size_t &cmpSize) {
     SZ::Config confCopy(conf);
     char *cmpData;
     if (conf.N == 1) {
@@ -74,6 +74,9 @@ char *SZ_compress(const SZ::Config &conf, const T *data, size_t &cmpSize) {
         SZ::write(int(newSize - cmpSize), cmpDataPos);
         cmpSize = (char *) cmpDataPos - cmpData;
     }
+
+    conf.PASS_DATA.processed_data_prt = confCopy.PASS_DATA.processed_data_prt;
+
     return cmpData;
 }
 

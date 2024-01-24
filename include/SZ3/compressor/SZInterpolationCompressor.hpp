@@ -1,6 +1,17 @@
 #ifndef _SZ_INTERPOLATION_COMPRESSSOR_HPP
 #define _SZ_INTERPOLATION_COMPRESSSOR_HPP
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <random>
+#include <vector>
+
 #include "SZ3/compressor/SZInterpCompressorHelp.hpp"
 #include "SZ3/def.hpp"
 #include "SZ3/encoder/Encoder.hpp"
@@ -9,6 +20,7 @@
 #include "SZ3/predictor/LorenzoPredictor.hpp"
 #include "SZ3/predictor/Predictor.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
+#include "SZ3/utils/Accumulator.hpp"
 #include "SZ3/utils/ByteUtil.hpp"
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/utils/FileUtil.hpp"
@@ -18,40 +30,34 @@
 #include "SZ3/utils/Timer.hpp"
 #include "SZ3/utils/critical_points.hpp"
 #include "SZ3/utils/interpolation_level.hpp"
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <random>
-#include <vector>
 
 namespace SZ {
 template <class T, uint N, class Quantizer, class Encoder, class Lossless>
 class SZInterpolationCompressor {
-public:
-  SZInterpolationCompressor(Quantizer quantizer, Encoder encoder,
-                            Lossless lossless)
-      : quantizer(quantizer), encoder(encoder), lossless(lossless) {
-
+ public:
+  SZInterpolationCompressor(
+      Quantizer quantizer, Encoder encoder, Lossless lossless) :
+      quantizer(quantizer), encoder(encoder), lossless(lossless)
+  {
     static_assert(
         std::is_base_of<concepts::QuantizerInterface<T>, Quantizer>::value,
         "must implement the quatizer interface");
     static_assert(
         std::is_base_of<concepts::EncoderInterface<int>, Encoder>::value,
         "must implement the encoder interface");
-    static_assert(std::is_base_of<concepts::LosslessInterface, Lossless>::value,
-                  "must implement the lossless interface");
+    static_assert(
+        std::is_base_of<concepts::LosslessInterface, Lossless>::value,
+        "must implement the lossless interface");
   }
 
-  T *decompress(uchar const *cmpData, const size_t &cmpSize, size_t num) {
+  T *decompress(uchar const *cmpData, const size_t &cmpSize, size_t num)
+  {
     T *dec_data = new T[num];
     return decompress(cmpData, cmpSize, dec_data);
   }
 
-  T *decompress(uchar const *cmpData, const size_t &cmpSize, T *decData) {
+  T *decompress(uchar const *cmpData, const size_t &cmpSize, T *decData)
+  {
     size_t remaining_length = cmpSize;
     uchar *buffer = lossless.decompress(cmpData, remaining_length);
     uchar const *buffer_pos = buffer;
@@ -82,7 +88,53 @@ public:
     read(region_error_control_eb_compensation, buffer_pos);
     read(region_error_control_eb_reduction, buffer_pos);
 
+    if (region_error_control_on == true) {
+      //   std::cout << "region_error_control_on = " << region_error_control_on
+      //             << std::endl;
+      //   std::cout << "region_error_control_mode = " <<
+      //   REGION_ERROR_CONTROL_MODE_STR[region_error_control_mode]
+      //             << std::endl;
 
+      // size_t error_control_tags_size =0;
+      // read(error_control_tags_size,buffer_pos);
+      // region_error_tags.resize(error_control_tags_size);
+      // convertByteArray2IntArray_fast_1b_sz(error_control_tags_size,
+      // buffer_pos,
+      //                                     (error_control_tags_size-1)/8+1,
+      //                                     region_error_tags.data());
+      // writefile("region_error_tags_decompress.dat",
+      // region_error_tags.data(),region_error_tags.size()); size_t
+      // huffman_size = 0; size_t zstd_size = 0; size_t region_error_tags_size
+      // = 0; read(region_error_tags_size, buffer_pos); read(huffman_size,
+      // buffer_pos); read(zstd_size, buffer_pos); std::cout <<
+      // "region_error_tags_size = " << region_error_tags_size << std::endl;
+      // std::cout << "huffman_size = " << huffman_size << std::endl;
+      // std::cout << "zstd_size = " << zstd_size << std::endl;
+      // std::vector<uchar> compressed_map(zstd_size);
+      // read( compressed_map.data(), zstd_size,buffer_pos);
+      // // lossless decompress
+      // uchar *decompressed_map_data =
+      //     lossless.decompress(compressed_map.data(), zstd_size);
+      // // huffman decode
+      // uchar const *decompressed_map_ptr = decompressed_map_data;
+
+      // auto map_decoder = SZ::HuffmanEncoder<uchar>();
+      // map_decoder.load(decompressed_map_ptr, zstd_size);
+      // region_error_tags.resize(0);
+      // region_error_tags = map_decoder.decode(decompressed_map_ptr,
+      // region_error_tags_size); map_decoder.postprocess_decode();
+      // lossless.postdecompress_data(decompressed_map_data);
+      size_t tag_map_size = 0;
+      read(tag_map_size, buffer_pos);
+      std::cout << "ptr position = " << remaining_length << std::endl;
+      auto map_decoder = SZ::HuffmanEncoder<uchar>();
+      map_decoder.load(buffer_pos, remaining_length);
+      region_error_tags.resize(0);
+      region_error_tags = map_decoder.decode(buffer_pos, tag_map_size);
+      std::cout << "compressed size = " << cmpSize << "\n";
+      std::cout << "ptr position = " << remaining_length << std::endl;
+      map_decoder.postprocess_decode();
+    }
     // read auxilliary data
     read(detection_block_size, buffer_pos);
     read(num_detection_block, buffer_pos);
@@ -92,21 +144,19 @@ public:
 
     if (block_flush_on == 1) {
       flushed_block_id = std::vector<uchar>(num_detection_block);
-      convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos,
-                                           (num_detection_block - 1) / 8 + 1,
-                                           flushed_block_id.data());
+      convertByteArray2IntArray_fast_1b_sz(
+          num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1,
+          flushed_block_id.data());
     }
     // flushed_block_id = std::vector<uchar>(num_detection_block);
     // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos,
     // (num_detection_block - 1) / 8 + 1, flushed_block_id.data());
     if (block_sift_on == 1) {
       significant_block_id = std::vector<uchar>(num_detection_block);
-      convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos,
-                                           (num_detection_block - 1) / 8 + 1,
-                                           significant_block_id.data());
+      convertByteArray2IntArray_fast_1b_sz(
+          num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1,
+          significant_block_id.data());
     }
-
-
 
     // read additional variable
     read(noise_rate, buffer_pos);
@@ -127,9 +177,9 @@ public:
 
     if (pattern_search_on == 1) {
       pattern_map_uchar.resize(num_elements);
-      convertByteArray2IntArray_fast_1b_sz(num_elements, buffer_pos,
-                                           (num_elements - 1) / 8 + 1,
-                                           pattern_map_uchar.data());
+      convertByteArray2IntArray_fast_1b_sz(
+          num_elements, buffer_pos, (num_elements - 1) / 8 + 1,
+          pattern_map_uchar.data());
       // std::cout << "pattern_search_on = " << pattern_search_on << std::endl;
     }
 
@@ -138,12 +188,12 @@ public:
     if (block_diff_on == 1) {
       // std::cout << "recover block data = "<< std::endl;
       significant_block_id.resize(num_detection_block, 0);
-      convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos,
-                                           (num_detection_block - 1) / 8 + 1,
-                                           significant_block_id.data());
-      compute_aux_diff_decompress(global_dimensions.data(), N,
-                                      detection_block_size,
-                                      significant_block_id, significant_block);
+      convertByteArray2IntArray_fast_1b_sz(
+          num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1,
+          significant_block_id.data());
+      compute_aux_diff_decompress(
+          global_dimensions.data(), N, detection_block_size,
+          significant_block_id, significant_block);
     }
 
     bool post_block_noise_rng_on = false;
@@ -167,17 +217,17 @@ public:
     size_t num_flushed_elements = 0;
     if (block_flush_on == 1 || block_sift_on == 1) {
       // num_flushed_elements = compute_auxilliary_data_decompress(decData);
-      num_flushed_elements = compute_auxilliary_data_decompress(decData,N, global_dimensions.data(),
-       detection_block_size, num_elements,
-      block_sift_on, block_flush_on, block_iso_on, 
-      flushed_block_id, flushed_block, significant_block_id, significant_block);
+      num_flushed_elements = compute_auxilliary_data_decompress(
+          decData, N, global_dimensions.data(), detection_block_size,
+          num_elements, block_sift_on, block_flush_on, block_iso_on,
+          flushed_block_id, flushed_block, significant_block_id,
+          significant_block);
     }
 
     // artifact_sift_on =
     //     block_sift_on || block_flush_on || block_iso_on || block_diff_on;
 
-    artifact_sift_on =
-        block_sift_on || block_iso_on || block_diff_on;
+    artifact_sift_on = block_sift_on || block_iso_on || block_diff_on;
 
     quantizer.load(buffer_pos, remaining_length);
     encoder.load(buffer_pos, remaining_length);
@@ -194,9 +244,10 @@ public:
       eb_final = eb_input /
                  pow(linear_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(linear_interp_eb_factor, N);
-    } else {
-      eb_final =
-          eb_input / pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
+    }
+    else {
+      eb_final = eb_input /
+                 pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(cubic_interp_eb_factor, N);
     }
 
@@ -247,9 +298,9 @@ public:
             end_idx[i] = global_dimensions[i] - 1;
           }
         }
-        block_interpolation(decData, block.get_global_index(), end_idx,
-                            PB_recover, interpolators[interpolator_id],
-                            direction_sequence_id, stride);
+        block_interpolation(
+            decData, block.get_global_index(), end_idx, PB_recover,
+            interpolators[interpolator_id], direction_sequence_id, stride);
       }
     }
     quantizer.postdecompress_data();
@@ -261,31 +312,34 @@ public:
                 << std::endl;
       double noise_base = noise_rate * eb_input;
       // copy the dimensions to conf.dims.dat
-      decompress_opt_reginal_post_process(decData, post_block_error_tags, N,
-                                          global_dimensions.data(),
-                                          detection_block_size, noise_base, mt);
+      decompress_opt_reginal_post_process(
+          decData, post_block_error_tags, N, global_dimensions.data(),
+          detection_block_size, noise_base, mt);
     }
     //            timer.stop("Interpolation Decompress");
     // std::cout << "counter = " << counter << std::endl;
-    writefile("quant_inds.decompress.dat", quant_inds.data(),
-              quant_inds.size());
+    writefile(
+        "quant_inds.decompress.dat", quant_inds.data(), quant_inds.size());
 
-        //Debug use
-    writefile("flushed_block_id.decompress.dat", flushed_block_id.data(),
-              num_detection_block);
-    writefile("significant_block_id.decompress.dat",
-              significant_block_id.data(), num_detection_block);
-    writefile("flushed_block.decompress.dat", flushed_block.data(),
-              num_elements);  
-    writefile("significant_block.decompress.dat", significant_block.data(), num_elements);
+    // Debug use
+    writefile(
+        "flushed_block_id.decompress.dat", flushed_block_id.data(),
+        num_detection_block);
+    writefile(
+        "significant_block_id.decompress.dat", significant_block_id.data(),
+        num_detection_block);
+    writefile(
+        "flushed_block.decompress.dat", flushed_block.data(), num_elements);
+    writefile(
+        "significant_block.decompress.dat", significant_block.data(),
+        num_elements);
 
     return decData;
   }
 
   // compress given the error bound
-  uchar *compress(const Config &conf, T *data, size_t &compressed_size,
-                  const T *original_data = nullptr) {
-
+  uchar *compress(const Config &conf, T *data, size_t &compressed_size)
+  {
     operating_data_ptr = data;
 
     std::copy_n(conf.dims.begin(), N, global_dimensions.begin());
@@ -318,33 +372,38 @@ public:
     bernoulli_p = conf.bernoulli_p;
     random_seed = conf.random_seed;
 
-
-
     region_error_control_on = conf.region_error_on;
     region_error_control_mode = conf.region_error_control_mode;
     region_error_control_threshold = conf.region_error_control_threshold;
     error_starting_level = conf.region_error_control_start_level;
     error_map_stride = conf.regional_error_block_size;
-    region_error_control_eb_compensation = conf.region_error_control_eb_compensation;
+    region_error_control_eb_compensation =
+        conf.region_error_control_eb_compensation;
     region_error_control_eb_reduction = conf.region_error_control_eb_reduction;
-    
 
     if (block_sift_on || block_flush_on)
       std::cout << "detection_block_size = " << detection_block_size
                 << std::endl;
     if (block_sift_on)
-      std::cout << "detection_threshold = " << detection_threshold << std::endl;
+      std::cout << "detection_threshold = " << detection_threshold
+                << std::endl;
     if (block_sift_on)
       std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
     if (noise_rate != 0)
       std::cout << "noise_rate = " << noise_rate << std::endl;
-    if (block_iso_on)
-      std::cout << "isovalue = " << isovalue << std::endl;
+    if (block_iso_on) std::cout << "isovalue = " << isovalue << std::endl;
     if (block_diff_on)
       std::cout << "block_diff_thresh = " << block_diff_thresh << std::endl;
 
-
     init();
+    if (region_error_control_on == true) {
+      std::cout << "region_error_control_on = " << region_error_control_on
+                << std::endl;
+      std::cout << "region_error_control_mode = "
+                << REGION_ERROR_CONTROL_MODE_STR[region_error_control_mode]
+                << std::endl;
+      region_error_tags_inorder.resize(num_elements, 0);
+    }
 
     if (pattern_search_on == 1) {
       std::cout << "pattern_search_on = " << pattern_search_on << std::endl;
@@ -369,18 +428,19 @@ public:
     Timer timer;
     if (block_flush_on == 1 || block_sift_on == 1 || block_iso_on == 1) {
       timer.start();
-      compute_auxilliary_data(conf, data, detection_block_size,
-                              num_elements, num_detection_block,
-                              flushed_block_id, flushed_block,
-                              significant_block_id, significant_block);
+      compute_auxilliary_data(
+          conf, data, detection_block_size, num_elements, num_detection_block,
+          flushed_block_id, flushed_block, significant_block_id,
+          significant_block);
       timer.stop("Auxilliary Data Compress");
     }
 
     if (block_diff_on == 1) {
       timer.start();
 
-      SZ::compute_aux_diff_compress(conf, data, detection_block_size,
-                                    significant_block_id, significant_block);
+      SZ::compute_aux_diff_compress(
+          conf, data, detection_block_size, significant_block_id,
+          significant_block);
       timer.stop("Diff Data Compress");
     }
 
@@ -394,15 +454,16 @@ public:
     error_recorder.resize(num_elements, 0);
 
     double eb_input = quantizer.get_eb();
-    double eb_final; // eb for the highest level
+    double eb_final;  // eb for the highest level
     // double eb_reduction_factor;
     if (interpolator_id == 0) {
       eb_final = eb_input /
                  pow(linear_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(linear_interp_eb_factor, N);
-    } else {
-      eb_final =
-          eb_input / pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
+    }
+    else {
+      eb_final = eb_input /
+                 pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(cubic_interp_eb_factor, N);
     }
 
@@ -469,6 +530,8 @@ public:
           }
         }
 
+        // define pred error collector for blocks
+
         block_interpolation(
             data, block.get_global_index(), end_idx, PB_predict_overwrite,
             interpolators[interpolator_id], direction_sequence_id, stride);
@@ -513,16 +576,79 @@ public:
     write(region_error_control_eb_reduction, buffer_pos);
 
     if (region_error_control_on == true) {
+      // create another huffman encoder for the error control map
+      auto map_encoder = SZ::HuffmanEncoder<uchar>();
       std::cout << "region_error_control_on = " << region_error_control_on
                 << std::endl;
-      std::cout << "region_error_control_mode = " << REGION_ERROR_CONTROL_MODE_STR[region_error_control_mode]
+      std::cout << "region_error_control_mode = "
+                << REGION_ERROR_CONTROL_MODE_STR[region_error_control_mode]
                 << std::endl;
+      std::cout << "region_error_tags size" << region_error_tags.size()
+                << "\n";
+      writefile(
+          "region_error_tags_compress.dat", region_error_tags.data(),
+          region_error_tags.size());
+      write(region_error_tags.size(), buffer_pos);
+      // creat a new buffer
+      std::vector<uchar> region_error_tags_bitmap;
+      region_error_tags_bitmap = region_error_tags;
+      // save as 2-bit error map
+      // Bitmap_to_Bytes(region_error_tags, region_error_tags_bitmap);
+      // std::cout << "region_error_tags_bitmap size" <<
+      // region_error_tags_bitmap.size() << "\n";
+
+      // write the map size to the buffer
+      // write(region_error_tags_bitmap.size(),buffer_pos);
+      // huffman encoding for buffer_error_map
+      map_encoder.preprocess_encode(region_error_tags_bitmap, 0);
+      map_encoder.save(buffer_pos);
+      map_encoder.encode(region_error_tags_bitmap, buffer_pos);
+      map_encoder.postprocess_encode();
+
+      //
+      //   // huffman encoding for buffer_error_map
+      //   uchar *buffer_error_map = new
+      //   uchar[region_error_tags_bitmap.size()]; uchar *buffer_error_map_pos
+      //   = buffer_error_map;
+      //   map_encoder.preprocess_encode(region_error_tags_bitmap, 0);
+      //   map_encoder.save(buffer_error_map_pos);
+      //   map_encoder.encode(region_error_tags_bitmap, buffer_error_map_pos);
+      //   map_encoder.postprocess_encode();
+      //   write(region_error_tags.size(), buffer_pos);
+      //   write((size_t) (buffer_error_map_pos - buffer_error_map),
+      //   buffer_pos);
+      //   // write(buffer_error_map, buffer_error_map_pos - buffer_error_map,
+      //   buffer_pos);
+      //   //compress with zstd on the buffer_error_map
+      //   size_t compressed_size = 0;
+
+      //   uchar *lossless_map_data =
+      //     lossless.compress(buffer_error_map, buffer_error_map_pos -
+      //     buffer_error_map, compressed_size);
+      //   std::cout << "compresssed size = " << compressed_size << "\n";
+
+      //   write(compressed_size, buffer_pos);
+      //   write(lossless_map_data, compressed_size, buffer_pos);
+      //   lossless.postcompress_data(lossless_map_data);
+      //   // std::cout << "huffman encoding size = " << buffer_error_map_pos -
+      //   buffer_error_map << "\n";
+      //   // // use zstd on the buffer_pos_map
+      //   // size_t compressed_size = 0;
+      //   // uchar *lossless_map_data =
+      //   //   lossless.compress(buffer_error_map_pos, buffer_error_map_pos -
+      //   buffer_error_map, compressed_size);
+      //   // lossless.postcompress_data(buffer_error_map);
+      //   // convertIntArray2ByteArray_fast_1b_to_result_sz(
+      //   //     region_error_tags.data(), region_error_tags.size(),
+      //   buffer_pos);
+      //  free(buffer_error_map);
     }
 
     // add auxilliary array
     write(detection_block_size, buffer_pos);
     // num_detection_block = significant_block_id.size();
-    // if(num_detection_block == 0) num_detection_block = flushed_block_id.size(); 
+    // if(num_detection_block == 0) num_detection_block =
+    // flushed_block_id.size();
     write(num_detection_block, buffer_pos);
     if (block_flush_on) {
       std::cout << "writing flushed_block_id" << std::endl;
@@ -532,7 +658,8 @@ public:
     if (block_sift_on) {
       std::cout << "writing block_sift_id" << std::endl;
       convertIntArray2ByteArray_fast_1b_to_result_sz(
-          significant_block_id.data(), significant_block_id.size(), buffer_pos);
+          significant_block_id.data(), significant_block_id.size(),
+          buffer_pos);
     }
     // add additional variable
     write(noise_rate, buffer_pos);
@@ -541,16 +668,17 @@ public:
     write(original_min, buffer_pos);
     write(pattern_search_on, buffer_pos);
     if (pattern_search_on) {
-      std::cout << "writing pattern_search_id" << std::endl;
+      std::cout << "writing pattern_search_id\n";
       SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(
           pattern_map_uchar.data(), pattern_map_uchar.size(), buffer_pos);
     }
     write(block_diff_on, buffer_pos);
     write(block_diff_thresh, buffer_pos);
     if (block_diff_on) {
-      std::cout << "writing block_diff_id" << std::endl;
+      std::cout << "writing block_diff_id\n";
       SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(
-          significant_block_id.data(), significant_block_id.size(), buffer_pos);
+          significant_block_id.data(), significant_block_id.size(),
+          buffer_pos);
     }
     // Postprocess to remove artifact
     write(conf.post_block_noise_rng_on, buffer_pos);
@@ -562,8 +690,9 @@ public:
       post_block_error_tags = compress_opt_reginal_post_process(
           data, error_recorder.data(), conf, detection_block_size, noise_base,
           mt);
-      writefile("post_block_error_tags.dat", post_block_error_tags.data(),
-                post_block_error_tags.size());
+      writefile(
+          "post_block_error_tags.dat", post_block_error_tags.data(),
+          post_block_error_tags.size());
       size_t post_block_error_tags_size = post_block_error_tags.size();
       write(post_block_error_tags_size, buffer_pos);
       SZ::convertIntArray2ByteArray_fast_1b_to_result_sz(
@@ -587,20 +716,23 @@ public:
     lossless.postcompress_data(buffer);
     //            timer.stop("Lossless");
     writefile("compressed.dat", data, num_elements);
-    writefile("rand.dat", rand_collector.data(), num_elements);
-    writefile("pred_noise.dat", my_pred_noise.data(), num_elements);
-    writefile("error.dat", error_recorder.data(), num_elements);
-    writefile("error_map.dat", error_control_map.data(),
-              error_control_map.size());
-    writefile("quant_inds.compress.dat", quant_inds.data(), quant_inds.size());
+    // writefile("rand.dat", rand_collector.data(), num_elements);
+    // writefile("pred_noise.dat", my_pred_noise.data(), num_elements);
+    // writefile("error.dat", error_recorder.data(), num_elements);
+    writefile(
+        "error_map.dat", region_error_tags_inorder.data(),
+        region_error_tags_inorder.size());
+    // writefile("quant_inds.compress.dat", quant_inds.data(),
+    // quant_inds.size());
 
-      writefile("flushed_block_id.compress.dat", flushed_block_id.data(),
-              num_detection_block);
-    writefile("significant_block_id.compress.dat",
-              significant_block_id.data(), num_detection_block);
-    writefile("flushed_block.compress.dat", flushed_block.data(),
-              num_elements);  
-    writefile("significant_block.compress.dat", significant_block.data(), num_elements); 
+    //   writefile("flushed_block_id.compress.dat", flushed_block_id.data(),
+    //           num_detection_block);
+    // writefile("significant_block_id.compress.dat",
+    //           significant_block_id.data(), num_detection_block);
+    // writefile("flushed_block.compress.dat", flushed_block.data(),
+    //           num_elements);
+    // writefile("significant_block.compress.dat", significant_block.data(),
+    // num_elements);
 
     // std::cout << "rand counter = " << counter << std::endl;
 
@@ -663,12 +795,14 @@ public:
   //   return operating_data_ptr;
   // }
 
-private:
+ private:
   enum PredictorBehavior { PB_predict_overwrite, PB_predict, PB_recover };
 
-  void init() {
-    assert(blocksize % 2 == 0 &&
-           "Interpolation block size should be even numbers");
+  void init()
+  {
+    assert(
+        blocksize % 2 == 0 &&
+        "Interpolation block size should be even numbers");
     num_elements = 1;
     interpolation_level = -1;
     for (int i = 0; i < N; i++) {
@@ -686,9 +820,7 @@ private:
 
     dimension_sequences = std::vector<std::array<int, N>>();
     auto sequence = std::array<int, N>();
-    for (int i = 0; i < N; i++) {
-      sequence[i] = i;
-    }
+    for (int i = 0; i < N; i++) { sequence[i] = i; }
     do {
       dimension_sequences.push_back(sequence);
     } while (std::next_permutation(sequence.begin(), sequence.end()));
@@ -703,7 +835,7 @@ private:
 
     mt = std::mt19937(random_seed);
     mt_uni_int_dist = std::mt19937(10000);
-    uniform_dist = std::uniform_real_distribution<T>(uniform_lower, 1);
+    uniform_dist = std::uniform_real_distribution<T>(0, 1);
     // uniform_dist = std::uniform_real_distribution<T>(0.45, 0.55);
 
     normal_dist = std::normal_distribution<T>(normal_mean, normal_std);
@@ -721,33 +853,32 @@ private:
     my_pred.resize(num_elements);
     my_pred[0] = 0;
     my_level[0] = interpolation_level;
-#endif
-
     my_pred_noise.resize(num_elements, 0);
+#endif
 
     interp_level_calculator =
         InterpolationLevel<T>(N, global_dimensions.data());
     if (region_error_control_on == true) {
       error_control_map.resize(num_elements, 0);
     }
+    if (N == 3) region_error_tags.reserve(63 / 64 * num_elements);
+    if (N == 2) region_error_tags.reserve(15 / 16 * num_elements);
   }
 
-  inline void range_check(T &d) {
-    if (d > original_max) {
-      d = original_max;
-    }
-    if (d < original_min) {
-      d = original_min;
-    }
+  inline void range_check(T &d)
+  {
+    if (d > original_max) { d = original_max; }
+    if (d < original_min) { d = original_min; }
   }
 
-  inline void quantize(size_t idx, T &d, T pred) {
+  inline void quantize(size_t idx, T &d, T pred)
+  {
     T d_copy = d;
-    if (block_flush_on == 1 && flushed_block[idx]) {
-      d = 0;
-    } else {
+    if (block_flush_on == 1 && flushed_block[idx]) { d = 0; }
+    else {
       auto default_eb = quantizer.get_eb();
-      if (artifact_sift_on == true && (current_level == 1) && significant_block[idx] ==1 ) {
+      if (artifact_sift_on == true && (current_level == 1) &&
+          significant_block[idx] == 1) {
         quantizer.set_eb(default_eb * detection_eb_rate);
       }
       if (pattern_search_on && pattern_map_uchar[idx] == 1) {
@@ -804,84 +935,125 @@ private:
         // T prob = (T)bernoulli_dist(mt);
         quant_inds.push_back(
             quantizer.quantize_and_overwrite_prob(d, pred, prob));
-      } else if (use_stochastic_decompress == 1 && current_level >= 1) {
+      }
+      else if (use_stochastic_decompress == 1 && current_level >= 1) {
         T noise = (2.0 * uniform_dist(mt) - 1.0) * noise_rate * default_eb;
         // noise = noise * (pred-original_min)/(original_range);
         quant_inds.push_back(
             quantizer.quantize_and_overwrite_with_noise(d, pred, noise));
-      } else if (use_stochastic_eb == 1) {
-        // T rand = 1-fabs(normal_dist(mt));
-        // T rand = normal_dist(mt);
-        // rand = rand <=0 ? 0.001: rand;
-        // rand = rand >1 ? 1: rand;
-        // T prob = rand ;
+      }
+      else if (use_stochastic_eb == 1) {
         T rand = uniform_dist(mt);
-
-        // T prob = rand < 0.4? 0.4: rand;
-        // T rand;
-        // do{
-        //     rand = normal_dist(mt);
-        // } while (rand <= 0 || rand > 1);
-
-        // T rand;
-        // if(bernoulli_dist(mt) ==1)
-        // {
-        //     rand = 1-fabs(normal_dist(mt));
-        //     rand = rand <=0 ? 0.001: rand;
-        // }
-        // else {
-        //     rand = uniform_dist(mt);
-        // }
-        if (rand <= 0)
-          rand = 1e-5;
+        if (rand <= 0) rand = 1e-5;
         rand_collector[idx] = rand;
         counter++;
         T prob = rand;
         quantizer.set_eb(default_eb * prob);
         quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-      } else if (region_error_control_on == true &&
-                 current_level < error_starting_level) {
-        if (fabs(pred - d) < region_error_control_threshold*default_eb) {
-          error_control_map[idx] = 0;
-        } // 60% of the data on the first and second level will be conpensated.
-        if (error_control_map[idx] == 1) {
-          // reduce eb mode
-          if(region_error_control_mode == SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB)
+      }
+      else if (
+          region_error_control_on == true &&
+          current_level < error_starting_level) {
+        // if (fabs(pred - d) < region_error_control_threshold*default_eb) {
+        //   error_control_map[idx] = 0;
+        // } // 60% of the data on the first and second level will be
+        // conpensated.
+
+        // work on the decompressed data 
+        if (region_error_control_mode == SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB){
+          quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+          if (fabs(d - d_copy)> region_error_control_threshold * default_eb)
           {
             quantizer.set_eb(default_eb * region_error_control_eb_reduction);
-            quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-            quant_inds.back() += quantizer.get_radius()*2+1;
+            quant_inds.back() = quantizer.quantize_and_overwrite(d_copy, pred);
+            region_error_tags.push_back(1);
+            region_error_tags_inorder[idx] = 1;
           }
-          else if (region_error_control_mode == SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB) {
-            quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-            if(d-d_copy > 0)
-            {
-                d = d - default_eb*region_error_control_eb_compensation;
-                quant_inds.back() += quantizer.get_radius()*2+1;
-            }
-            else
-            {
-                d = d + default_eb*region_error_control_eb_compensation;
-                quant_inds.back() -= (quantizer.get_radius()*2+1);
-            }
+          else{
+            region_error_tags.push_back(0);
+            region_error_tags_inorder[idx] = 0;
           }
-        }else {
-          quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+        } else if (region_error_control_mode ==
+              SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB){
+              quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+              T error = d - d_copy;
+              if (fabs(error)> region_error_control_threshold * default_eb)
+              {
+                T compensation = default_eb * region_error_control_eb_compensation;
+                if(error >0)
+                {
+                  d = d - compensation;
+                  region_error_tags.push_back(1);
+                  region_error_tags_inorder[idx] = 1;
+                }
+                else {
+                  d = d + compensation;
+                  region_error_tags.push_back(2);
+                  region_error_tags_inorder[idx] = 2;
+                }
+              }
+              else{
+                region_error_tags.push_back(0);
+                region_error_tags_inorder[idx] = 0;
+              }
         }
-      } else {
-        quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-      }
 
-      if (region_error_control_on == true &&
-          current_level == error_starting_level) {
-        int quant_index = quant_inds.back() - quantizer.get_radius();
-        if (quant_inds.back() !=0 && abs(quant_index) <2)
-        {
-          int expand_radius = 1 << (current_level-1);
-          interp_level_calculator.label_neighbor_points(
-              idx, error_control_map, (uchar)1, expand_radius);
-          error_control_index.push_back(idx);
-        }
+
+
+
+        // if (fabs(pred - d) > region_error_control_threshold * default_eb) {
+        //   // reduce eb mode
+        //   if (region_error_control_mode ==
+        //       SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB) {
+        //     quantizer.set_eb(default_eb * region_error_control_eb_reduction);
+        //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+        //     region_error_tags.push_back(1);
+        //   }
+        //   else if (
+        //       region_error_control_mode ==
+        //       SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB) {
+        //     // compensate to the data
+        //     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+        //     if (d > d_copy) {
+        //       T compensation = default_eb * region_error_control_eb_compensation;
+        //       d = d - compensation;
+        //       region_error_tags.push_back(1);
+        //       region_error_tags_inorder[idx] = 1;
+        //     }
+        //     else {
+        //       T compensation = default_eb * region_error_control_eb_compensation;
+        //       d = d + compensation;
+        //       region_error_tags.push_back(2);
+        //       region_error_tags_inorder[idx] = 2;
+
+        //     }
+        //     // compensate to the prediction
+        //     // if (pred > d_copy) {
+        //     //   T compensation = default_eb * region_error_control_eb_compensation*(pred-original_min)/(original_range);
+        //     //   pred = pred - compensation;
+        //     //   region_error_tags.push_back(1);
+        //     //   region_error_tags_inorder[idx] = 1;
+        //     // }
+        //     // else {
+        //     //   T compensation = default_eb * region_error_control_eb_compensation*(pred-original_min)/(original_range);
+        //     //   pred = pred + compensation;
+        //     //   region_error_tags.push_back(2);
+        //     //   region_error_tags_inorder[idx] = 2;
+
+        //     // }
+        //     // quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+            
+        //   }
+        // }
+        // else {
+        //   quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+        //   region_error_tags.push_back(0);
+        //   region_error_tags_inorder[idx] = 0;
+
+        // }
+      }
+      else {
+        quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
       }
       quantizer.set_eb(default_eb);
     }
@@ -897,12 +1069,13 @@ private:
     error_recorder[idx] = d_copy - d;
   }
 
-  inline void recover(size_t idx, T &d, T pred) {
-    if (block_flush_on == 1 && flushed_block[idx]) {
-      d = 0;
-    } else {
+  inline void recover(size_t idx, T &d, T pred)
+  {
+    if (block_flush_on == 1 && flushed_block[idx]) { d = 0; }
+    else {
       auto default_eb = quantizer.get_eb();
-      if (artifact_sift_on == true && (current_level == 1) && significant_block[idx] ==1) {
+      if (artifact_sift_on == true && (current_level == 1) &&
+          significant_block[idx] == 1) {
         quantizer.set_eb(default_eb * detection_eb_rate);
       }
       if (pattern_search_on && pattern_map_uchar[idx] == 1) {
@@ -933,76 +1106,127 @@ private:
         // quant_inds[quant_index++],noise);
         // d=quantizer.stochastic_recover(pred, quant_inds[quant_index++],idx);
         d = quantizer.recover(pred, quant_inds[quant_index++]);
-      } else if (use_stochastic_decompress == 1 && current_level >= 1) {
+      }
+      else if (use_stochastic_decompress == 1 && current_level >= 1) {
         T noise = (2.0 * uniform_dist(mt) - 1.0) * noise_rate * default_eb;
         // noise = noise * (pred-original_min)/(original_range);
-        d = quantizer.recover_with_noise(pred, quant_inds[quant_index++],
-                                         noise);
-      } else if (use_stochastic_eb == 1) {
+        d = quantizer.recover_with_noise(
+            pred, quant_inds[quant_index++], noise);
+      }
+      else if (use_stochastic_eb == 1) {
         T rand = uniform_dist(mt);
-        if (rand <= 0)
-          rand = 1e-5;
+        if (rand <= 0) rand = 1e-5;
         T prob = rand;
         quantizer.set_eb(default_eb * prob);
         d = quantizer.recover(pred, quant_inds[quant_index++]);
-      } else if (region_error_control_on == true &&
-                 current_level < error_starting_level) {
-        int current_quant_index = quant_inds[quant_index++];
-        if (current_quant_index >= 0 && current_quant_index <= 2*quantizer.get_radius()) {
-          error_control_map[idx] = 0;
+      }
+      else if (
+          region_error_control_on == true &&
+          current_level < error_starting_level) {
+        // int current_quant_index = quant_inds[quant_index++];
+        // if (current_quant_index >= 0 && current_quant_index <=
+        // 2*quantizer.get_radius()) {
+        //   error_control_map[idx] = 0;
+        // }
+        // if (error_control_map[idx] == 1) {
+        //   if(region_error_control_mode ==
+        //   SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB)
+        //   {
+        //     quantizer.set_eb(default_eb *
+        //     region_error_control_eb_reduction); current_quant_index =
+        //     current_quant_index - quantizer.get_radius()*2-1; d =
+        //     quantizer.recover(pred, current_quant_index);
+        //   }
+        //   else if (region_error_control_mode ==
+        //   SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB) {
+        //     if(current_quant_index > quantizer.get_radius()*2)
+        //     {
+        //         current_quant_index = current_quant_index -
+        //         quantizer.get_radius()*2-1; d = quantizer.recover(pred,
+        //         current_quant_index); d = d -
+        //         default_eb*region_error_control_eb_compensation;
+        //     }
+        //     else
+        //     {
+        //         current_quant_index = current_quant_index +
+        //         quantizer.get_radius()*2+1; d = quantizer.recover(pred,
+        //         current_quant_index); d = d +
+        //         default_eb*region_error_control_eb_compensation;
+        //     }
+        //   }
+        // } else {
+        //   d = quantizer.recover(pred, current_quant_index);
+        // }
+
+        if (region_error_control_mode ==
+            SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB) {
+          // compensate decompressed data
+          // d = quantizer.recover(pred, quant_inds[quant_index++]);
+          // uchar error_tag1 = region_error_tags[region_error_tags_index++];
+          // uchar error_tag2 = region_error_tags[region_error_tags_index++];
+          // if(error_tag1 == 0 && error_tag2==1)
+          // {
+          // d = d - default_eb*region_error_control_eb_compensation;
+          // }
+          // else if(error_tag1 == 1 && error_tag2==1)
+          // {
+          // d = d + default_eb*region_error_control_eb_compensation;
+          // }
+
+          // compensate pred value
+          uchar error_tag1 = region_error_tags[region_error_tags_index++];
+          // uchar error_tag2 = region_error_tags[region_error_tags_index++];
+          if (error_tag1 == 1) {
+            T compensation = default_eb * region_error_control_eb_compensation*(pred-original_min)/(original_range);
+            pred = pred - compensation;
+          }
+          else if (error_tag1 == 2) {
+            T compensation = default_eb * region_error_control_eb_compensation*(pred-original_min)/(original_range);
+            pred = pred + compensation;
+          }
+          d = quantizer.recover(pred, quant_inds[quant_index++]);
         }
-        if (error_control_map[idx] == 1) {
-          if(region_error_control_mode == SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB)
-          {
+        else if (
+            region_error_control_mode ==
+            SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB) {
+          uchar error_tag1 = region_error_tags[region_error_tags_index++];
+          if (error_tag1 == 1) {
             quantizer.set_eb(default_eb * region_error_control_eb_reduction);
-            current_quant_index = current_quant_index - quantizer.get_radius()*2-1;
-            d = quantizer.recover(pred, current_quant_index);
+            d = quantizer.recover(pred, quant_inds[quant_index++]);
           }
-          else if (region_error_control_mode == SZ::REGION_ERROR_CONTROL_MODE::COMPENSATE_EB) {
-            if(current_quant_index > quantizer.get_radius()*2)
-            {
-                current_quant_index = current_quant_index - quantizer.get_radius()*2-1;
-                d = quantizer.recover(pred, current_quant_index);
-                d = d - default_eb*region_error_control_eb_compensation;
-            }
-            else
-            {
-                current_quant_index = current_quant_index + quantizer.get_radius()*2+1;
-                d = quantizer.recover(pred, current_quant_index);
-                d = d + default_eb*region_error_control_eb_compensation;
-            }
+          else if (error_tag1 == 0) {
+            d = quantizer.recover(pred, quant_inds[quant_index++]);
           }
-        } else {
-          d = quantizer.recover(pred, current_quant_index);
         }
-      } else {
+      }
+      else {
         d = quantizer.recover(pred, quant_inds[quant_index++]);
       }
 
-      if (region_error_control_on == true &&
-          current_level == error_starting_level) {
-        size_t tmp_index = quant_index - 1;
-        int last_quant_index = quant_inds[tmp_index];
-        int quant_index_shift = abs(last_quant_index - quantizer.get_radius());
-        if (last_quant_index != 0 && quant_index_shift <2) {
-          int expand_radius = 1 << (current_level-1);
-          interp_level_calculator.label_neighbor_points(
-              idx, error_control_map, (uchar)1, expand_radius);
-        }
-      }
+      // if (region_error_control_on == true &&
+      //     current_level == error_starting_level) {
+      //   size_t tmp_index = quant_index - 1;
+      //   int last_quant_index = quant_inds[tmp_index];
+      //   int quant_index_shift = abs(last_quant_index -
+      //   quantizer.get_radius()); if (last_quant_index == 0 ||
+      //   quant_index_shift <1) {
+      //     int expand_radius = 1 << (current_level-1);
+      //     interp_level_calculator.label_neighbor_points(
+      //         idx, error_control_map, (uchar)1, expand_radius);
+      //   }
+      // }
       quantizer.set_eb(default_eb);
     }
     // range_check(d);
   };
 
-  double block_interpolation_1d(T *data, size_t begin, size_t end,
-                                size_t stride, const std::string &interp_func,
-                                const PredictorBehavior pb,
-                                bool error_tune = false) {
+  double block_interpolation_1d(
+      T *data, size_t begin, size_t end, size_t stride,
+      const std::string &interp_func, const PredictorBehavior pb,
+      bool error_tune = false)
+  {
     size_t n = (end - begin) / stride + 1;
-    if (n <= 1) {
-      return 0;
-    }
+    if (n <= 1) { return 0; }
     double predict_error = 0;
 
     size_t stride3x = 3 * stride;
@@ -1025,8 +1249,8 @@ private:
           //     stride)));
           // }
         }
-
-      } else {
+      }
+      else {
         for (size_t i = 1; i + 1 < n; i += 2) {
           T *d = data + begin + i * stride;
           recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
@@ -1042,7 +1266,8 @@ private:
           // }
         }
       }
-    } else {
+    }
+    else {
       std::array<int, 2> interp_indices = {1, 3};
       std::array<int, 2> interp_signs = {1, -1};
       if (pb == PB_predict_overwrite) {
@@ -1050,38 +1275,47 @@ private:
         size_t i;
         for (i = 3; i + 3 < n; i += 2) {
           d = data + begin + i * stride;
-          quantize(d - data, *d,
-                   interp_cubic(*(d - stride3x), *(d - stride), *(d + stride),
-                                *(d + stride3x)));
+          quantize(
+              d - data, *d,
+              interp_cubic(
+                  *(d - stride3x), *(d - stride), *(d + stride),
+                  *(d + stride3x)));
         }
         d = data + begin + stride;
-        quantize(d - data, *d,
-                 interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+        quantize(
+            d - data, *d,
+            interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
 
         d = data + begin + i * stride;
-        quantize(d - data, *d,
-                 interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+        quantize(
+            d - data, *d,
+            interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
         if (n % 2 == 0) {
           d = data + begin + (n - 1) * stride;
           quantize(d - data, *d, *(d - stride));
         }
-      } else {
+      }
+      else {
         T *d;
         size_t i;
         for (i = 3; i + 3 < n; i += 2) {
           d = data + begin + i * stride;
-          recover(d - data, *d,
-                  interp_cubic(*(d - stride3x), *(d - stride), *(d + stride),
-                               *(d + stride3x)));
+          recover(
+              d - data, *d,
+              interp_cubic(
+                  *(d - stride3x), *(d - stride), *(d + stride),
+                  *(d + stride3x)));
         }
         d = data + begin + stride;
 
-        recover(d - data, *d,
-                interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
+        recover(
+            d - data, *d,
+            interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
 
         d = data + begin + i * stride;
-        recover(d - data, *d,
-                interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
+        recover(
+            d - data, *d,
+            interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
 
         if (n % 2 == 0) {
           d = data + begin + (n - 1) * stride;
@@ -1094,21 +1328,21 @@ private:
   }
 
   template <uint NN = N>
-  typename std::enable_if<NN == 1, double>::type
-  block_interpolation(T *data, std::array<size_t, N> begin,
-                      std::array<size_t, N> end, const PredictorBehavior pb,
-                      const std::string &interp_func, const int direction,
-                      size_t stride = 1) {
-    return block_interpolation_1d(data, begin[0], end[0], stride, interp_func,
-                                  pb);
+  typename std::enable_if<NN == 1, double>::type block_interpolation(
+      T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
+      const PredictorBehavior pb, const std::string &interp_func,
+      const int direction, size_t stride = 1)
+  {
+    return block_interpolation_1d(
+        data, begin[0], end[0], stride, interp_func, pb);
   }
 
   template <uint NN = N>
-  typename std::enable_if<NN == 2, double>::type
-  block_interpolation(T *data, std::array<size_t, N> begin,
-                      std::array<size_t, N> end, const PredictorBehavior pb,
-                      const std::string &interp_func, const int direction,
-                      size_t stride = 1) {
+  typename std::enable_if<NN == 2, double>::type block_interpolation(
+      T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
+      const PredictorBehavior pb, const std::string &interp_func,
+      const int direction, size_t stride = 1)
+  {
     double predict_error = 0;
     size_t stride2x = stride * 2;
     // auto default_eb = quantizer.get_eb();
@@ -1140,11 +1374,11 @@ private:
   }
 
   template <uint NN = N>
-  typename std::enable_if<NN == 3, double>::type
-  block_interpolation(T *data, std::array<size_t, N> begin,
-                      std::array<size_t, N> end, const PredictorBehavior pb,
-                      const std::string &interp_func, const int direction,
-                      size_t stride = 1) {
+  typename std::enable_if<NN == 3, double>::type block_interpolation(
+      T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
+      const PredictorBehavior pb, const std::string &interp_func,
+      const int direction, size_t stride = 1)
+  {
     double predict_error = 0;
     size_t stride2x = stride * 2;
 
@@ -1218,12 +1452,11 @@ private:
   }
 
   template <uint NN = N>
-  typename std::enable_if<NN == 4, double>::type
-  block_interpolation(T *data, std::array<size_t, N> begin,
-                      std::array<size_t, N> end, const PredictorBehavior pb,
-                      const std::string &interp_func, const int direction,
-                      size_t stride = 1) {
-
+  typename std::enable_if<NN == 4, double>::type block_interpolation(
+      T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
+      const PredictorBehavior pb, const std::string &interp_func,
+      const int direction, size_t stride = 1)
+  {
     double predict_error = 0;
     size_t stride2x = stride * 2;
     max_error = 0;
@@ -1307,18 +1540,20 @@ private:
     return predict_error;
   }
 
-  std::vector<uchar> int2uchar(int *int_data, const size_t datasize) {
+  std::vector<uchar> int2uchar(int *int_data, const size_t datasize)
+  {
     std::vector<uchar> uchar_data(datasize, 0);
     for (size_t i = 0; i < datasize; i++) {
-      uchar_data[i] = (int_data[i] == 4 || int_data[i] == -4 ||
-                       int_data[i] == -6 || int_data[i] == 6);
+      uchar_data[i] =
+          (int_data[i] == 4 || int_data[i] == -4 || int_data[i] == -6 ||
+           int_data[i] == 6);
     }
     return uchar_data;
   }
 
-  // at the lowest level, we construct a map to store the representitive's quant
-  // index this is a bit map 1 for non-zero quant index, 0 otherwise only for
-  // slices with
+  // at the lowest level, we construct a map to store the representitive's
+  // quant index this is a bit map 1 for non-zero quant index, 0 otherwise only
+  // for slices with
 
   int interpolation_level = -1;
   uint blocksize;
@@ -1326,7 +1561,7 @@ private:
   double eb_ratio = 0.5;
   std::vector<std::string> interpolators = {"linear", "cubic"};
   std::vector<int> quant_inds;
-  size_t quant_index = 0; // for decompress
+  size_t quant_index = 0;  // for decompress
   double max_error;
   Quantizer quantizer;
   Encoder encoder;
@@ -1354,8 +1589,8 @@ private:
 
   std::vector<uchar> flushed_block;
   std::vector<uchar> flushed_block_id;
-  std::vector<uchar> significant_block;    // per datapoint
-  std::vector<uchar> significant_block_id; // per block
+  std::vector<uchar> significant_block;     // per datapoint
+  std::vector<uchar> significant_block_id;  // per block
   uint8_t sift_mode = SZ::BLOCK_SIFT_MODE::RANGE;
   double current_base_eb;
   bool block_flush_on;
@@ -1365,9 +1600,9 @@ private:
   size_t num_detection_block = 0;
   bool block_iso_on = 0;
   double isovalue = 0;
-  T original_max;   // for data range check
-  T original_min;   // for data range check
-  T original_range; // for data range check
+  T original_max;    // for data range check
+  T original_min;    // for data range check
+  T original_range;  // for data range check
   T pred_noise_thresh;
   double pred_noise_thresh_ratio = 1e-4;
 
@@ -1415,7 +1650,9 @@ private:
   bool region_error_control_on = false;
   uint8_t region_error_control_mode = SZ::REGION_ERROR_CONTROL_MODE::REDUCE_EB;
   int error_starting_level = 3;
-  std::vector<int> region_error_tags;
+  std::vector<uchar> region_error_tags;
+  std::vector<uchar> region_error_tags_inorder;
+  size_t region_error_tags_index = 0;
   int region_error_counter = 0;
   double region_error_control_threshold = 0.5;
   double region_error_control_eb_compensation = 0.5;
@@ -1424,10 +1661,9 @@ private:
   std::vector<int> error_map;
   int error_map_stride = 4;
 
-  
   std::vector<size_t> error_control_index;
   std::vector<uchar> error_control_stride;
-  std::vector<uchar> error_control_map; // 0 for no control, 1 for control
+  std::vector<uchar> error_control_map;  // 0 for no control, 1 for control
   // std::vector<uchar> slice_error_tags;
 
   InterpolationLevel<T> interp_level_calculator;
@@ -1441,10 +1677,11 @@ private:
   std::vector<int> my_level;
   std::vector<int> my_quant_inds;
   std::vector<T> my_pred;
-// std::vector<T> my_pred_noise;
-#endif
+  // std::vector<T> my_pred_noise;
   std::vector<T> my_pred_noise;
+
+#endif
 };
-}; // namespace SZ
+};  // namespace SZ
 
 #endif

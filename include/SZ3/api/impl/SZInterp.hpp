@@ -11,12 +11,16 @@
 #include "SZ3/utils/QuantOptimizatioin.hpp"
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/api/impl/SZLorenzoReg.hpp"
+#include "SZ3/utils/Extraction_level.hpp"
+#include "SZ3/utils/Metrics.hpp"
 #include <cmath>
+#include <cstddef>
+#include <cstdlib>
 #include <memory>
 
 
 template<class T, SZ::uint N>
-char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize, const T *oriData = nullptr) {
+char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
 
 
     assert(N == conf.N);
@@ -27,7 +31,7 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize, const T *or
             SZ::LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
-    char *cmpData = (char *) sz.compress(conf, data, outSize, oriData);
+    char *cmpData = (char *) sz.compress(conf, data, outSize);
     return cmpData;
 }
 
@@ -164,6 +168,96 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
     }
 
 
+}
+
+template<class T, SZ::uint N>
+char *SZ_compress_Interp___(SZ::Config &conf, T *data, size_t &outSize, bool opt = 1)
+{
+    assert(conf.cmprAlgo == SZ::ALGO_INTERP_LORENZO);
+
+    SZ::Timer timer(true);
+
+    SZ::calAbsErrorBound(conf, data);
+    
+    // how to sample data ?
+    // sample data with stride
+    // std::vector<T> sampling_data = SZ::sampling<T, N>(data, conf.dims, sampling_num, sample_dims, sampling_block);
+    size_t sampleOutSize =0;
+    char *cmprData;
+
+    SZ::Config conf_copy = conf; // copy config file
+    int tunning_level = conf.region_error_control_start_level;
+    int tunning_stride = (int)1 << (tunning_level-1);
+
+    // extract sample data
+    auto level_extractor = SZ::ExtractionLevel<T, N>(conf.dims.data(), tunning_stride, data);
+    std::vector<T> sample_data = level_extractor.get_extracted_data();
+    std::vector<size_t> sample_dims_ = level_extractor.get_extracted_dims();
+    size_t sample_num = sample_data.size();
+    conf_copy.blockSize = conf.blockSize / tunning_stride;
+    conf_copy.setDims(sample_dims_.begin(), sample_dims_.end());
+    conf_copy.region_error_control_start_level = 2;
+    // make sure the highest level is larger than 2
+    if(level_extractor.get_highest_level()<=2)
+    {
+        std::cout << "highest level is smaller than 2, not enough data\n";
+        exit(1);
+    }
+
+
+    int best_pred_error_thresh_idx = 0;
+    double best_pred_error_thresh_ratio = 0;
+    double best_ratio = 0;
+    double best_indicator = 0;
+    if(conf_copy.region_error_control_mode == SZ::REDUCE_EB)
+    {
+        std::vector<double> pred_error_thresh = {0.1, 0.2, 0.3, 0.4, 0.5,0.6,0.7};
+        std::vector<double> reduction_ratio = {0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9};
+        for(auto & thresh: pred_error_thresh)
+        {
+            conf_copy.region_error_control_threshold = thresh;
+            std::vector<T> sample_data_copy(sample_data);
+            char *sample_cmprData = SZ_compress_Interp<T, N>(conf_copy, sample_data_copy.data(), sampleOutSize);
+            delete[]sample_cmprData;
+            double current_ratio = sample_num * 1.0 * sizeof(T) / sampleOutSize;
+            if(current_ratio> best_ratio)
+            {
+                best_ratio = current_ratio;
+                best_pred_error_thresh_ratio = thresh;
+            }
+
+        }
+        conf.region_error_control_threshold = best_pred_error_thresh_ratio;
+    }
+    else if (conf_copy.region_error_control_mode == SZ::COMPENSATE_EB)
+    {
+        // TODO: compensate error bound
+        std::vector<double> pred_error_thresh = {0.1, 0.2, 0.3, 0.4, 0.5,0.6,0.7};
+        std::vector<double> compensate_ratio = {0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9}; //??
+        double best_compensate_ratio = 0;
+        // for(auto & thresh: pred_error_thresh) 
+        for (auto & compensate : compensate_ratio)
+        {
+            conf_copy.region_error_control_eb_compensation = compensate;
+            // conf_copy.region_error_control_threshold = thresh;
+            std::vector<T> sample_data_copy(sample_data);
+            char *sample_cmprData = SZ_compress_Interp<T, N>(conf_copy, sample_data_copy.data(), sampleOutSize);
+            delete[]sample_cmprData;
+            double current_psnr = SZ::METRICS::CALCULATE_PSNR<T>(sample_data.data(), sample_data_copy.data(), sample_num);
+            double current_ratio = sample_num * 1.0 * sizeof(T) / sampleOutSize;
+            if(current_psnr> best_indicator)
+            {
+                best_indicator = current_psnr;
+                best_compensate_ratio = compensate;
+            }
+        }
+        conf.region_error_control_eb_compensation = best_compensate_ratio;
+        std::cout << "best compensate ratio: " << best_compensate_ratio << std::endl;
+
+    }
+
+
+    return SZ_compress_Interp<T, N>(conf, data, outSize);
 }
 
 #endif

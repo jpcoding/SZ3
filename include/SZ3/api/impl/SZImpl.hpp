@@ -4,7 +4,9 @@
 #include "SZ3/def.hpp"
 #include "SZ3/api/impl/SZDispatcher.hpp"
 #include "SZ3/api/impl/SZImplOMP.hpp"
+#include "SZ3/utils/Timer.hpp"
 #include <cmath>
+#include <memory>
 
 template<class T, SZ::uint N>
 char *SZ_compress_impl(SZ::Config &conf, const T *data, size_t &outSize) {
@@ -16,8 +18,11 @@ char *SZ_compress_impl(SZ::Config &conf, const T *data, size_t &outSize) {
         return SZ_compress_OMP<T, N>(conf, data, outSize);
     } else {
         std::vector<T> dataCopy(data, data + conf.num);
-        std::cout<< "original data address " << data << std::endl; 
-        return SZ_compress_dispatcher<T, N>(conf, dataCopy.data(), outSize, data);
+        std::shared_ptr<std::vector<T>> data_copy = std::make_shared<std::vector<T>>(conf.num);
+        std::copy(data, data + conf.num, data_copy->begin());
+        char *ret = SZ_compress_dispatcher<T, N>(conf, data_copy->data(), outSize);
+        conf.PASS_DATA.processed_data_prt = std::static_pointer_cast<void>(data_copy);  
+        return ret;
     }
 }
 
