@@ -17,7 +17,7 @@ char *SZ_compress_impl(SZ::Config &conf, const T *data, size_t &outSize) {
         //dataCopy for openMP is handled by each thread
         return SZ_compress_OMP<T, N>(conf, data, outSize);
     } else {
-        std::vector<T> dataCopy(data, data + conf.num);
+        // std::vector<T> dataCopy(data, data + conf.num);
         std::shared_ptr<std::vector<T>> data_copy = std::make_shared<std::vector<T>>(conf.num);
         std::copy(data, data + conf.num, data_copy->begin());
         char *ret = SZ_compress_dispatcher<T, N>(conf, data_copy->data(), outSize);

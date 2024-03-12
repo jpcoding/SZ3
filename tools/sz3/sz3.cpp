@@ -489,6 +489,7 @@ int main(int argc, char *argv[]) {
             exit(0);
         }
     }
+    return 0;
     if (decompression) {
         if (printCmpResults && inPath == nullptr) {
             printf("Error: Since you add -a option (analysis), please specify the original data path by -i <path>.\n");
