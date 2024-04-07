@@ -349,6 +349,7 @@ namespace SZ {
         // for debug
         struct PASS_DATA{
         std::shared_ptr<void> processed_data_prt;
+        const void* original_data_prt;
         } PASS_DATA;
     };
 

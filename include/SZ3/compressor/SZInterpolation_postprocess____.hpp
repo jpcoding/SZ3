@@ -228,7 +228,7 @@ int compensate_line(
 // dims: the dimensions of the plane, last dimension stride is 1
 // length: the length of the plane
 template <typename T>
-int compensation_3d2(
+int compensation_3d_(
     T* data, int* quant_inds, const size_t *dims, int last_interp_direction,
     double compensation_max)
 {
@@ -310,45 +310,18 @@ int compensation_3d2(
                     count_jump++;
                 }
                 quant_max = std::max(quant_max, std::abs(quant_line1[k]));
-
-                // if(i ==219 && j == 500)
-                // {
-                //     std::cout << quant_line1[k] << " ";
-                // }
             }
-            // beginning of the compensarion line 
             if(quant_max<=2 || count_jump<=2)
             {
                 continue;
             }
-
             T* compensation_line_begin = compensation_plane_dir1.data() + j*plane_stride1;
-            
-            // if(i == 219 && j == 500)
-            // {
-            //     std::cout <<" line 100 \n" << std::endl;
+
                 compensate_line(
                 compensation_line_begin, quant_line1.data(), 
                 1, 1,plane_dim2, compensation_max);
-            //     for (int k = 0; k < 150; k++)
-            //     {
-            //         if (k!=0 && k%6==0)
-            //         {
-            //             std::cout << std::endl;
-            //         }
-            //         std::cout << compensation_line_begin[k] << ",\t";
-
-            //     }
-            //     std::cout << std::endl;
-            //     return 0;
-            // }
-
-
-
         }
-
         // get direction 2 compensation
-        
         for(int j = 0; j < plane_dim2; j++) // dir2 
         {
             // beginning of the quant line
@@ -410,92 +383,6 @@ int compensation_3d2(
         std::fill(compensation_plane_dir1.begin(), compensation_plane_dir1.end(), 0);
         std::fill(compensation_plane_dir2.begin(), compensation_plane_dir2.end(), 0);
     }
-
-    // compensation on another direction
-
-    // std::vector<T> compensation_plane_dir3(1008/2*352, 0);
-    // std::vector<T> compensation_plane_dir4(1008/2*352, 0);
-    // std::vector<int> quant_line3(352, 0);
-    // std::vector<int> quant_line4(1008/2, 0);
-
-    // std::vector<T> compensation_line4(1008/2, 0);
-
-
-    // for (int i = 1; i< 1008; i+=2) // stride = 352*1008
-    // {
-    //     // data plane begin
-    //     T* data_plane_begin = data + i*352;
-    //     // get direction 1 compensation
-    //     for(int j = 0; j < 1008; j+=2) // dir1  // stride = 352
-    //     {
-    //         // beginning of the quant line
-    //         for(int k = 0; k < 352; k++) // dir2 // stride = 1
-    //         {
-    //             int this_quant = quant_inds[i*352*1008 + j*352 + k*1];
-    //             if(this_quant ==0)
-    //             {
-    //                 quant_line3[k] =0;
-    //             }
-    //             else
-    //             {
-    //                 quant_line3[k] = 32768-this_quant;
-    //             }
-    //         }
-    //         // beginning of the compensarion line 
-    //         T* compensation_line_begin = compensation_plane_dir3.data() + j*352;
-    //         compensate_line(
-    //             compensation_line_begin, quant_line1.data(), 
-    //             1, 1,plane_dim2, compensation_max);
-    //         std::fill(quant_line3.begin(), quant_line3.end(), 0);
-    //     } 
-
-    //     // get direction 2 compensation
-    //     for(int j = 0; j < 352; j++) // dir2 
-    //     {
-    //         for(int k = 0; k < 1008; k+=2) // dir2 
-    //         {
-    //             size_t this_quant = quant_inds[i*352*1008 + j*1+ k*352];
-    //             if(this_quant ==0)
-    //             {
-    //                 quant_line4[k] =0;
-    //             }
-    //             else
-    //             {
-    //                 quant_line4[k] = 32768-this_quant;
-    //             }
-    //             compensation_line4[k] = compensation_plane_dir4[k*352 + j];
-    //         }
-    //         // beginning of the compensarion line 
-    //         compensate_line(
-    //             compensation_line4.data(), quant_line2.data(), 
-    //             1, 1,1008/2, compensation_max);
-    //         // copy back 
-    //         for(int k = 0; k < 1008/2; k++) // dir2 
-    //         {
-    //             compensation_plane_dir4[k*352*2 + j] = compensation_line4[k];
-    //         }
-    //         std::fill(quant_line4.begin(), quant_line4.end(), 0);   
-    //     }
-
-    //     // get the avg of the two compensation planes
-    //     // for (int i = 0; i< 1008/2*352; i++)
-    //     // {
-    //     //     compensation_plane_dir3[i] = (compensation_plane_dir3[i] + compensation_plane_dir4[i])/2*0.8;
-    //     // }
-
-    //     // apply the compensation to the data plane
-    //     for(int j = 0; j < 1008; j+=2) // dir1 
-    //     {
-    //         for(int k = 0; k < 352; k++) // dir2 
-    //         {
-    //             data_plane_begin[j*352 + k*1] -= compensation_plane_dir3[j*352 + k];
-    //         }
-    //     }
-    //     // clear the compensation planes
-    //     std::fill(compensation_plane_dir3.begin(), compensation_plane_dir3.end(), 0);
-    //     std::fill(compensation_plane_dir4.begin(), compensation_plane_dir4.end(), 0);
-
-    // }
     return 0;
 
 }
@@ -561,7 +448,7 @@ int compensation_3d(T*data, int* quant_inds,
             }
             current_quant_inds += dimension_offsets[dims[plane_dir1]] * plane_dir1_stride;
           }
-          if(quant_max<=1 || quant_jump<=jump_lower_bound)
+          if(quant_max<=1 )
           {
               continue;
           }
@@ -594,7 +481,7 @@ int compensation_3d(T*data, int* quant_inds,
               quant_max = std::max(quant_max, std::abs(*current_quant_inds));
               current_quant_inds += dimension_offsets[dims[plane_dir0]] * plane_dir0_stride;
             }
-            if(quant_max<=1 || quant_jump<=jump_lower_bound)
+            if(quant_max<=1 )
             {
                 continue;
             }
@@ -633,7 +520,6 @@ int compensation_3d(T*data, int* quant_inds,
     return 0; 
 
 }
-
 
 
 }  // namespace SZ3

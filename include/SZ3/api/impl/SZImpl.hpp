@@ -20,8 +20,9 @@ char *SZ_compress_impl(SZ::Config &conf, const T *data, size_t &outSize) {
         // std::vector<T> dataCopy(data, data + conf.num);
         std::shared_ptr<std::vector<T>> data_copy = std::make_shared<std::vector<T>>(conf.num);
         std::copy(data, data + conf.num, data_copy->begin());
+        conf.PASS_DATA.original_data_prt = (const void *)data;
         char *ret = SZ_compress_dispatcher<T, N>(conf, data_copy->data(), outSize);
-        conf.PASS_DATA.processed_data_prt = std::static_pointer_cast<void>(data_copy);  
+        conf.PASS_DATA.processed_data_prt = std::static_pointer_cast<void>(data_copy); 
         return ret;
     }
 }

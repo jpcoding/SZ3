@@ -76,7 +76,6 @@ char *SZ_compress( SZ::Config &conf, const T *data, size_t &cmpSize) {
     }
 
     conf.PASS_DATA.processed_data_prt = confCopy.PASS_DATA.processed_data_prt;
-
     return cmpData;
 }
 

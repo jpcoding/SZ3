@@ -17,3 +17,6 @@ install
 .DS_Store
 debug*
 build*
+comopensate*
+last*
+no_compensate

@@ -26,6 +26,12 @@ endif()
 find_package(PkgConfig)
 find_package(OpenMP)
 
+# use pkg-config to find fftw
+pkg_search_module(FFTW3 IMPORTED_TARGET fftw3)
+include_directories(${FFTW3_INCLUDE_DIRS})
+link_directories(${FFTW3_LIBRARY_DIRS})
+
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/SZ3/version.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/include/SZ3/version.hpp)
 
 add_library(${PROJECT_NAME} INTERFACE)
@@ -39,7 +45,7 @@ target_compile_features(${PROJECT_NAME}
     INTERFACE cxx_std_17
   )
 
-target_link_libraries(${PROJECT_NAME} INTERFACE OpenMP::OpenMP_CXX)
+target_link_libraries(${PROJECT_NAME} INTERFACE OpenMP::OpenMP_CXX fftw3)
 
 if (MSVC)
     option(SZ3_USE_BUNDLED_ZSTD "prefer the bundled version of Zstd" ON)
@@ -70,6 +76,7 @@ endif()
 
 add_subdirectory(tools/sz3)
 # add_subdirectory(tools/heated_wall)
+add_subdirectory(tools/test_quantizer)
 
 
 

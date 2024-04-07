@@ -19,6 +19,20 @@ namespace SZ {
         return max - min;
     }
 
+    template<class T>
+    T data_variance(const T *data, size_t num) {
+        double sum = 0;
+        for (size_t i = 0; i < num; i++) {
+            sum += data[i];
+        }
+        double mean = sum / num;
+        sum = 0;
+        for (size_t i = 0; i < num; i++) {
+            sum += (data[i] - mean) * (data[i] - mean);
+        }
+        return sum / num;
+    }
+
     int factorial(int n) {
         return (n == 0) || (n == 1) ? 1 : n * factorial(n - 1);
     }
@@ -77,7 +91,7 @@ namespace SZ {
     }
 
     template<typename Type>
-    void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
+    void verify(const Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
         size_t i = 0;
         double Max = ori_data[0];
         double Min = ori_data[0];
@@ -142,13 +156,13 @@ namespace SZ {
     }
 
     template<typename Type>
-    void verify(Type *ori_data, Type *data, size_t num_elements) {
+    void verify(const Type *ori_data, Type *data, size_t num_elements) {
         double psnr, nrmse, max_diff;
         verify(ori_data, data, num_elements, psnr, nrmse, max_diff);
     }
 
     template<typename Type>
-    void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse) {
+    void verify(const Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse) {
         double max_diff;
         verify(ori_data, data, num_elements, psnr, nrmse, max_diff);
     }

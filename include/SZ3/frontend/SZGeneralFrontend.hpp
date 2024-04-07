@@ -13,6 +13,8 @@
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/utils/MemoryUtil.hpp"
 
+#include "SZ3/postprocess/postprocess.hpp"
+
 namespace SZ {
 
 
@@ -78,6 +80,17 @@ namespace SZ {
             writefile("quant.dat", my_quant_inds.data(), num_elements);
             writefile("decompressed.dat", data, num_elements);
             #endif
+        if(N==3)
+        {
+        std::cout << "3D post process" << std::endl;
+        compensation_3d_(
+        data, my_quant_inds.data(), global_dimensions.data(), 0,
+        quantizer.get_eb()*0.5);
+        writefile("postdecompressed.dat", data, num_elements);
+        }
+        
+
+
             return quant_inds;
         }
 
