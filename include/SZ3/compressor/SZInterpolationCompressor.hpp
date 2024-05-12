@@ -110,23 +110,6 @@ class SZInterpolationCompressor {
     original_range = original_max - original_min;
 
     init();
-
-    bool post_block_noise_rng_on = false;
-    read(post_block_noise_rng_on, buffer_pos);
-    std::vector<uchar> post_block_error_tags;
-    if (post_block_noise_rng_on == true) {
-      // restore the blockinfo here
-      std::cout << "post_block_noise_rng_on = " << post_block_noise_rng_on
-                << std::endl;
-      size_t post_block_error_tags_size = 0;
-      read(post_block_error_tags_size, buffer_pos);
-      post_block_error_tags.resize(post_block_error_tags_size);
-      convertByteArray2IntArray_fast_1b_sz(
-          post_block_error_tags_size, buffer_pos,
-          (post_block_error_tags_size - 1) / 8 + 1,
-          post_block_error_tags.data());
-    }
-
     // timer.stop("read auxilliary data");
 
     size_t num_flushed_elements = 0;
@@ -162,10 +145,15 @@ class SZInterpolationCompressor {
                  pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(cubic_interp_eb_factor, N);
     }
+    quant_pred_on = 1; 
+    quant_pred_start_level = 2;
 
     std::cout << "start decompression\n";
+    current_level = interpolation_level;
     // *decData = quantizer.recover(0, quant_inds[quant_index++]);
     recover(0, *decData, 0);
+    
+
 
 
 
@@ -189,10 +177,14 @@ class SZInterpolationCompressor {
       current_base_eb = eb_final;
       quantizer.set_eb(eb_final);
       eb_final *= eb_reduction_factor;
+            std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
 
 
+
+    
+    { 
       size_t stride = 1U << (level - 1);
-    { auto inter_block_range =
+      auto inter_block_range =
           std::make_shared<SZ::multi_dimensional_range<T, N>>(
               decData, std::begin(global_dimensions),
               std::end(global_dimensions), stride * blocksize, 0);
@@ -211,6 +203,33 @@ class SZInterpolationCompressor {
             interpolators[interpolator_id], direction_sequence_id, stride);
       }
     }
+      if(0&& level == 1 && error_smoothing == 1 )
+      {
+        size_t stride = 1U << (level - 1);
+        // change blocksize to the whole dataset size
+        int blocksize_copy = blocksize;
+        blocksize = *std::max_element(global_dimensions.begin(), global_dimensions.end())+1;
+        std::cout << "blocksize = " << blocksize << std::endl;
+        auto inter_block_range_post =
+          std::make_shared<SZ::multi_dimensional_range<T, N>>(
+              decData, std::begin(global_dimensions), std::end(global_dimensions),
+              blocksize * stride, 0);
+        auto inter_begin_post = inter_block_range_post->begin();
+        auto inter_end_post = inter_block_range_post->end();
+        for (auto block = inter_begin_post; block != inter_end_post; ++block) {
+          auto end_idx = block.get_global_index();
+          for (int i = 0; i < N; i++) {
+            end_idx[i] += blocksize * stride;
+            if (end_idx[i] > global_dimensions[i] - 1) {
+              end_idx[i] = global_dimensions[i] - 1;
+            }
+          }
+          block_post_process(
+              decData, block.get_global_index(), end_idx, PB_recover,
+              interpolators[interpolator_id], direction_sequence_id, stride);
+        }
+        blocksize = blocksize_copy;
+      }
 
 
     }
@@ -224,17 +243,17 @@ class SZInterpolationCompressor {
         "quant_inds.decompress.dat", quant_inds.data(), quant_inds.size());
 
     // Debug use
-    writefile(
-        "flushed_block_id.decompress.dat", flushed_block_id.data(),
-        num_detection_block);
-    writefile(
-        "significant_block_id.decompress.dat", significant_block_id.data(),
-        num_detection_block);
-    writefile(
-        "flushed_block.decompress.dat", flushed_block.data(), num_elements);
-    writefile(
-        "significant_block.decompress.dat", significant_block.data(),
-        num_elements);
+    // writefile(
+    //     "flushed_block_id.decompress.dat", flushed_block_id.data(),
+    //     num_detection_block);
+    // writefile(
+    //     "significant_block_id.decompress.dat", significant_block_id.data(),
+    //     num_detection_block);
+    // writefile(
+    //     "flushed_block.decompress.dat", flushed_block.data(), num_elements);
+    // writefile(
+    //     "significant_block.decompress.dat", significant_block.data(),
+    //     num_elements);
 
     return decData;
   }
@@ -270,6 +289,9 @@ class SZInterpolationCompressor {
     //   quant_pred_on = false;
     // }
     quant_pred_start_level = conf.quantization_prediction_start_level;
+
+    quant_pred_on = 1; 
+    quant_pred_start_level = 2;
     // error smoothing
     error_smoothing  = conf.error_smoothing;
 
@@ -330,6 +352,7 @@ class SZInterpolationCompressor {
     }
 
     // quant_inds.push_back(quantizer.quantize_and_over*data, 0));
+    current_level = interpolation_level;
     quantize(0, *data, 0);
 
     // Timer timer;
@@ -572,7 +595,7 @@ class SZInterpolationCompressor {
     //   data, aux_quant_inds.data(), conf.dims.data(), 0,quantizer.get_eb());
     // }
 
-    // writefile("post_compressed.dat", data, num_elements);
+    writefile("post_compressed.dat", data, num_elements);
 
     // writefile("rand.dat", rand_collector.data(), num_elements);
     // writefile("pred_noise.dat", my_pred_noise.data(), num_elements);
@@ -779,19 +802,6 @@ class SZInterpolationCompressor {
 #endif
   }
 
-//     inline void quantize(size_t idx, T &d, T pred)
-//   {
-//         quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-//     // range_check(d);
-//     // aux_quant_inds[idx] = quant_inds.back();
-// #ifdef SZ_ANALYSIS
-//     my_level[idx] = current_level;
-//     my_quant_inds_copy[idx] = quant_inds.back();
-//     // my_pred[idx] = pred;
-//     my_interp_direction[idx] = my_current_interp_direction;
-// #endif
-//   }
-
   inline void recover(size_t idx, T &d, T pred)
   {
     if (block_flush_on == 1 && flushed_block[idx]) { d = 0; }
@@ -836,7 +846,6 @@ class SZInterpolationCompressor {
           #ifdef SZ_ANALYSIS
           my_pred[d - data] = pred;
           #endif
-
           if (quant_pred == true) {
             double tol = quantizer.get_eb() / linear_interp_eb_factor;
             double compensation =
@@ -844,7 +853,6 @@ class SZInterpolationCompressor {
             quant_compensation = backward_compensate_pred(
                 d - data, offset1, offset2, pred, compensation);            
           }
-
           quantize(d - data, *d, pred);
           if(quant_inds.back()==0)
           {
@@ -853,6 +861,7 @@ class SZInterpolationCompressor {
           else {
             aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
           }
+
           #ifdef SZ_ANALYSIS
           my_compensation_label[d - data] = quant_compensation;
           #endif
@@ -901,7 +910,6 @@ class SZInterpolationCompressor {
           // pred prediction 
           if(quant_pred == true)
           {
-            double tol = quantizer.get_eb() / linear_interp_eb_factor;
             double compensation = region_error_control_eb_compensation * quantizer.get_eb();
             quant_compensation = backward_compensate_pred(d - data, offset1, offset2, pred, compensation);
           }
@@ -1054,10 +1062,22 @@ class SZInterpolationCompressor {
         T *d;
         size_t i;
 
-        d = data + begin + stride;        
-        recover(
-            d - data, *d,
-            interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x))); // beginning
+        d = data + begin + stride;  
+        T pred = interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x));
+        if(quant_pred == true)
+        {
+          double compensation = region_error_control_eb_compensation * quantizer.get_eb();
+          quant_compensation = backward_compensate_pred(d - data, offset1, offset2, pred, compensation);
+        }
+        recover(d - data, *d, pred);
+        if(quant_inds[quant_index-1]==0)
+        {
+          aux_quant_inds[d - data] = 0;
+        }
+        else {
+          aux_quant_inds[d - data] = quant_inds[quant_index-1] + quant_compensation;
+        }      
+
 
         for (i = 3; i + 3 < n; i += 2) {
           d = data + begin + i * stride;
@@ -1078,9 +1098,23 @@ class SZInterpolationCompressor {
           }
         }
         d = data + begin + i * stride;
-        recover(
-            d - data, *d,
-            interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride))); // end
+        pred = interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride));
+        if(quant_pred == true)
+        {
+          double compensation = region_error_control_eb_compensation * quantizer.get_eb();
+          quant_compensation = backward_compensate_pred(d - data, offset1, offset2, pred, compensation);
+        }
+        recover(d - data, *d, pred); // end
+        if(quant_inds[quant_index-1]==0)
+        {
+          aux_quant_inds[d - data] = 0;
+        }
+        else {
+          aux_quant_inds[d - data] = quant_inds[quant_index-1] + quant_compensation;
+        }
+        // recover(
+        //     d - data, *d,
+        //     interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride))); // end
 
         if (n % 2 == 0) {
           d = data + begin + (n - 1) * stride;
@@ -1105,7 +1139,7 @@ class SZInterpolationCompressor {
     return predict_error;
   }
 
-  double block_interpolation_1d3(
+  double block_interpolation_1d_orig(
       T *data, size_t begin, size_t end, size_t stride,
       const std::string &interp_func, const PredictorBehavior pb,
       bool quant_pred = false, size_t offset1 = 0, size_t offset2 = 0, bool is_left_boundary = true,
@@ -1511,7 +1545,7 @@ class SZInterpolationCompressor {
             quantizer.get_radius());
 
       // std::cout<<"quantizer radius = " << quantizer.get_radius() << std::endl;      
-      writefile("first_compressed.dat", data, num_elements);
+      // writefile("first_compressed.dat", data, num_elements);
     
     return 0;
   }
@@ -1657,7 +1691,7 @@ class SZInterpolationCompressor {
 
   std::vector<int> aux_quant_inds;
   double region_error_control_eb_compensation = 2.0; // for quant prediction 
-  bool quant_pred_on = true;
+  bool quant_pred_on = 0;
   int quant_pred_start_level = 3;
   bool post_process_on = true;  
 
