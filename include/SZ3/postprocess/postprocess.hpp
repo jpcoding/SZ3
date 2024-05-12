@@ -14,6 +14,8 @@
 #include <vector>
 #include <array>
 #include "SZ3/quantizer/Quantizer.hpp"
+#include "SZ3/postprocess/Posterization.hpp"
+#include "SZ3/utils/FileUtil.hpp"
 
 namespace SZ {
 
@@ -22,6 +24,12 @@ namespace SZ {
 // quant_inds: the quantization indices, line start index
 // data_stride: the stride of the data
 // quant_stride: the stride of the quantization indices
+
+#define MAX_EXTEND 100  //
+#define MAX_INTERVAL 50// 
+#define MIN_INTERVAL 10
+#define EMPTY_REGION_INTERVAL 5
+
 
 template <typename T>
 void boundary_compensation(
@@ -88,8 +96,8 @@ void regular_compensation_linear(
 
 
 template <typename T>
-void regular_compensation_cubic(
-    T* data, int start, int end, int sign, int stride, double compensation_max)
+void regular_compensation_quad(
+    T* data, int start, int end, int sign, int stride, double compensation_max, const int quant_prev, const int quant_next)
 {
     int size = end - start;
     if(size<10)
@@ -98,7 +106,7 @@ void regular_compensation_cubic(
         double mid = (size-1)*1.0/2;
         for (int i =0; i<size; i++)
         {
-            data[(i+start)*stride] = ((-1-top)/(mid*mid)*(i-mid)*(i-mid)+top)*sign*compensation_max*-1;
+            data[(i+start)*stride] = ( (-1)/(mid*mid)*(i-mid)*(i-mid) )*sign*compensation_max*-1;
         }
         if(size%2==0)
         {
@@ -106,11 +114,19 @@ void regular_compensation_cubic(
         }
     }
     else {
-        double mid = 5;
-        for (int i =0; i<mid; i++)
+        // size = std::min(size, MAX_INTERVAL);
+        // int interval_size = std::min(size, MAX_INTERVAL);
+        // interval_size = std::max(interval_size, MIN_INTERVAL);
+        double mid = 1.0*(size-1)/2;
+        if(quant_prev ==0 || quant_next ==0)
         {
-            data[(i+start)*stride] = ((-1)/(mid*mid)*(i-mid)*(i-mid)+0)*sign*compensation_max*-1;
-            data[(start+size-i-1)*stride] = ((-1)/(mid*mid)*(i-mid)*(i-mid)+0)*sign*compensation_max*-1;
+            mid = (double) 1.0*EMPTY_REGION_INTERVAL/2;
+        }
+        // double mid = 10; 
+        for (int i =0; i<(int)mid; i++)
+        {
+            data[(i+start)*stride] = ((-1)/(mid*mid)*(i-mid)*(i-mid))*sign*compensation_max*-1;
+            data[(start+size-i-1)*stride] = ((-1)/(mid*mid)*(i-mid)*(i-mid))*sign*compensation_max*-1;
         }
     }
 
@@ -137,6 +153,16 @@ int compensate_line(
       curr_idx += 1;
     }
     next_idx = curr_idx;
+
+    int interval_size = next_idx - prev_idx; 
+    int quant_prev = quant_inds[prev_idx * quant_stride];
+    int quant_next = quant_inds[(next_idx-1) * quant_stride];
+
+    // if(interval_size <=3 && (quant_prev == 0 || quant_next == 0))
+    // {
+    //     continue;
+    // }
+
     // left boundary cases
     if (prev_idx == 0) {
       if (next_idx == length) { return 0; }
@@ -156,6 +182,10 @@ int compensate_line(
         prev_sign = (prev_sign == 0) ? 0 : ((prev_sign > 0) ? 1 : -1);
         
     }
+
+
+
+
     // normal cases 
     if (abs(prev_sign )>1)
     {
@@ -187,25 +217,46 @@ int compensate_line(
     {
         next_sign = 0;
     }
-    int interval_size = next_idx - prev_idx; 
+
     if(prev_sign == next_sign && prev_sign != 0 && next_sign != 0)
-    {
-        if(interval_size >1 && interval_size < 10)
+    { // monotonically changing intervals 
+
+        if(interval_size >1)
         {
+            if(quant_prev == 0) // reach empty region treat as a boundaries;
+            {
+                // interval_size = std::min(interval_size, EMPTY_REGION_INTERVAL);
+                // use boundary compensation 
+                int extend_size = std::min(defualt_extend_length, interval_size/2);
+
+                // left end of the interval
+                boundary_compensation(
+          compensation, prev_idx, prev_idx + extend_size, prev_sign*-1, compensation_stride,
+                compensation_max);
+                reverse_array(compensation, prev_idx, prev_idx + extend_size, compensation_stride);
+
+                // // right end of the bounary
+                boundary_compensation(
+                compensation, next_idx-extend_size-1, next_idx, prev_sign,
+                 compensation_stride, compensation_max);
+
+
+                // !verified 
+            }
+
+            else{
+            // int max_interval = std::min(MAX_INTERVAL, interval_size);
+            // max_interval = std::max(max_interval, MIN_INTERVAL);
             for( int i = 0; i < interval_size; i++)
             {
+                // compensation[(prev_idx + i)*compensation_stride] = (i*1.0/(interval_size -1)*2*compensation_max -compensation_max)*prev_sign;
+               
+                // linear compensation
                 compensation[(prev_idx + i)*compensation_stride] = (i*1.0/(interval_size -1)*2*compensation_max -compensation_max)*prev_sign;
+                // quadratic compensation
+            }
             }
         }
-        // else if(interval_size >= 10)
-        // do nothing outside of this range
-        // {
-        //     // regular_compensation_cubic(
-        //     //     compensation, prev_idx, prev_idx+5, -next_sign,compensation_stride , compensation_max);
-        //     // regular_compensation_cubic(
-        //     //     compensation, next_idx-5, next_idx, next_sign,compensation_stride , compensation_max);
-
-        // }
         else
         {
             compensation[prev_idx*compensation_stride] = (-compensation_max)*prev_sign;
@@ -214,7 +265,10 @@ int compensate_line(
     }
     else 
     {
-        if (interval_size <5)
+        // HAT or CAP regions
+        // -----+++++++----
+        // +++++-------++++
+        if (interval_size <5 )
         {
             for( int i = 0; i < interval_size; i++)
             {
@@ -223,10 +277,11 @@ int compensate_line(
         }
         else
         {
-        //     regular_compensation_linear(
-        //         compensation, prev_idx, next_idx, next_sign,compensation_stride , compensation_max);
-            regular_compensation_cubic(
-                compensation, prev_idx, next_idx, next_sign,compensation_stride , compensation_max);
+                // regular_compensation_linear(
+            //         compensation, prev_idx, next_idx, next_sign,compensation_stride , compensation_max);
+            // Need to implment 
+            regular_compensation_quad(
+                compensation, prev_idx, next_idx, next_sign,compensation_stride , compensation_max, quant_prev, quant_next);
             
         }
     }
@@ -411,20 +466,23 @@ int compensation_3d(T*data, int* quant_inds,
 
       size_t plane_dim0 = (end[dims[plane_dir0]] - begin[dims[plane_dir0]]) / plane_dir0_stride + 1; // stride = plane dim1
       size_t plane_dim1 = (end[dims[plane_dir1]] - begin[dims[plane_dir1]]) / plane_dir1_stride + 1; // stride = 1
-
-
-
       std::vector<T> plane_data(plane_dim1 * plane_dim0, 0);
       std::vector<T> plane_data_dirction2(plane_dim1 * plane_dim0, 0);
-
       std::vector<T> compensation_line_dir0(plane_dim1, 0);
       std::vector<T> compensation_line_dir1(plane_dim0, 0);
+
 
       std::vector<int> quant_line_dir0(plane_dim1, 0);
       std::vector<int> quant_line_dir1(plane_dim0, 0);
 
+      std::vector<int> quant_inds_plane(plane_dim0*plane_dim1, 0);
+      std::array<int,2> plane_dims_array = {(int) plane_dim0, (int) plane_dim1};
+
+
+      size_t zero_count = 0;
 
       int stride2x = interpolation_stride * 2;
+      bool skip_slice = false; 
       for (size_t i =
                (begin[dims[interp_direction]] ? begin[dims[interp_direction]] + interpolation_stride + interpolation_stride : interpolation_stride);
            i <= end[dims[interp_direction]]; i += stride2x) {
@@ -434,28 +492,58 @@ int compensation_3d(T*data, int* quant_inds,
                               (begin[dims[plane_dir1]] ? begin[dims[plane_dir1]] + plane_dir1_stride : 0) *
                                   dimension_offsets[dims[plane_dir1]] +
                               i * dimension_offsets[dims[interp_direction]];
-
+        zero_count = 0;
+        // scan the quant slice first
         for (int j = 0; j < plane_dim0; j++) {
           // clean quant inds
           int *current_quant_inds = quant_inds + begin_offset +
                                     j * dimension_offsets[dims[plane_dir0]] * plane_dir0_stride;
-          int quant_max = 0;
-          int quant_jump = 0;
-          int jump_lower_bound = (int)(plane_dim1*0.005);
           for (int k = 0; k < plane_dim1; k++) {
-            if (*current_quant_inds == quantizer_radius) {
+            if (*current_quant_inds == 0) { // 0 is used to label unpreditable raw ragne: 0, 2**16-1 
               *current_quant_inds = 0;
             }
             else {
               *current_quant_inds =
                   *current_quant_inds - quantizer_radius;
             }
-            quant_max = std::max(quant_max, std::abs(*current_quant_inds));
-            if (*current_quant_inds != 0) {
-              quant_jump++;
+            if (*current_quant_inds == 0) {
+              zero_count++;
             }
+            quant_inds_plane[j*plane_dim1 + k] = *current_quant_inds;
             current_quant_inds += dimension_offsets[dims[plane_dir1]] * plane_dir1_stride;
           }
+        }
+        if(zero_count == plane_dim0*plane_dim1)
+        {
+          continue;
+        }
+        // construct the posterization for this plane and filter out the small-area slices 
+        auto segment = Posterization<int> (quant_inds_plane.data(), (int) 2, plane_dims_array.data());
+        int largestTreeSize = segment.get_second_largest_set_size((int) 1); 
+        std::fill(quant_inds_plane.begin(), quant_inds_plane.end(), 0);
+
+        // std::cout << "largestTreeSize: " << largestTreeSize << std::endl;
+        // std::cout << "num_components = " << segment.get_num_of_components() << std::endl;
+        // std::cout << "background_size = " << segment.get_background_area() << std::endl;
+
+        if(largestTreeSize >= (plane_dim0*plane_dim1*0.0005))
+        {
+        for (int j = 0; j < plane_dim0; j++) {
+            int *current_quant_inds = quant_inds + begin_offset +
+                                        j * dimension_offsets[dims[plane_dir0]] * plane_dir0_stride;
+            int quant_max = 0;
+            int quant_jump = 0;
+            int jump_lower_bound = (int)(plane_dim0*0.005);
+            for (int k = 0; k < plane_dim1; k++) {
+              if (*current_quant_inds != 0) {
+                quant_jump++;
+              }
+              quant_max = std::max(quant_max, std::abs(*current_quant_inds));
+
+              quant_inds_plane[j*plane_dim1 + k] = *current_quant_inds;
+
+              current_quant_inds += dimension_offsets[dims[plane_dir1]] * plane_dir1_stride;
+            }
           if(quant_max<=1 && quant_jump < jump_lower_bound )
           {
               continue;
@@ -474,6 +562,7 @@ int compensation_3d(T*data, int* quant_inds,
             // }
             std::fill(compensation_line_dir0.begin(), compensation_line_dir0.end(), 0);
         }
+
 
         for (size_t j = 0; j < plane_dim1; j++) {
 
@@ -500,12 +589,6 @@ int compensation_3d(T*data, int* quant_inds,
                   j * dimension_offsets[dims[plane_dir1]] * plane_dir1_stride,
               plane_dim1, dimension_offsets[dims[plane_dir0]] * plane_dir0_stride,
               plane_dim0, compensation_max);
-            // compensate_line(
-            //     compensation_line_dir1.data(), quant_line_dir1.data(), 
-            //     1, 1,plane_dim0, compensation_max);
-            // for (int k = 0; k < plane_dim0; k++) {
-            //     plane_data_dirction2[k * plane_dim1 + j] = compensation_line_dir1[k];
-            // }
             std::fill(compensation_line_dir1.begin(), compensation_line_dir1.end(), 0);
         }
         // // avg 
@@ -524,7 +607,8 @@ int compensation_3d(T*data, int* quant_inds,
         std::fill(plane_data.begin(), plane_data.end(), 0);
         std::fill(
             plane_data_dirction2.begin(), plane_data_dirction2.end(), 0);
-      }
+    }
+    }
 
     return 0; 
 

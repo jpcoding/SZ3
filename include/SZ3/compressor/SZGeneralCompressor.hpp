@@ -27,7 +27,7 @@ namespace SZ {
                           "must implement the lossless interface");
         }
 
-        uchar *compress(const Config &conf, T *data, size_t &compressed_size) {
+        uchar *compress(const Config &conf, T *data, size_t &compressed_size, bool tuning = false) {
 
             std::vector<int> quant_inds = frontend.compress(data);
 

@@ -1,3 +1,5 @@
+#ifndef  SZ_INTERPOLATION_COMPRESSOR_HELP_HPP
+#define  SZ_INTERPOLATION_COMPRESSOR_HELP_HPP
 #include "SZ3/def.hpp"
 #include "SZ3/encoder/Encoder.hpp"
 #include "SZ3/lossless/Lossless.hpp"
@@ -1180,3 +1182,4 @@ void decompress_opt_reginal_post_process(T *data,
 }
 
 } // namespace SZ
+#endif

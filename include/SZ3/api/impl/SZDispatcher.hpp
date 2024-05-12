@@ -24,6 +24,7 @@ char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize) {
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP_LORENZO) {
         cmpData = (char *) SZ_compress_Interp_lorenzo<T, N>(conf, data, outSize);
     }
+    std::cout << "out of dispatcher\n";
     return cmpData;
 }
 

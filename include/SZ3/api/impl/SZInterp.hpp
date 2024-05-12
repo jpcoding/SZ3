@@ -61,11 +61,11 @@ double do_not_use_this_interp_compress_block_test(T *data, std::vector<size_t> d
     conf.blockSize = block_size;
     conf.interpAlgo = interp_op;
     conf.interpDirection = direction_op;
-    auto sz = SZ::SZBlockInterpolationCompressor<T, N, SZ::LinearQuantizer<T>, SZ::HuffmanEncoder<int>, SZ::Lossless_zstd>(
+    auto sz = SZ::SZInterpolationCompressor<T, N, SZ::LinearQuantizer<T>, SZ::HuffmanEncoder<int>, SZ::Lossless_zstd>(
             SZ::LinearQuantizer<T>(eb),
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
-    char *cmpData = (char *) sz.compress(conf, data1.data(), outSize);
+    char *cmpData = (char *) sz.compress(conf, data1.data(), outSize, true);
     delete[]cmpData;
     auto compression_ratio = num * sizeof(T) * 1.0 / outSize;
     return compression_ratio;
@@ -106,7 +106,7 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
     }
 
     {
-        //tune interp
+        //tune interp which first? 
         for (auto &interp_op: {SZ::INTERP_ALGO_LINEAR, SZ::INTERP_ALGO_CUBIC}) {
             ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
                                                                      interp_op, conf.interpDirection, sampling_block);
@@ -116,13 +116,28 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
             }
         }
 
-        int direction_op = SZ::factorial(N) - 1;
-        ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
-                                                                 conf.interpAlgo, direction_op, sampling_block);
-        if (ratio > best_interp_ratio * 1.02) {
-            best_interp_ratio = ratio;
-            conf.interpDirection = direction_op;
+        // int direction_op = SZ::factorial(N) - 1;
+        int direction_op = 0;
+
+        for (int i = 0; i< SZ::factorial(N) - 1; i++)
+        {
+            ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
+                                                                     conf.interpAlgo, i, sampling_block);
+            if (ratio > best_interp_ratio *1.02) {
+                best_interp_ratio = ratio;
+                direction_op = i;
+            }
         }
+        conf.interpDirection = direction_op;
+        // ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
+        //                                                          conf.interpAlgo, direction_op, sampling_block);
+        // if (ratio > best_interp_ratio * 1.02) {
+        //     best_interp_ratio = ratio;
+        //     conf.interpDirection = direction_op;
+        // }
+        std::cout << "choose direction = "<< direction_op << std::endl;
+        std::cout << "choose interp = "<< SZ::INTERP_ALGO_STR[conf.interpAlgo] << std::endl;
+
     }
 
     bool useInterp = !(best_lorenzo_ratio > best_interp_ratio && best_lorenzo_ratio < 80 && best_interp_ratio < 80);

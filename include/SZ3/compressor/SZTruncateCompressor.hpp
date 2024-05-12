@@ -25,7 +25,7 @@ namespace SZ {
                           "must implement the lossless interface");
         }
 
-        uchar *compress(const Config &conf, T *data, size_t &compressed_size) {
+        uchar *compress(const Config &conf, T *data, size_t &compressed_size, bool tuning = false) {
 
             auto compressed_data = new uchar[conf.num * sizeof(T)];
             auto compressed_data_pos = (uchar *) compressed_data;

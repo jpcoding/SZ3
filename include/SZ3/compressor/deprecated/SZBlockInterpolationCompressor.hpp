@@ -106,7 +106,7 @@ namespace SZ {
 
 
         // compress given the error bound
-        uchar *compress(const Config &conf, T *data, size_t &compressed_size) {
+        uchar *compress(const Config &conf, T *data, size_t &compressed_size, bool tuning = false) {
 
             block_size = conf.blockSize;
             num_elements = conf.num;

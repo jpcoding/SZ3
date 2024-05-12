@@ -142,8 +142,9 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     } else {
         strcpy(outputFilePath, cmpPath);
     }
-    SZ::writefile(outputFilePath, bytes, outSize);
 
+    // postprocess module 
+    SZ::writefile(outputFilePath, bytes, outSize);
 
     printf("[Compress]compression ratio = %.4f \n", conf.num * 1.0 * sizeof(T) / outSize);
     printf("[Compress]compression time = %f\n", compress_time);
@@ -151,6 +152,8 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
 
     // vreify decompressed data at compression time
     std::shared_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
+    // std::unique_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
+
     SZ::verify<T>(data, data_copy->data(), conf.num);
 
     delete[]data;
@@ -489,8 +492,10 @@ int main(int argc, char *argv[]) {
             exit(0);
         }
     }
-    return 0;
-    if (decompression) {
+
+
+    // return 0;
+    if (0&& decompression ) {
         if (printCmpResults && inPath == nullptr) {
             printf("Error: Since you add -a option (analysis), please specify the original data path by -i <path>.\n");
             exit(0);

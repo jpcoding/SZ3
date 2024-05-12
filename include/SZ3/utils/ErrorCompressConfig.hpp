@@ -2,8 +2,8 @@
 // Created by Kai Zhao on 4/28/20.
 //
 
-#ifndef SZ_Config_HPP
-#define SZ_Config_HPP
+#ifndef SZ_ERROR_Config_HPP
+#define SZ_ERROR_Config_HPP
 
 #include <iostream>
 #include <memory>
@@ -13,7 +13,7 @@
 #include "MemoryUtil.hpp"
 #include "SZ3/utils/inih/INIReader.h"
 
-namespace SZ {
+namespace SZ_ERROR {
 
     enum EB {
         EB_ABS, EB_REL, EB_PSNR, EB_L2NORM, EB_ABS_AND_REL, EB_ABS_OR_REL
@@ -62,10 +62,10 @@ namespace SZ {
         }
     }
 
-    class Config {
+    class ErrorConfig {
     public:
         template<class ... Dims>
-        Config(Dims ... args) {
+        ErrorConfig(Dims ... args) {
             dims = std::vector<size_t>{static_cast<size_t>(std::forward<Dims>(args))...};
             N = dims.size();
             num = std::accumulate(dims.begin(), dims.end(), (size_t) 1, std::multiplies<size_t>());
@@ -195,49 +195,46 @@ namespace SZ {
             quantization_prediction_start_level = cfg.GetInteger("ArtifactSettings", "quantization_prediction_start_level", quantization_prediction_start_level);
             error_smoothing = cfg.GetBoolean("ArtifactSettings", "error_smoothing", error_smoothing);
             compress_error = cfg.GetBoolean("ArtifactSettings", "compress_error", compress_error);
-            
-            post_process_on = cfg.GetBoolean("ArtifactSettings", "post_process_on", post_process_on);
-        
         }
 
 
         void save(unsigned char *&c) {
-            write(N, c);
-            write(dims.data(), dims.size(), c);
-            write(num, c);
-            write(cmprAlgo, c);
-            write(errorBoundMode, c);
-            write(absErrorBound, c);
-            write(relErrorBound, c);
-            write(lorenzo, c);
-            write(lorenzo2, c);
-            write(regression, c);
-            write(regression2, c);
-            write(interpAlgo, c);
-            write(interpDirection, c);
-            write(interpBlockSize, c);
-            write(lossless, c);
-            write(encoder, c);
-            write(quantbinCnt, c);
-            write(blockSize, c);
-            write(stride, c);
-            write(pred_dim, c);
-            write(openmp, c);
+            SZ::write(N, c);
+            SZ::write(dims.data(), dims.size(), c);
+            SZ::write(num, c);
+            SZ::write(cmprAlgo, c);
+            SZ::write(errorBoundMode, c);
+            SZ::write(absErrorBound, c);
+            SZ::write(relErrorBound, c);
+            SZ::write(lorenzo, c);
+            SZ::write(lorenzo2, c);
+            SZ::write(regression, c);
+            SZ::write(regression2, c);
+            SZ::write(interpAlgo, c);
+            SZ::write(interpDirection, c);
+            SZ::write(interpBlockSize, c);
+            SZ::write(lossless, c);
+            SZ::write(encoder, c);
+            SZ::write(quantbinCnt, c);
+            SZ::write(blockSize, c);
+            SZ::write(stride, c);
+            SZ::write(pred_dim, c);
+            SZ::write(openmp, c);
             // add additional variable
-            // write(detection_block_size, c);
-            // write(detection_threshold, c);
-            // write(detection_eb_rate, c);
-            // write(noise_rate, c);
-            // write(block_sift_mode, c);
-            // write(block_sift_on, c);
-            // write(block_flush_on, c);
-            // write(use_stochastic_decompress, c);
-            // write(use_stochastic_quantize, c);
-            // write(use_stochastic_predict, c);
-            // write(use_stochastic_eb, c);
-            // write(random_seed, c);
-            // write(post_block_noise_rng_on, c);
-            // write(block_noise_rng_threshold, c);
+            // SZ::write(detection_block_size, c);
+            // SZ::write(detection_threshold, c);
+            // SZ::write(detection_eb_rate, c);
+            // SZ::write(noise_rate, c);
+            // SZ::write(block_sift_mode, c);
+            // SZ::write(block_sift_on, c);
+            // SZ::write(block_flush_on, c);
+            // SZ::write(use_stochastic_decompress, c);
+            // SZ::write(use_stochastic_quantize, c);
+            // SZ::write(use_stochastic_predict, c);
+            // SZ::write(use_stochastic_eb, c);
+            // SZ::write(random_seed, c);
+            // SZ::write(post_block_noise_rng_on, c);
+            // SZ::write(block_noise_rng_threshold, c);
 
 
             
@@ -245,43 +242,43 @@ namespace SZ {
         };
 
         void load(const unsigned char *&c) {
-            read(N, c);
+            SZ::read(N, c);
             dims.resize(N);
-            read(dims.data(), N, c);
-            read(num, c);
-            read(cmprAlgo, c);
-            read(errorBoundMode, c);
-            read(absErrorBound, c);
-            read(relErrorBound, c);
-            read(lorenzo, c);
-            read(lorenzo2, c);
-            read(regression, c);
-            read(regression2, c);
-            read(interpAlgo, c);
-            read(interpDirection, c);
-            read(interpBlockSize, c);
-            read(lossless, c);
-            read(encoder, c);
-            read(quantbinCnt, c);
-            read(blockSize, c);
-            read(stride, c);
-            read(pred_dim, c);
-            read(openmp, c);
+            SZ::read(dims.data(), N, c);
+            SZ::read(num, c);
+            SZ::read(cmprAlgo, c);
+            SZ::read(errorBoundMode, c);
+            SZ::read(absErrorBound, c);
+            SZ::read(relErrorBound, c);
+            SZ::read(lorenzo, c);
+            SZ::read(lorenzo2, c);
+            SZ::read(regression, c);
+            SZ::read(regression2, c);
+            SZ::read(interpAlgo, c);
+            SZ::read(interpDirection, c);
+            SZ::read(interpBlockSize, c);
+            SZ::read(lossless, c);
+            SZ::read(encoder, c);
+            SZ::read(quantbinCnt, c);
+            SZ::read(blockSize, c);
+            SZ::read(stride, c);
+            SZ::read(pred_dim, c);
+            SZ::read(openmp, c);
             // add additional variable
-            // read(detection_block_size, c);
-            // read(detection_threshold, c);
-            // read(detection_eb_rate, c);
-            // read(noise_rate, c);
-            // read(block_sift_mode, c);
-            // read(block_sift_on, c);
-            // read(block_flush_on, c);
-            // read(use_stochastic_decompress, c);
-            // read(use_stochastic_quantize, c);
-            // read(use_stochastic_predict, c);
-            // read(use_stochastic_eb, c);
-            // read(random_seed, c);
-            // read(post_block_noise_rng_on, c);
-            // read(block_noise_rng_threshold, c);
+            // SZ::read(detection_block_size, c);
+            // SZ::read(detection_threshold, c);
+            // SZ::read(detection_eb_rate, c);
+            // SZ::read(noise_rate, c);
+            // SZ::read(block_sift_mode, c);
+            // SZ::read(block_sift_on, c);
+            // SZ::read(block_flush_on, c);
+            // SZ::read(use_stochastic_decompress, c);
+            // SZ::read(use_stochastic_quantize, c);
+            // SZ::read(use_stochastic_predict, c);
+            // SZ::read(use_stochastic_eb, c);
+            // SZ::read(random_seed, c);
+            // SZ::read(post_block_noise_rng_on, c);
+            // SZ::read(block_noise_rng_threshold, c);
         }
 
         void print() {
@@ -360,8 +357,6 @@ namespace SZ {
         bool error_smoothing = 1;
 
         bool compress_error = false;
-
-        bool post_process_on = false;
 
         // for passing data through the workflow that has a config object 
         struct PASS_DATA{

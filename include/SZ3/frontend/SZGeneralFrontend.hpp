@@ -83,9 +83,9 @@ namespace SZ {
         if(N==3)
         {
         std::cout << "3D post process" << std::endl;
-        compensation_3d_(
-        data, my_quant_inds.data(), global_dimensions.data(), 0,
-        quantizer.get_eb()*0.5);
+        // compensation_3d_(
+        // data, my_quant_inds.data(), global_dimensions.data(), 0,
+        // quantizer.get_eb()*0.5);
         writefile("postdecompressed.dat", data, num_elements);
         }
         

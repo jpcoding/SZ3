@@ -1,5 +1,5 @@
-#ifndef _SZ_INTERPOLATION_COMPRESSSOR_HPP
-#define _SZ_INTERPOLATION_COMPRESSSOR_HPP
+#ifndef _SZ_ERROR_INTERPOLATION_COMPRESSSOR_HPP
+#define _SZ_ERROR_INTERPOLATION_COMPRESSSOR_HPP
 
 #include <algorithm>
 #include <array>
@@ -33,16 +33,13 @@
 #include "SZ3/utils/Iterator.hpp"
 #include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/utils/Timer.hpp"
-#include "SZ3/utils/critical_points.hpp"
-#include "SZ3/utils/interpolation_level.hpp"
-#include "SZ3/postprocess/error_compression.hpp"
 
 
 namespace SZ {
 template <class T, uint N, class Quantizer, class Encoder, class Lossless>
-class SZInterpolationCompressor {
+class SZErrorInterpolationCompressor {
  public:
-  SZInterpolationCompressor(
+  SZErrorInterpolationCompressor(
       Quantizer quantizer, Encoder encoder, Lossless lossless) :
       quantizer(quantizer), encoder(encoder), lossless(lossless)
   {
@@ -73,35 +70,12 @@ class SZInterpolationCompressor {
     read(blocksize, buffer_pos, remaining_length);
     read(interpolator_id, buffer_pos, remaining_length);
     read(direction_sequence_id, buffer_pos, remaining_length);
-    read(sift_mode, buffer_pos, remaining_length);
-    read(block_flush_on, buffer_pos, remaining_length);
-    read(block_sift_on, buffer_pos, remaining_length);
-    // read auxilliary data
-    read(detection_block_size, buffer_pos);
-    read(num_detection_block, buffer_pos);
+
     // std::cout<<"num_detection_block = " << num_detection_block <<std::endl;
     Timer timer;
     timer.start();
 
-    if (block_flush_on == 1) {
-      flushed_block_id = std::vector<uchar>(num_detection_block);
-      convertByteArray2IntArray_fast_1b_sz(
-          num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1,
-          flushed_block_id.data());
-    }
-    // flushed_block_id = std::vector<uchar>(num_detection_block);
-    // convertByteArray2IntArray_fast_1b_sz(num_detection_block, buffer_pos,
-    // (num_detection_block - 1) / 8 + 1, flushed_block_id.data());
-    if (block_sift_on == 1) {
-      significant_block_id = std::vector<uchar>(num_detection_block);
-      convertByteArray2IntArray_fast_1b_sz(
-          num_detection_block, buffer_pos, (num_detection_block - 1) / 8 + 1,
-          significant_block_id.data());
-    }
 
-    // read additional variable
-    read(noise_rate, buffer_pos);
-    read(detection_eb_rate, buffer_pos);
     read(original_max, buffer_pos);
     read(original_min, buffer_pos);
     // std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
@@ -111,40 +85,14 @@ class SZInterpolationCompressor {
 
     init();
 
-    bool post_block_noise_rng_on = false;
-    read(post_block_noise_rng_on, buffer_pos);
-    std::vector<uchar> post_block_error_tags;
-    if (post_block_noise_rng_on == true) {
-      // restore the blockinfo here
-      std::cout << "post_block_noise_rng_on = " << post_block_noise_rng_on
-                << std::endl;
-      size_t post_block_error_tags_size = 0;
-      read(post_block_error_tags_size, buffer_pos);
-      post_block_error_tags.resize(post_block_error_tags_size);
-      convertByteArray2IntArray_fast_1b_sz(
-          post_block_error_tags_size, buffer_pos,
-          (post_block_error_tags_size - 1) / 8 + 1,
-          post_block_error_tags.data());
-    }
-
     // timer.stop("read auxilliary data");
 
-    size_t num_flushed_elements = 0;
-    if (block_flush_on == 1 || block_sift_on == 1) {
-      // num_flushed_elements = compute_auxilliary_data_decompress(decData);
-      num_flushed_elements = compute_auxilliary_data_decompress(
-          decData, N, global_dimensions.data(), detection_block_size,
-          num_elements, block_sift_on, block_flush_on, 0,
-          flushed_block_id, flushed_block, significant_block_id,
-          significant_block);
-    }
 
-    artifact_sift_on = block_sift_on;
 
     quantizer.load(buffer_pos, remaining_length);
     encoder.load(buffer_pos, remaining_length);
     quant_inds =
-        encoder.decode(buffer_pos, num_elements - num_flushed_elements);
+        encoder.decode(buffer_pos, num_elements);
 
     encoder.postprocess_decode();
 
@@ -185,14 +133,19 @@ class SZInterpolationCompressor {
       // }
       // std::cout << std::endl;
 
-      current_level = level;
-      current_base_eb = eb_final;
-      quantizer.set_eb(eb_final);
-      eb_final *= eb_reduction_factor;
+      // current_level = level;
+      // current_base_eb = eb_final;
+      // quantizer.set_eb(eb_final);
+      // eb_final *= eb_reduction_factor;
 
+
+
+      // if (level <= 2) {
+      //   quantizer.set_eb(eb_input);
+      // }
 
       size_t stride = 1U << (level - 1);
-    { auto inter_block_range =
+      auto inter_block_range =
           std::make_shared<SZ::multi_dimensional_range<T, N>>(
               decData, std::begin(global_dimensions),
               std::end(global_dimensions), stride * blocksize, 0);
@@ -211,30 +164,14 @@ class SZInterpolationCompressor {
             interpolators[interpolator_id], direction_sequence_id, stride);
       }
     }
-
-
-    }
     quantizer.postdecompress_data();
 
     // postprocess to remove artifacts
 
     //            timer.stop("Interpolation Decompress");
     // std::cout << "counter = " << counter << std::endl;
-    writefile(
-        "quant_inds.decompress.dat", quant_inds.data(), quant_inds.size());
 
-    // Debug use
-    writefile(
-        "flushed_block_id.decompress.dat", flushed_block_id.data(),
-        num_detection_block);
-    writefile(
-        "significant_block_id.decompress.dat", significant_block_id.data(),
-        num_detection_block);
-    writefile(
-        "flushed_block.decompress.dat", flushed_block.data(), num_elements);
-    writefile(
-        "significant_block.decompress.dat", significant_block.data(),
-        num_elements);
+
 
     return decData;
   }
@@ -252,18 +189,9 @@ class SZInterpolationCompressor {
     interpolator_id = conf.interpAlgo;
     direction_sequence_id = conf.interpDirection;
     // assign additional variable
-    detection_block_size = conf.detection_block_size;
-    detection_threshold = conf.detection_threshold;
-    detection_eb_rate = conf.detection_eb_rate;
-    noise_rate = conf.noise_rate;
-    sift_mode = conf.block_sift_mode;
-    block_flush_on = conf.block_flush_on;
-    block_sift_on = conf.block_sift_on;
 
 
-    // post process switch 
-    post_process_on = conf.post_process_on; // turn on for data compression, turn off for error compression 
-    // quant pred 
+
     quant_pred_on = conf.quantization_prediction_on;
     // if(tuning == true)
     // {
@@ -271,20 +199,8 @@ class SZInterpolationCompressor {
     // }
     quant_pred_start_level = conf.quantization_prediction_start_level;
     // error smoothing
-    error_smoothing  = conf.error_smoothing;
 
 
-
-    if (block_sift_on || block_flush_on)
-      std::cout << "detection_block_size = " << detection_block_size
-                << std::endl;
-    if (block_sift_on)
-      std::cout << "detection_threshold = " << detection_threshold
-                << std::endl;
-    if (block_sift_on)
-      std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
-    if (noise_rate != 0)
-      std::cout << "noise_rate = " << noise_rate << std::endl;
 
     orig_data_ptr = (const T *) conf.PASS_DATA.original_data_prt;
 
@@ -301,16 +217,7 @@ class SZInterpolationCompressor {
     original_range = original_max - original_min;
 
     Timer timer;
-    if (block_flush_on == 1 || block_sift_on == 1 ) {
-      timer.start();
-      compute_auxilliary_data(
-          conf, data, detection_block_size, num_elements, num_detection_block,
-          flushed_block_id, flushed_block, significant_block_id,
-          significant_block);
-      timer.stop("Auxilliary Data Compress");
-    }
 
-    artifact_sift_on = block_sift_on;
     quant_inds.reserve(num_elements);
     size_t interp_compressed_size = 0;
 
@@ -418,47 +325,7 @@ class SZInterpolationCompressor {
       }
       }
 
-    // if(current_level ==1 && tuning == false)
-    // {writefile("compressed.dat", data, num_elements);
-    //  writefile("quant_inds_pre.dat", aux_quant_inds.data(), num_elements);
-    // //  std::cout<<"max quant index = "<< *std::max_element(aux_quant_inds.begin(), aux_quant_inds.end()) << std::endl;
-    // }
-    
-      
-      // post-process
-      // the structure is the same with block_interpolation
-      // change the blocks_size large enough to process the whole dataset as one block
-      // current implementation only process the level = 1 since we have the largest error bound there 
-      if(tuning == false && level == 1 && error_smoothing == 1 )
-      {
-        // change blocksize to the whole dataset size
-        int blocksize_copy = blocksize;
-        blocksize = *std::max_element(global_dimensions.begin(), global_dimensions.end())+1;
-        std::cout << "blocksize = " << blocksize << std::endl;
-        auto inter_block_range_post =
-          std::make_shared<SZ::multi_dimensional_range<T, N>>(
-              data, std::begin(global_dimensions), std::end(global_dimensions),
-              blocksize * stride, 0);
-        auto inter_begin_post = inter_block_range_post->begin();
-        auto inter_end_post = inter_block_range_post->end();
-        for (auto block = inter_begin_post; block != inter_end_post; ++block) {
-          auto end_idx = block.get_global_index();
-          for (int i = 0; i < N; i++) {
-            end_idx[i] += blocksize * stride;
-            if (end_idx[i] > global_dimensions[i] - 1) {
-              end_idx[i] = global_dimensions[i] - 1;
-            }
-          }
-          block_post_process(
-              data, block.get_global_index(), end_idx, PB_predict_overwrite,
-              interpolators[interpolator_id], direction_sequence_id, stride);
-        }
-        blocksize = blocksize_copy;
-      }
-
     }
-
-    std::cout << "compression loop = " << timer.stop() << std::endl;
 
     assert(quant_inds.size() <= num_elements);
 
@@ -476,51 +343,9 @@ class SZInterpolationCompressor {
     write(blocksize, buffer_pos);
     write(interpolator_id, buffer_pos);
     write(direction_sequence_id, buffer_pos);
-    write(sift_mode, buffer_pos);
-    write(block_flush_on, buffer_pos);
-    write(block_sift_on, buffer_pos);
 
-    // add auxilliary array
-    write(detection_block_size, buffer_pos);
-    // num_detection_block = significant_block_id.size();
-    // if(num_detection_block == 0) num_detection_block =
-    // flushed_block_id.size();
-    write(num_detection_block, buffer_pos);
-    if (block_flush_on) {
-      std::cout << "writing flushed_block_id" << std::endl;
-      convertIntArray2ByteArray_fast_1b_to_result_sz(
-          flushed_block_id.data(), flushed_block_id.size(), buffer_pos);
-    }
-    if (block_sift_on) {
-      std::cout << "writing block_sift_id" << std::endl;
-      convertIntArray2ByteArray_fast_1b_to_result_sz(
-          significant_block_id.data(), significant_block_id.size(),
-          buffer_pos);
-    }
-    // add additional variable
-    write(noise_rate, buffer_pos);
-    write(detection_eb_rate, buffer_pos);
     write(original_max, buffer_pos);
     write(original_min, buffer_pos);
-
-
-
-    // store post process post_process_tags
-    // create a huffman encoder to encode the post_process_tags 
-    if(tuning == false && post_process_tags.size() > 0)
-    {
-    SZ::HuffmanEncoder<char> post_process_encoder = SZ::HuffmanEncoder<char>();
-    post_process_encoder.preprocess_encode(post_process_tags, 0);
-    post_process_encoder.save(buffer_pos);
-    post_process_encoder.encode(post_process_tags, buffer_pos);
-    post_process_encoder.postprocess_encode();
-    }
-    // std::cout << "post_process_tags size = " << post_process_tags.size() << "\n"; 
-    // std::cout << "buffer pos = " << buffer_pos - buffer << "\n";
-
-
-
- 
 
 
     quantizer.save(buffer_pos);
@@ -537,22 +362,6 @@ class SZInterpolationCompressor {
     timer.start();
     uchar *lossless_data =
         lossless.compress(buffer, buffer_pos - buffer, compressed_size);
-
-
-    if( tuning == false && post_process_on == 1)
-    {
-      size_t compressed_error_size = 0;
-      std::cout << "error compression\n";
-      uchar* compressed_error =  error_sample_compress(orig_data_ptr, data, compressed_error_size, direction_sequence_id, 
-                  dimension_sequences, global_dimensions, dimension_offsets, buffer_pos);
-      std::cout << "compressed_error_size = " << compressed_error_size << "\n";
-      write(compressed_error_size, buffer_pos);
-      write(compressed_error, compressed_error_size, buffer_pos);
-      delete[] compressed_error;
-      compressed_size += compressed_error_size + sizeof(compressed_error_size); 
-      // std::memcpy(buffer_pos, compressed_error, compressed_error_size);
-    }
-    //            timer.stop("Lossless");
 
     lossless.postcompress_data(buffer);
 
@@ -590,7 +399,7 @@ class SZInterpolationCompressor {
     // num_elements);
 
 
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     writefile("pred.dat", my_pred.data(), num_elements);
     writefile("quant.dat", aux_quant_inds.data(), num_elements);
     writefile("quant_processed.dat", my_quant_inds_copy.data(), num_elements);
@@ -686,7 +495,7 @@ class SZInterpolationCompressor {
     // post process utils 
     aux_quant_inds.resize(num_elements,0);
 
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     my_level.resize(num_elements);
     my_quant_inds_copy.resize(num_elements);
     my_pred.resize(num_elements);
@@ -757,21 +566,11 @@ class SZInterpolationCompressor {
   inline void quantize(size_t idx, T &d, T pred)
   {
     T d_copy = d;
-    if (block_flush_on == 1 && flushed_block[idx]) { d = 0; }
-    else {
-      auto default_eb = quantizer.get_eb();
-      if (artifact_sift_on == true && (current_level == 1) &&
-          significant_block[idx] == 1) {
-        quantizer.set_eb(default_eb * detection_eb_rate);
-      }
-      else {        
-        quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-      }
-      quantizer.set_eb(default_eb);
-    }
+       
+      quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
     // range_check(d);
     aux_quant_inds[idx] = quant_inds.back();
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     my_level[idx] = current_level;
     my_quant_inds_copy[idx] = quant_inds.back();
     // my_pred[idx] = pred;
@@ -779,33 +578,9 @@ class SZInterpolationCompressor {
 #endif
   }
 
-//     inline void quantize(size_t idx, T &d, T pred)
-//   {
-//         quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-//     // range_check(d);
-//     // aux_quant_inds[idx] = quant_inds.back();
-// #ifdef SZ_ANALYSIS
-//     my_level[idx] = current_level;
-//     my_quant_inds_copy[idx] = quant_inds.back();
-//     // my_pred[idx] = pred;
-//     my_interp_direction[idx] = my_current_interp_direction;
-// #endif
-//   }
-
   inline void recover(size_t idx, T &d, T pred)
   {
-    if (block_flush_on == 1 && flushed_block[idx]) { d = 0; }
-    else {
-      auto default_eb = quantizer.get_eb();
-      if (artifact_sift_on == true && (current_level == 1) &&
-          significant_block[idx] == 1) {
-        quantizer.set_eb(default_eb * detection_eb_rate);
-      }
-      else {
-        d = quantizer.recover(pred, quant_inds[quant_index++]);
-      }
-      quantizer.set_eb(default_eb);
-    }
+    d = quantizer.recover(pred, quant_inds[quant_index++]);  
     // range_check(d);
     aux_quant_inds[idx] = quant_inds[quant_index-1];
   };
@@ -833,7 +608,7 @@ class SZInterpolationCompressor {
           T d_copy = *d;
           T pred = interp_linear(*(d - stride), *(d + stride));
 
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_pred[d - data] = pred;
           #endif
 
@@ -853,7 +628,7 @@ class SZInterpolationCompressor {
           else {
             aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
           }
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_compensation_label[d - data] = quant_compensation;
           #endif
 
@@ -861,7 +636,7 @@ class SZInterpolationCompressor {
         if (n % 2 == 0) {
           T *d = data + begin + (n - 1) * stride;
           T pred = interp_linear(*(d - stride), *(d - stride));
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_pred[d - data] = pred;
           #endif
           if ( quant_pred == true) {
@@ -881,7 +656,7 @@ class SZInterpolationCompressor {
           else {
             aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
           }
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_compensation_label[d - data] = quant_compensation;
           #endif
           // quantize(d - data, *d, *(d - stride));
@@ -969,7 +744,7 @@ class SZInterpolationCompressor {
 
 
 
-        #ifdef SZ_ANALYSIS
+        #ifdef SZ_ERROR_ANALYSIS
         my_pred[d - data] = pred;
         #endif
 
@@ -978,7 +753,7 @@ class SZInterpolationCompressor {
           d = data + begin + i * stride;
           T pred = interp_cubic(
               *(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x));
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_pred[d - data] = pred;
           #endif
           if ( quant_pred == true ) {
@@ -993,7 +768,7 @@ class SZInterpolationCompressor {
           else {
             aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
           }
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_compensation_label[d - data] = quant_compensation;
           #endif
         }
@@ -1014,7 +789,7 @@ class SZInterpolationCompressor {
           aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
         }
         
-        #ifdef SZ_ANALYSIS
+        #ifdef SZ_ERROR_ANALYSIS
         my_pred[d - data] = pred;
         #endif
 
@@ -1023,7 +798,7 @@ class SZInterpolationCompressor {
           // quantize(d - data, *d, *(d - stride));
           T pred = *(d - stride);
 
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_pred[d - data] = pred;
           #endif
 
@@ -1044,7 +819,7 @@ class SZInterpolationCompressor {
           else {
             aux_quant_inds[d - data] = quant_inds.back() + quant_compensation;
           }
-          #ifdef SZ_ANALYSIS
+          #ifdef SZ_ERROR_ANALYSIS
           my_compensation_label[d - data] = quant_compensation;
           #endif
           quantizer.set_eb(dafault_eb);
@@ -1105,115 +880,6 @@ class SZInterpolationCompressor {
     return predict_error;
   }
 
-  double block_interpolation_1d3(
-      T *data, size_t begin, size_t end, size_t stride,
-      const std::string &interp_func, const PredictorBehavior pb,
-      bool quant_pred = false, size_t offset1 = 0, size_t offset2 = 0, bool is_left_boundary = true,
-      bool use_fft_interp = false)
-  {
-                size_t n = (end - begin) / stride + 1;
-            if (n <= 1) {
-                return 0;
-            }
-            double predict_error = 0;
-
-            size_t stride3x = 3 * stride;
-            size_t stride5x = 5 * stride;
-            if (interp_func == "linear" || n < 5) {
-                if (pb == PB_predict_overwrite) {
-                    for (size_t i = 1; i + 1 < n; i += 2) {
-                        T *d = data + begin + i * stride;
-                        #ifdef SZ_ANALYSIS
-                        my_interpolators[d-data] = 1;
-                        #endif
-                        quantize(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                    }
-                    if (n % 2 == 0) {
-                        T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
-                            #ifdef SZ_ANALYSIS
-                            my_interpolators[d-data] = 2;
-                            #endif
-                            quantize(d - data, *d, *(d - stride));
-                        } else {
-                            #ifdef SZ_ANALYSIS
-                            my_interpolators[d-data] = 3;
-                            #endif
-                            quantize(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
-                        }
-                    }
-                } else {
-                    for (size_t i = 1; i + 1 < n; i += 2) {
-                        T *d = data + begin + i * stride;
-                        recover(d - data, *d, interp_linear(*(d - stride), *(d + stride)));
-                    }
-                    if (n % 2 == 0) {
-                        T *d = data + begin + (n - 1) * stride;
-                        if (n < 4) {
-                            recover(d - data, *d, *(d - stride));
-                        } else {
-                            recover(d - data, *d, interp_linear1(*(d - stride3x), *(d - stride)));
-                        }
-                    }
-                }
-            } else {
-                if (pb == PB_predict_overwrite) {
-
-                    T *d;
-                    size_t i;
-                    for (i = 3; i + 3 < n; i += 2) {
-                        d = data + begin + i * stride;
-                        #ifdef SZ_ANALYSIS
-                        my_interpolators[d-data] = 4;
-                        #endif
-                        quantize(d - data, *d,
-                                 interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                    }
-                    d = data + begin + stride;
-                    #ifdef SZ_ANALYSIS
-                    my_interpolators[d-data] = 5;
-                    #endif
-                    quantize(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-
-                   
-                    d = data + begin + i * stride;
-                     #ifdef SZ_ANALYSIS
-                    my_interpolators[d-data] = 6;
-                    #endif
-                    quantize(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-                    if (n % 2 == 0) {
-                        d = data + begin + (n - 1) * stride;
-                        #ifdef SZ_ANALYSIS
-                        my_interpolators[d-data] = 7;
-                        #endif
-                        quantize(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
-                    }
-
-                } else {
-                    T *d;
-
-                    size_t i;
-                    for (i = 3; i + 3 < n; i += 2) {
-                        d = data + begin + i * stride;
-                        recover(d - data, *d, interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
-                    }
-                    d = data + begin + stride;
-
-                    recover(d - data, *d, interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x)));
-
-                    d = data + begin + i * stride;
-                    recover(d - data, *d, interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride)));
-
-                    if (n % 2 == 0) {
-                        d = data + begin + (n - 1) * stride;
-                        recover(d - data, *d, interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride)));
-                    }
-                }
-            }
-
-            return predict_error;
-  }
-
   template <uint NN = N>
   typename std::enable_if<NN == 1, double>::type block_interpolation(
       T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
@@ -1272,7 +938,7 @@ class SZInterpolationCompressor {
     auto default_eb = quantizer.get_eb();
     // quantizer.set_eb(default_eb * c2);
 
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     my_current_interp_direction = 1;
 #endif
 
@@ -1302,7 +968,7 @@ class SZInterpolationCompressor {
 
     // quantizer.set_eb(default_eb * c1);
     // if(current_level ==1) quantizer.set_eb(default_eb*0.5);
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     my_current_interp_direction = 2;
 #endif
     for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0);
@@ -1331,7 +997,7 @@ class SZInterpolationCompressor {
     }
   
 
-#ifdef SZ_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
     my_current_interp_direction = 3;
 #endif
     // if(current_level ==1) quantizer.set_eb(default_eb*0.5);
@@ -1553,31 +1219,7 @@ class SZInterpolationCompressor {
         const std::vector<std::array<int, 3>> &dimension_sequences, std::array<size_t,3>& global_dimensions, 
           std::array<size_t, 3>& dimension_offsets, uchar *&buffer_pos) 
   {
-    std::cout << "compile for 3D cases\n";
-    // write the downsampled and decompressed data for the last level
-    auto error_compressor = SZ::ErrorCompressor<T, 3>(num_elements, global_dimensions.data(), 
-                                              dimension_offsets.data(), direction_sequence_id);
-    compressed_error_size = 0;
-    auto dims = dimension_sequences[direction_sequence_id];
-    int interp_direction = dims[2] ; 
-    int interp_dir_stride = 2;
-    int plane_dir1 = dims[0];
-    int plane_dir2 = dims[1];
-    int plane_dir1_stride = 1;
-    int plane_dir2_stride = 1;
-    int plane_sample_stride = 4;
 
-    uchar* error_compressed_data = error_compressor.error_compensation_3d(orig_data_ptr, data, 
-                      compressed_error_size, interp_direction, 
-                      interp_dir_stride, plane_dir1, plane_dir1_stride, plane_dir2, plane_dir2_stride, plane_sample_stride);
-    // std::cout << error_compressed_data << std::endl; 
-    // append the compressed error data to the buffer
-    // std::cout<<"complete writing error data\n";
-    // write(compressed_error_size, buffer_pos);
-    // write(error_compressed_data, compressed_error_size, buffer_pos);
-    // delete[] error_compressed_data;
-    // return nullptr;
-    return error_compressed_data;
 
   }
 
@@ -1623,54 +1265,30 @@ class SZInterpolationCompressor {
   double linear_interp_eb_factor = sqrt(1.5);
   double cubic_interp_eb_factor = 1.2808688457449497;
 
-  int detection_block_size = 4;
-  double detection_threshold = 0.9;
-  double detection_eb_rate;
-  double noise_rate = 0;
-  double eb_reduction_factor = 1.0;
-
-  std::vector<uchar> flushed_block;
-  std::vector<uchar> flushed_block_id;
-  std::vector<uchar> significant_block;     // per datapoint
-  std::vector<uchar> significant_block_id;  // per block
-  uint8_t sift_mode = SZ::BLOCK_SIFT_MODE::RANGE;
-  double current_base_eb;
-  bool block_flush_on;
-  bool block_sift_on;
-  size_t num_detection_block = 0;
 
   T original_max;    // for data range check
   T original_min;    // for data range check
   T original_range;  // for data range check
-
-
-  bool artifact_sift_on;
+  double current_base_eb;
+  double eb_reduction_factor = 1.0; 
 
   // original data copy
   const T* orig_data_ptr;
   double original_variance;
-
-  // to record post process
-  std::vector<char> post_process_tags; // 0, -1 and 1;
 
   // post_process utils 
 
   std::vector<int> aux_quant_inds;
   double region_error_control_eb_compensation = 2.0; // for quant prediction 
   bool quant_pred_on = true;
-  int quant_pred_start_level = 3;
-  bool post_process_on = true;  
-
-  // error smoothing 
-  bool error_smoothing = true;
-
+  int quant_pred_start_level = 2;
    
 
 // Analysis utils;
 // This is for conditional compilation not comments
-// #ifndef SZ_ANALYSIS
-// #define SZ_ANALYSIS
-#ifdef SZ_ANALYSIS
+// #ifndef SZ_ERROR_ANALYSIS
+// #define SZ_ERROR_ANALYSIS
+#ifdef SZ_ERROR_ANALYSIS
   std::vector<int> my_level;
   std::vector<int> my_quant_inds_copy;
   std::vector<T> my_pred;
