@@ -32,6 +32,9 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
     char *cmpData = (char *) sz.compress(conf, data, outSize);
+    conf.PASS_DATA.aux_quant_inds_ptr = sz.get_aux_quant_inds_ptr();
+    // std::cout <<"ptr address = " << sz.get_aux_quant_inds_ptr() << std::endl;
+    // std::cout <<"ptr address = " << conf.PASS_DATA.aux_quant_inds_ptr << std::endl;
     return cmpData;
 }
 

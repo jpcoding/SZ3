@@ -154,7 +154,11 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     std::shared_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
     // std::unique_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
 
+    // std::cout << "address of aux quant inds = " << &((*(conf.PASS_DATA.aux_quant_inds_ptr))[0]) << std::endl;
+
     SZ::verify<T>(data, data_copy->data(), conf.num);
+
+
 
     delete[]data;
     delete[]bytes;

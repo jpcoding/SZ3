@@ -368,6 +368,7 @@ namespace SZ {
         // std::unique_ptr<void> processed_data_prt;
         std::shared_ptr<void> processed_data_prt;
         const void* original_data_prt;
+        std::shared_ptr<std::vector<int>> aux_quant_inds_ptr;
         } PASS_DATA;
     };
 
