@@ -100,10 +100,14 @@ class SZInterpolationCompressor {
     }
 
     // read additional variable
-    read(noise_rate, buffer_pos);
-    read(detection_eb_rate, buffer_pos);
     read(original_max, buffer_pos);
     read(original_min, buffer_pos);
+
+    // read smoothing and pred quant
+    read(quant_pred_on, buffer_pos);
+    read(quant_pred_start_level, buffer_pos);
+    read(error_smoothing, buffer_pos);
+    read(post_process_on, buffer_pos);
     // std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
     // std::cout << "noise_rate = " << noise_rate << std::endl;
 
@@ -145,8 +149,6 @@ class SZInterpolationCompressor {
                  pow(cubic_interp_eb_factor, (interpolation_level - 1) * N);
       eb_reduction_factor = pow(cubic_interp_eb_factor, N);
     }
-    quant_pred_on = 1; 
-    quant_pred_start_level = 2;
 
     std::cout << "start decompression\n";
     current_level = interpolation_level;
@@ -290,8 +292,6 @@ class SZInterpolationCompressor {
     // }
     quant_pred_start_level = conf.quantization_prediction_start_level;
 
-    quant_pred_on = 1; 
-    quant_pred_start_level = 2;
     // error smoothing
     error_smoothing  = conf.error_smoothing;
 
@@ -521,10 +521,15 @@ class SZInterpolationCompressor {
           buffer_pos);
     }
     // add additional variable
-    write(noise_rate, buffer_pos);
-    write(detection_eb_rate, buffer_pos);
     write(original_max, buffer_pos);
     write(original_min, buffer_pos);
+
+    // write smoothing and pred quant
+    write(quant_pred_on, buffer_pos);
+    write(quant_pred_start_level, buffer_pos);
+    write(error_smoothing, buffer_pos);
+    write(post_process_on, buffer_pos);
+
 
 
 
