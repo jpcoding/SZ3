@@ -13,7 +13,6 @@
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/utils/MemoryUtil.hpp"
 
-#include "SZ3/postprocess/postprocess.hpp"
 
 namespace SZ {
 
