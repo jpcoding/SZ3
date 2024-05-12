@@ -15,7 +15,6 @@
 
 #include "SZ3/compressor/SZInterpCompressorHelp.hpp"
 // #include "SZ3/compressor/SZInterpolation_postprocess.hpp"
-#include "SZ3/postprocess/postprocess.hpp"
 #include "SZ3/postprocess/compensate_2d.hpp"
 #include "SZ3/postprocess/post_compensate_zero_quant.hpp"
 #include "SZ3/def.hpp"

@@ -1,5 +1,5 @@
-#ifndef SZ3_POSTPROCESS
-#define SZ3_POSTPROCESS
+#ifndef SZ3_ERROR_SMOOTHING_1D
+#define SZ3_ERROR_SMOOTHING_1D
 
 #include <algorithm>
 #include <array>
