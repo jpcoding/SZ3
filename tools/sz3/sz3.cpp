@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 #include "SZ3/api/sz.hpp"
+#include "SZ3/postprocess/Postprocess.hpp"
+#include "SZ3/utils/FileUtil.hpp"
 
 
 #define SZ_FLOAT 0
@@ -132,6 +134,7 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     SZ::readfile<T>(inPath, conf.num, data);
     size_t outSize;
     SZ::Timer timer(true);
+
     char *bytes = SZ_compress<T>(conf, data, outSize);
     double compress_time = timer.stop();
     char outputFilePath[1024];
@@ -142,8 +145,19 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     } else {
         strcpy(outputFilePath, cmpPath);
     }
-
     // postprocess module 
+
+    std::shared_ptr<std::vector<T>> decompressed_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
+
+
+    if(conf.N ==3 ) // only implement for 3D case
+    {  SZ::SZPostprocessor<T, 3> postprocessor; 
+        
+    std::cout << "exe abs eb = " << conf.absErrorBound << "\n";
+        postprocessor.post_process(decompressed_copy->data(), conf);
+    }
+
+
     SZ::writefile(outputFilePath, bytes, outSize);
 
     printf("[Compress]compression ratio = %.4f \n", conf.num * 1.0 * sizeof(T) / outSize);
@@ -151,12 +165,12 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     printf("[Compress]compressed data file = %s\n", outputFilePath);
 
     // vreify decompressed data at compression time
-    std::shared_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
-    // std::unique_ptr<std::vector<T>> data_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
+    // std::unique_ptr<std::vector<T>> decompressed_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
 
-    // std::cout << "address of aux quant inds = " << &((*(conf.PASS_DATA.aux_quant_inds_ptr))[0]) << std::endl;
+    SZ::verify<T>(data, decompressed_copy->data(), conf.num);
 
-    SZ::verify<T>(data, data_copy->data(), conf.num);
+    SZ::writefile("smoothed.dat", decompressed_copy->data(), conf.num);
+    SZ::writefile("aux_quant_com.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
 
 
 
@@ -175,6 +189,11 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
     SZ::Timer timer(true);
     T *decData = SZ_decompress<T>(conf, cmpData.get(), cmpSize);
     double compress_time = timer.stop();
+
+    if(conf.N ==3) // only implement for 3D case
+    {  SZ::SZPostprocessor<T, 3> postprocessor; 
+        postprocessor.post_process(decData, conf);
+    }
 
     char outputFilePath[1024];
     if (decPath == nullptr) {

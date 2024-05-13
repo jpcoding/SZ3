@@ -444,8 +444,8 @@ class SZInterpolationCompressor {
 
     // if(current_level ==1 && tuning == false)
     // {writefile("compressed.dat", data, num_elements);
-    //  writefile("quant_inds_pre.dat", (*aux_quant_inds_ptr).data(), num_elements);
-    // //  std::cout<<"max quant index = "<< *std::max_element((*aux_quant_inds_ptr).begin(), (*aux_quant_inds_ptr).end()) << std::endl;
+    //  writefile("quant_inds_pre.dat", aux_quant_inds_ptr->data(), num_elements);
+    // //  std::cout<<"max quant index = "<< *std::max_element(aux_quant_inds.begin(), aux_quant_inds.end()) << std::endl;
     // }
     
       
@@ -453,7 +453,7 @@ class SZInterpolationCompressor {
       // the structure is the same with block_interpolation
       // change the blocks_size large enough to process the whole dataset as one block
       // current implementation only process the level = 1 since we have the largest error bound there 
-      if(tuning == false && level == 1 && error_smoothing == 1 )
+      if(0&& tuning == false && level == 1 && error_smoothing == 1 )
       {
         // change blocksize to the whole dataset size
         int blocksize_copy = blocksize;
@@ -598,7 +598,7 @@ class SZInterpolationCompressor {
     // {
     //   std::cout << "3D post process" << std::endl;
     //   compensation_3d2(
-    //   data, (*aux_quant_inds_ptr).data(), conf.dims.data(), 0,quantizer.get_eb());
+    //   data, aux_quant_inds_ptr->data(), conf.dims.data(), 0,quantizer.get_eb());
     // }
 
     writefile("post_compressed.dat", data, num_elements);
@@ -622,7 +622,7 @@ class SZInterpolationCompressor {
 
 #ifdef SZ_ANALYSIS
     writefile("pred.dat", my_pred.data(), num_elements);
-    writefile("quant.dat", (*aux_quant_inds_ptr).data(), num_elements);
+    writefile("quant.dat", aux_quant_inds_ptr->data(), num_elements);
     writefile("quant_processed.dat", my_quant_inds_copy.data(), num_elements);
     writefile("decompressed.dat", data, num_elements);
     writefile("level.dat", my_level.data(), num_elements);
@@ -639,9 +639,9 @@ class SZInterpolationCompressor {
 
     // uchar *test_buffer = new uchar[bufferSize];
     // uchar *test_buffer_pos = test_buffer;
-    // huff_coding.preprocess_encode((*aux_quant_inds_ptr), 0);
+    // huff_coding.preprocess_encode(aux_quant_inds, 0);
     // huff_coding.save(test_buffer_pos);
-    // huff_coding.encode((*aux_quant_inds_ptr), test_buffer_pos);
+    // huff_coding.encode(aux_quant_inds, test_buffer_pos);
     // huff_coding.postprocess_encode();
     // size_t comsize = 0;
     // uchar *lossless_data2 =
@@ -721,7 +721,9 @@ class SZInterpolationCompressor {
     } while (std::next_permutation(sequence.begin(), sequence.end()));
 
     // post process utils 
-    // (*aux_quant_inds_ptr).resize(num_elements,0);
+    // aux_quant_inds.resize(num_elements,0);
+    // aux_quant_inds_ptr = std::make_shared<std::vector<int>>(aux_quant_inds.begin(), aux_quant_inds.end());
+
     aux_quant_inds_ptr = std::make_shared<std::vector<int>>(num_elements,0);
 
 #ifdef SZ_ANALYSIS

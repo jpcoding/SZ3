@@ -40,7 +40,7 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
 
 
 template<class T, SZ::uint N>
-void SZ_decompress_Interp(const SZ::Config &conf, char *cmpData, size_t cmpSize, T *decData) {
+void SZ_decompress_Interp(SZ::Config &conf, char *cmpData, size_t cmpSize, T *decData) {
     assert(conf.cmprAlgo == SZ::ALGO_INTERP);
     SZ::uchar const *cmpDataPos = (SZ::uchar *) cmpData;
     auto sz = SZ::SZInterpolationCompressor<T, N, SZ::LinearQuantizer<T>, SZ::HuffmanEncoder<int>, SZ::Lossless_zstd>(
@@ -48,6 +48,7 @@ void SZ_decompress_Interp(const SZ::Config &conf, char *cmpData, size_t cmpSize,
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
     sz.decompress(cmpDataPos, cmpSize, decData);
+    conf.PASS_DATA.aux_quant_inds_ptr = sz.get_aux_quant_inds_ptr();
 }
 
 
