@@ -112,7 +112,7 @@ class SZPostprocessor {
     level_ebs[0] = quantizer.get_eb(); 
     std::cout << "quantizer.get_eb() = " << quantizer.get_eb() << std::endl; 
     for (int i = 1; i < interpolation_level; i++) {
-      level_ebs[i] = level_ebs[i - 1] / eb_factors[0];
+      level_ebs[i] = level_ebs[i - 1] / eb_factors[1];
       std::cout<<"level_ebs["<<i+1<<"] = "<<level_ebs[i]<<std::endl;
     }
   }

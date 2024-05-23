@@ -84,6 +84,13 @@ namespace SZ {
                 ++(*this);
                 return cpy;
             }
+            
+            inline multi_dimensional_iterator &operator+=(size_t step) {
+                for(size_t j = 0; j < step; ++j) {
+                    this->operator++();
+                }
+                return *this;
+            }
 
             pointer operator->() {
                 return range->data[global_offset];

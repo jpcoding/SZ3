@@ -39,7 +39,8 @@ namespace SZ {
     }
 
     template<class T>
-    inline T interp_cubic(T a, T b, T c, T d) {
+    inline T interp_cubic(T a, T b, T c, T d, bool use_natural = 0) {
+        if(use_natural) return(-3 * a+23 * b + 23 * c - 3*d) / 40;
         return (-a + 9 * b + 9 * c - d) / 16;
     }
 

@@ -120,25 +120,14 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
             }
         }
 
-        // int direction_op = SZ::factorial(N) - 1;
-        int direction_op = 0;
-
-        for (int i = 0; i< SZ::factorial(N) - 1; i++)
-        {
-            ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
-                                                                     conf.interpAlgo, i, sampling_block);
-            if (ratio > best_interp_ratio *1.02) {
+        int direction_op = SZ::factorial((int)N) - 1;
+        ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
+                                                                     conf.interpAlgo, direction_op, sampling_block);
+        if (ratio > best_interp_ratio * 1.02) {
                 best_interp_ratio = ratio;
-                direction_op = i;
-            }
+                conf.interpDirection = direction_op;
         }
-        conf.interpDirection = direction_op;
-        // ratio = do_not_use_this_interp_compress_block_test<T, N>(sampling_data.data(), sample_dims, sampling_num, conf.absErrorBound,
-        //                                                          conf.interpAlgo, direction_op, sampling_block);
-        // if (ratio > best_interp_ratio * 1.02) {
-        //     best_interp_ratio = ratio;
-        //     conf.interpDirection = direction_op;
-        // }
+
         std::cout << "choose direction = "<< direction_op << std::endl;
         std::cout << "choose interp = "<< SZ::INTERP_ALGO_STR[conf.interpAlgo] << std::endl;
 
@@ -188,6 +177,9 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
 
 
 }
+
+
+
 
 template<class T, SZ::uint N>
 char *SZ_compress_Interp___(SZ::Config &conf, T *data, size_t &outSize, bool opt = 1)

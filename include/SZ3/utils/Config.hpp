@@ -197,7 +197,9 @@ namespace SZ {
             compress_error = cfg.GetBoolean("ArtifactSettings", "compress_error", compress_error);
             
             post_process_on = cfg.GetBoolean("ArtifactSettings", "post_process_on", post_process_on);
-        
+            corss_block_cubic = cfg.GetBoolean("ArtifactSettings", "corss_block_cubic", corss_block_cubic);
+            use_natural_cubic = cfg.GetBoolean("ArtifactSettings", "use_natural_cubic", use_natural_cubic);
+            eb_factor = cfg.GetReal("ArtifactSettings", "eb_factor", eb_factor);
         }
 
 
@@ -362,6 +364,14 @@ namespace SZ {
         bool compress_error = false;
 
         bool post_process_on = false;
+        bool corss_block_cubic = false; 
+        bool use_natural_cubic = false;
+
+        double eb_factor = 2.0;
+
+        std::vector<int> level_dirctions; 
+        std::vector<double> level_eb_factors; 
+
 
         // for passing data through the workflow that has a config object 
         struct PASS_DATA{
