@@ -148,9 +148,9 @@ namespace SZ {
         printf("Max absolute error = %.2G\n", max_diff);
         printf("Max relative error = %.2G\n", max_diff / (Max - Min));
         printf("Max pw relative error = %.2G\n", maxpw_relerr);
-        printf("PSNR = %f, NRMSE= %.10G\n", psnr, nrmse);
-        printf("normError = %f, normErr_norm = %f\n", normErr, normErr_norm);
-        printf("acEff=%f\n", acEff);
+        printf("PSNR = %.6f, NRMSE= %.10G\n", psnr, nrmse);
+        printf("normError = %.6f, normErr_norm = %.6f\n", normErr, normErr_norm);
+        printf("acEff=%.6f\n", acEff);
 //        printf("errAutoCorr=%.10f\n", autocorrelation1DLag1<double>(diff, num_elements, diff_sum / num_elements));
         free(diff);
     }
