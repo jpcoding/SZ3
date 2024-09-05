@@ -83,7 +83,7 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
 
     char *cmpData;
     auto quantizer = SZ::LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2);
-    if (N == 3 && !conf.regression2 && 0) {
+    if (N == 3 && !conf.regression2) {
         // use fast version for 3D
         auto sz = SZ::make_sz_general_compressor<T, N>(SZ::make_sz_fast_frontend<T, N>(conf, quantizer), SZ::HuffmanEncoder<int>(),
                                                        SZ::Lossless_zstd());
@@ -102,7 +102,7 @@ void SZ_decompress_LorenzoReg(const SZ::Config &conf, char *cmpData, size_t cmpS
 
     SZ::uchar const *cmpDataPos = (SZ::uchar *) cmpData;
     SZ::LinearQuantizer<T> quantizer;
-    if (N == 3 && !conf.regression2) {
+    if (N == 3 && !conf.regression2 ) {
         // use fast version for 3D
         auto sz = SZ::make_sz_general_compressor<T, N>(SZ::make_sz_fast_frontend<T, N>(conf, quantizer),
                                                        SZ::HuffmanEncoder<int>(), SZ::Lossless_zstd());
@@ -112,6 +112,7 @@ void SZ_decompress_LorenzoReg(const SZ::Config &conf, char *cmpData, size_t cmpS
     } else {
         auto sz = make_lorenzo_regression_compressor<T, N>(conf, quantizer, SZ::HuffmanEncoder<int>(), SZ::Lossless_zstd());
         sz->decompress(cmpDataPos, cmpSize, decData);
+        // std::cout << "decompress done" << std::endl;
         return;
     }
 

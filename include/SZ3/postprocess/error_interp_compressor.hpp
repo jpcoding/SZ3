@@ -480,8 +480,8 @@ class SZErrorInterpolationCompressor {
     for (int i = N - 2; i >= 0; i--) {
       dimension_offsets[i] =
           dimension_offsets[i + 1] * global_dimensions[i + 1];
-      std::cout << "dimension_offsets[" << i << "] = " << dimension_offsets[i]
-                << std::endl;
+      // std::cout << "dimension_offsets[" << i << "] = " << dimension_offsets[i]
+      //           << std::endl;
     }
 
     dimension_sequences = std::vector<std::array<int, N>>();

@@ -141,6 +141,7 @@ class SZInterpolationCompressor {
     lossless.postdecompress_data(buffer);
     
     double eb_input = quantizer.get_eb();
+    double eb = eb_input; 
     double eb_final;
     // double eb_reduction_factor;
     if (interpolator_id == 0) {
@@ -167,11 +168,11 @@ class SZInterpolationCompressor {
 
     for (uint level = interpolation_level;
          level > 0 && level <= interpolation_level; level--) {
-      // if (level >= 3) {
-      //     quantizer.set_eb(eb * eb_ratio);
-      // } else {
-      //     quantizer.set_eb(eb);
-      // }
+      if (level >= 3) {
+          quantizer.set_eb(eb * eb_ratio);
+      } else {
+          quantizer.set_eb(eb);
+      }
 
       // direction_sequence_id = direction_choice(mt);
       // std::cout << "direction_sequence_id = " << direction_sequence_id <<
@@ -185,8 +186,8 @@ class SZInterpolationCompressor {
       // current_base_eb = eb_final;
       // quantizer.set_eb(eb_final);
       // eb_final *= eb_reduction_factor;
-      quantizer.set_eb(level_abs_ebs[level-1]);
-            std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
+      // quantizer.set_eb(level_abs_ebs[level-1]);
+      // std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
 
 
 
@@ -403,11 +404,11 @@ class SZInterpolationCompressor {
       //     std::cout << dimension_sequences[direction_sequence_id][i] << " ";
       // }
       // std::cout << std::endl;
-      // if (level >= 3) {
-      //     quantizer.set_eb(eb_input * eb_ratio);
-      // } else {
-      //     quantizer.set_eb(eb_input);
-      // }
+      if (level >= 3) {
+          quantizer.set_eb(eb_input * eb_ratio);
+      } else {
+          quantizer.set_eb(eb_input);
+      }
      
       
       current_level = level;
@@ -415,7 +416,7 @@ class SZInterpolationCompressor {
       // quantizer.set_eb(eb_final);
       // eb_final *= eb_reduction_factor;
 
-      quantizer.set_eb(level_abs_ebs[level-1]);
+      // quantizer.set_eb(level_abs_ebs[level-1]);
       // std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
 
       // linear increase 
@@ -742,8 +743,8 @@ class SZInterpolationCompressor {
     for (int i = N - 2; i >= 0; i--) {
       dimension_offsets[i] =
           dimension_offsets[i + 1] * global_dimensions[i + 1];
-      std::cout << "dimension_offsets[" << i << "] = " << dimension_offsets[i]
-                << std::endl;
+      // std::cout << "dimension_offsets[" << i << "] = " << dimension_offsets[i]
+      //           << std::endl;
     }
 
     dimension_sequences = std::vector<std::array<int, N>>();
@@ -781,6 +782,7 @@ class SZInterpolationCompressor {
     my_pred_noise.resize(num_elements, 0);
     my_interp_direction.resize(num_elements, 0);
     my_compensation_label.resize(num_elements, 0);
+    my_interpolators.resize(num_elements, 0);
 #endif
 
   }
@@ -1854,6 +1856,7 @@ std::vector<int> order_idx;
   std::vector<int> my_interp_direction;
   int my_current_interp_direction = 0;
   std::vector<int> my_compensation_label;
+  std::vector<int> my_interpolators; 
 
 #endif
 };

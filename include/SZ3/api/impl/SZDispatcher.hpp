@@ -33,6 +33,7 @@ template<class T, SZ::uint N>
 void SZ_decompress_dispatcher(SZ::Config &conf, char *cmpData, size_t cmpSize, T *decData) {
     if (conf.cmprAlgo == SZ::ALGO_LORENZO_REG) {
         SZ_decompress_LorenzoReg<T, N>(conf, cmpData, cmpSize, decData);
+        std::cout << "out of dispatcher of decompression\n";
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP) {
         SZ_decompress_Interp<T, N>(conf, cmpData, cmpSize, decData);
     } else {

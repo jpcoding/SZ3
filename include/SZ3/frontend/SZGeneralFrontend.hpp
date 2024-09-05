@@ -79,7 +79,7 @@ namespace SZ {
             writefile("quant.dat", my_quant_inds.data(), num_elements);
             writefile("decompressed.dat", data, num_elements);
             #endif
-        if(N==3)
+        if(0&& N==3)
         {
         std::cout << "3D post process" << std::endl;
         // compensation_3d_(
@@ -118,7 +118,7 @@ namespace SZ {
                 for (auto element = element_range->begin(); element != element_range->end(); ++element) {
                     *element = quantizer.recover(predictor_withfallback->predict(element), *(quant_inds_pos++));
                 }
-            }
+            }            
             predictor.postdecompress_data(block_range->begin());
             quantizer.postdecompress_data();
             return dec_data;
