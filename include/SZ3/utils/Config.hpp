@@ -357,7 +357,7 @@ namespace SZ {
         double region_error_control_eb_compensation = 0.5;
 
         bool quantization_prediction_on = 1;
-        int quantization_prediction_start_level = 3; 
+        int quantization_prediction_start_level = 2; 
 
         bool error_smoothing = 1;
 

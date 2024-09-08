@@ -351,8 +351,6 @@ namespace SZ {
             memcpy(c, unpred_idx.data(), unpred_idx.size() * sizeof(size_t));
             c += unpred_idx.size() * sizeof(size_t);
 
-            std::cout << "unpred size" << unpred.size() << std::endl;
-
 
         };
 

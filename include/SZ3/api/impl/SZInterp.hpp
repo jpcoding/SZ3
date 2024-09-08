@@ -83,6 +83,9 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
 
     SZ::calAbsErrorBound(conf, data);
 
+    auto original_state_of_quant_pred = conf.quantization_prediction_on; 
+    conf.quantization_prediction_on = 0;
+
     size_t sampling_num, sampling_block;
     std::vector<size_t> sample_dims(N);
     std::vector<T> sampling_data = SZ::sampling<T, N>(data, conf.dims, sampling_num, sample_dims, sampling_block);
@@ -101,6 +104,7 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
         lorenzo_config.regression2 = false;
         lorenzo_config.openmp = false;
         lorenzo_config.blockSize = 5;
+        lorenzo_config.quantization_prediction_on = 0; 
 //        lorenzo_config.quantbinCnt = 65536 * 2;
         std::vector<T> data1(sampling_data);
         cmprData = SZ_compress_LorenzoReg<T, N>(lorenzo_config, data1.data(), sampleOutSize);
@@ -134,8 +138,8 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
     }
 
     bool useInterp = !(best_lorenzo_ratio > best_interp_ratio && best_lorenzo_ratio < 80 && best_interp_ratio < 80);
-
     if (useInterp) {
+        conf.quantization_prediction_on = original_state_of_quant_pred;
         conf.cmprAlgo = SZ::ALGO_INTERP;
         double tuning_time = timer.stop();
         return SZ_compress_Interp<T, N>(conf, data, outSize);

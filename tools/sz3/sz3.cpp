@@ -172,12 +172,12 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     // vreify decompressed data at compression time
     // std::unique_ptr<std::vector<T>> decompressed_copy = std::static_pointer_cast<std::vector<T>>(conf.PASS_DATA.processed_data_prt);
 
-    SZ::verify<T>(data, decompressed_copy->data(), conf.num);
+    // SZ::verify<T>(data, decompressed_copy->data(), conf.num);
 
     // SZ::writefile("smoothed.dat", decompressed_copy->data(), conf.num);
     // SZ::writefile("aux_quant_com.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
-    SZ::writefile("post_compressed.dat", decompressed_copy->data(), decompressed_copy->size());
-    SZ::writefile("quant_inds.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
+    // SZ::writefile("post_compressed.dat", decompressed_copy->data(), decompressed_copy->size());
+    // SZ::writefile("quant_inds.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
 
 
 
@@ -202,7 +202,7 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
     {  SZ::SZPostprocessor<T, 3> postprocessor; 
         postprocessor.post_process(decData, conf);
     }
-    SZ::writefile("quant_inds_de.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
+    // SZ::writefile("quant_inds_de.i32", conf.PASS_DATA.aux_quant_inds_ptr->data(), conf.num);
 
 
     char outputFilePath[1024];
