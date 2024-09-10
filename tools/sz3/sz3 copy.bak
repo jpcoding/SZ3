@@ -62,6 +62,32 @@ Regression2ndOrder = No
 QuantizationBinTotal = 65536
 
 [ArtifactSettings]
+## Choose from BLOCK_MAX VARIANCE RANGE
+block_sift_mode=RANGE
+block_sift_on=0
+block_flush_on=0
+block_iso_on=0
+pattern_check_on=0
+#block_isovalue=81.66
+noise_rate=0.1
+DetectionBlockSize=4
+block_diff_thresh=0.1
+block_diff_on=0
+use_stochastic_quantize=0
+use_stochastic_decompress=0
+use_stochastic_predict=0
+Noise_rate=0.4
+use_stochastic_eb=0
+normal_mean=0
+normal_std=0.1
+uniform_lower=0.0
+bernoulli_p=0.5
+##Post processing
+block_noise_rng_threshold=1e-3
+block_noise_rng_on=0
+region_error_on=0
+region_error_control_on=0
+regional_error_block_size=4
 quantization_prediction_on=1
 quantization_prediction_start_level=2
 
