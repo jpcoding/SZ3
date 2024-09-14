@@ -41,9 +41,9 @@
 
 namespace SZ {
 template <class T, uint N, class Quantizer, class Encoder, class Lossless>
-class SZInterpolationCompressor {
+class SZInterpolationCompressorPred {
  public:
-  SZInterpolationCompressor(
+  SZInterpolationCompressorPred(
       Quantizer quantizer, Encoder encoder, Lossless lossless) :
       quantizer(quantizer), encoder(encoder), lossless(lossless)
   {
