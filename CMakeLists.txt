@@ -3,6 +3,13 @@ project(SZ3 VERSION 3.1.8)
 include(GNUInstallDirs)
 include(CTest)
 
+
+option(SZ_ANALYSIS "SZ analysis tools: give level, quant, pred data. cmake -D SZ_ANALYSIS=ON" OFF)
+if (SZ_ANALYSIS)
+  add_compile_definitions(-DSZ_ANALYSIS)
+endif()
+
+
 option(BUILD_SHARED_LIBS "build shared libraries by default" ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if (MSVC)
