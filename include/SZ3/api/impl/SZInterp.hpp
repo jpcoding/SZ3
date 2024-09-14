@@ -2,6 +2,7 @@
 #define SZ3_SZINTERP_HPP
 
 #include "SZ3/compressor/SZInterpolationCompressor.hpp"
+#include "SZ3/compressor/SZInterpolationCompressorOPT.hpp"
 #include "SZ3/compressor/deprecated/SZBlockInterpolationCompressor.hpp"
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
 #include "SZ3/lossless/Lossless_zstd.hpp"
@@ -22,13 +23,24 @@ namespace SZ3 {
         assert(N == conf.N);
         assert(conf.cmprAlgo == ALGO_INTERP);
         calAbsErrorBound(conf, data);
+        if(conf.use_opt == true)
+        {
+            auto sz = SZInterpolationCompressorOPT<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+            LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
+            HuffmanEncoder<int>(),
+            Lossless_zstd());
+            char *cmpData = (char *) sz.compress(conf, data, outSize);
+            return cmpData;
 
-        auto sz = SZInterpolationCompressor<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
-                LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
-                HuffmanEncoder<int>(),
-                Lossless_zstd());
-        char *cmpData = (char *) sz.compress(conf, data, outSize);
-        return cmpData;
+        }
+        else{
+            auto sz = SZInterpolationCompressor<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+                    LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
+                    HuffmanEncoder<int>(),
+                    Lossless_zstd());
+            char *cmpData = (char *) sz.compress(conf, data, outSize);
+            return cmpData;
+        }
     }
 
 
@@ -36,11 +48,21 @@ namespace SZ3 {
     void SZ_decompress_Interp(const Config &conf, char *cmpData, size_t cmpSize, T *decData) {
         assert(conf.cmprAlgo == ALGO_INTERP);
         uchar const *cmpDataPos = (uchar *) cmpData;
+        if(conf.use_opt == true)
+        {
+            auto sz = SZInterpolationCompressorOPT<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+            LinearQuantizer<T>(),
+            HuffmanEncoder<int>(),
+            Lossless_zstd());
+            sz.decompress(cmpDataPos, cmpSize, decData);
+        }
+        else{
         auto sz = SZInterpolationCompressor<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
                 LinearQuantizer<T>(),
                 HuffmanEncoder<int>(),
                 Lossless_zstd());
         sz.decompress(cmpDataPos, cmpSize, decData);
+        }
     }
 
 

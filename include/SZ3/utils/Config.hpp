@@ -119,7 +119,19 @@ namespace SZ3 {
             interpBlockSize = cfg.GetInteger("AlgoSettings", "InterpolationBlockSize", interpBlockSize);
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
+            use_opt = cfg.GetBoolean("AlgoSettings", "use_opt", use_opt);
 
+
+            quantization_prediction_on = cfg.GetBoolean("ArtifactSettings", "quantization_prediction_on", quantization_prediction_on);
+            quantization_prediction_start_level = cfg.GetInteger("ArtifactSettings", "quantization_prediction_start_level", quantization_prediction_start_level);
+            error_smoothing = cfg.GetBoolean("ArtifactSettings", "error_smoothing", error_smoothing);
+            compress_error = cfg.GetBoolean("ArtifactSettings", "compress_error", compress_error);
+            
+            post_process_on = cfg.GetBoolean("ArtifactSettings", "post_process_on", post_process_on);
+            corss_block_cubic = cfg.GetBoolean("ArtifactSettings", "corss_block_cubic", corss_block_cubic);
+            use_natural_cubic = cfg.GetBoolean("ArtifactSettings", "use_natural_cubic", use_natural_cubic);
+            eb_factor = cfg.GetReal("ArtifactSettings", "eb_factor", eb_factor);
+  
 
         }
 
@@ -204,6 +216,20 @@ namespace SZ3 {
         int blockSize = 0;
         int stride = 0;//not used now
         int pred_dim = 0; // not used now
+        bool use_opt= 1; 
+
+
+        bool quantization_prediction_on = 0;
+        int quantization_prediction_start_level = 2; 
+        bool error_smoothing = 1;
+        bool compress_error = false;
+        bool post_process_on = false;
+        bool corss_block_cubic = false; 
+        bool use_natural_cubic = false;
+        double eb_factor = 2.0;
+        std::vector<int> level_dirctions; 
+        std::vector<double> level_eb_factors; 
+
 
     };
 
