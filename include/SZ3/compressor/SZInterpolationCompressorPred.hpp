@@ -396,17 +396,7 @@ class SZInterpolationCompressorPred{
     int F = idx - offset1;
     int G = idx - offset2 * 2;
     int H = idx - offset2;
-    if ((*aux_quant_inds_ptr)[E] == INT_MIN || (*aux_quant_inds_ptr)[F] == INT_MIN ||
-        (*aux_quant_inds_ptr)[H] == INT_MIN) {
-        std::cout << "idx = " << idx << std::endl;
-        std::cout << "current_level = " << current_level << std::endl;
-        std::cout << "offset1 = " << offset1 << std::endl;
-        std::cout << "offset2 = " << offset2 << std::endl;
-        std::cout << "E = " << E << std::endl;
-        exit(0);
-      return 0;
-    }
-
+    
     if ((*aux_quant_inds_ptr)[E] == 0 || (*aux_quant_inds_ptr)[F] == 0 ||
         (*aux_quant_inds_ptr)[H] == 0) {
       return 0;
