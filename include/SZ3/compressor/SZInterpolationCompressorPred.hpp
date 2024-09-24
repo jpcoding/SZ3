@@ -132,7 +132,7 @@ class SZInterpolationCompressorPred{
 
     }
     quantizer.postdecompress_data();
-    writefile("quant_de.dat", aux_quant_inds_ptr->data(), num_elements);
+    // writefile("quant_de.dat", aux_quant_inds_ptr->data(), num_elements);
 
 
     return decData;
@@ -354,7 +354,7 @@ class SZInterpolationCompressorPred{
     // aux_quant_inds_ptr = std::make_shared<std::vector<int>>(aux_quant_inds.begin(), aux_quant_inds.end());
 
     aux_quant_inds_ptr = std::make_shared<std::vector<int>>();
-    if(quant_pred_on == true) aux_quant_inds_ptr->resize(num_elements, INT_MIN);
+    if(quant_pred_on == true) aux_quant_inds_ptr->resize(num_elements, 0);
 
     
 

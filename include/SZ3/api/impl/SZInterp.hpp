@@ -3,6 +3,7 @@
 
 #include "SZ3/compressor/SZInterpolationCompressor.hpp"
 #include "SZ3/compressor/SZInterpolationCompressorOPT.hpp"
+#include "SZ3/compressor/SZInterpolationCompressorOPTPred.hpp"
 #include "SZ3/compressor/SZInterpolationCompressorPred.hpp"
 #include "SZ3/compressor/deprecated/SZBlockInterpolationCompressor.hpp"
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
@@ -24,14 +25,26 @@ namespace SZ3 {
         assert(N == conf.N);
         assert(conf.cmprAlgo == ALGO_INTERP);
         calAbsErrorBound(conf, data);
+        std::cout << "quant pred on " << (int) conf.quantization_prediction_on << std::endl;
+
         if(conf.use_opt == true)
         {
+            if(conf.quantization_prediction_on == true){
+            auto sz = SZInterpolationCompressorOPTPred<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+            LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
+            HuffmanEncoder<int>(),
+            Lossless_zstd());
+            char *cmpData = (char *) sz.compress(conf, data, outSize);
+            return cmpData;
+            }
+            else {
             auto sz = SZInterpolationCompressorOPT<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
             LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
             HuffmanEncoder<int>(),
             Lossless_zstd());
             char *cmpData = (char *) sz.compress(conf, data, outSize);
             return cmpData;
+            }
 
         }
         else{
@@ -45,7 +58,7 @@ namespace SZ3 {
                 return cmpData;
             }
             else{
-            auto sz = SZInterpolationCompressorPred<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+            auto sz = SZInterpolationCompressor<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
                     LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2),
                     HuffmanEncoder<int>(),
                     Lossless_zstd());
@@ -60,13 +73,24 @@ namespace SZ3 {
     void SZ_decompress_Interp(const Config &conf, char *cmpData, size_t cmpSize, T *decData) {
         assert(conf.cmprAlgo == ALGO_INTERP);
         uchar const *cmpDataPos = (uchar *) cmpData;
+        std::cout << "quant pred on " << (int) conf.quantization_prediction_on << std::endl;
         if(conf.use_opt == true)
         {
+            if(conf.quantization_prediction_on == true)
+            {
+                auto sz = SZInterpolationCompressorOPTPred<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
+                LinearQuantizer<T>(),
+                HuffmanEncoder<int>(),
+                Lossless_zstd());
+                sz.decompress(cmpDataPos, cmpSize, decData);
+            }
+            else{
             auto sz = SZInterpolationCompressorOPT<T, N, LinearQuantizer<T>, HuffmanEncoder<int>, Lossless_zstd>(
             LinearQuantizer<T>(),
             HuffmanEncoder<int>(),
             Lossless_zstd());
             sz.decompress(cmpDataPos, cmpSize, decData);
+            }
         }
         else{
             if(conf.quantization_prediction_on == true)

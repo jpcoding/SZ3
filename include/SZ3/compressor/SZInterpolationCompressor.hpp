@@ -50,6 +50,8 @@ namespace SZ3 {
             read(direction_sequence_id, buffer_pos, remaining_length);
 
             init();
+            // auto timer = SZ3::Timer();
+            // timer.start();
 
             quantizer.load(buffer_pos, remaining_length);
             encoder.load(buffer_pos, remaining_length);
@@ -58,9 +60,12 @@ namespace SZ3 {
             encoder.postprocess_decode();
 
             lossless.postdecompress_data(buffer);
+            // std::cout << " load time = " << timer.stop() << std::endl;
             double eb = quantizer.get_eb();
 
             *decData = quantizer.recover(0, quant_inds[quant_index++]);
+
+            // timer.start();
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
                 if (level >= 3) {
@@ -89,7 +94,7 @@ namespace SZ3 {
                 }
             }
             quantizer.postdecompress_data();
-//            timer.stop("Interpolation Decompress");
+            // std::cout <<" decompression loop = " <<timer.stop("Interpolation Decompress") << std::endl;
 
             return decData;
         }
@@ -143,6 +148,7 @@ namespace SZ3 {
                 }
             }
             assert(quant_inds.size() == num_elements);
+            // std::cout << "compression loop " << timer.stop("Interpolation Compress") << std::endl;
 //            timer.stop("Prediction & Quantization");
 
 //            writefile("pred.dat", preds.data(), num_elements);
