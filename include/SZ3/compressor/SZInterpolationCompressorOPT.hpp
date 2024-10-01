@@ -203,6 +203,8 @@ class SZInterpolationCompressorOPT{
 
   uchar *compress(const Config &conf, T *data, size_t &compressed_size, bool tuning = false)
   {
+    auto compress_timer = SZ3::Timer(); 
+    compress_timer.start();
     std::copy_n(conf.dims.begin(), N, global_dimensions.begin());
     blocksize = conf.interpBlockSize;
     interpolator_id = conf.interpAlgo;
@@ -370,7 +372,7 @@ class SZInterpolationCompressorOPT{
 
     }
 
-    // std::cout << "compression loop = " << timer.stop() << std::endl;
+    std::cout << "compression loop = " << timer.stop() << std::endl;
 
     assert(quant_inds.size() <= num_elements);
 
@@ -438,7 +440,6 @@ class SZInterpolationCompressorOPT{
     // }
     // std::cout << "post_process_tags size = " << post_process_tags.size() << "\n"; 
     // std::cout << "buffer pos = " << buffer_pos - buffer << "\n";
-    if(tuning == false) quantizer.print();
     quantizer.save(buffer_pos);
     quantizer.postcompress_data();
 
@@ -446,7 +447,7 @@ class SZInterpolationCompressorOPT{
     encoder.save(buffer_pos);
     encoder.encode(quant_inds, buffer_pos);
     encoder.postprocess_encode();
-    //            timer.stop("Coding");
+    std::cout << "huffman encoding " << timer.stop("Coding") << std::endl;
     assert(buffer_pos - buffer < bufferSize);
     
     // writefile("compressed.dat",data, num_elements);
@@ -468,7 +469,7 @@ class SZInterpolationCompressorOPT{
     //   compressed_size += compressed_error_size + sizeof(compressed_error_size); 
     //   // std::memcpy(buffer_pos, compressed_error, compressed_error_size);
     // }
-    //            timer.stop("Lossless");
+    std::cout << "lossless time " << timer.stop("Lossless") << std::endl;
 
     lossless.postcompress_data(buffer);
 
@@ -537,7 +538,9 @@ class SZInterpolationCompressorOPT{
 #endif
 
     compressed_size += interp_compressed_size;
+    std::cout << "compression time " << compress_timer.stop() << std::endl;
     return lossless_data;
+
   }
 
   std::shared_ptr<std::vector<int>> get_aux_quant_inds_ptr()
@@ -614,58 +617,29 @@ class SZInterpolationCompressorOPT{
   }
 
   inline int backward_compensate_pred(
-      size_t idx, size_t offset1, size_t offset2, T &pred,
-      const double compensation)
+      size_t idx, size_t offset1, size_t offset2)
   {
-    // return 0;
-    // compensation = ? * eb; 0.5, 1.1, 1.5, 2
-    //    0   1  2
-    // 0 *A  *B *C
-    // 1 *D  *E *F
-    // 2 *G  *H  X
-    // one layer is enough
-    int A = idx - offset1 * 2 - offset2 * 2;
-    int B = idx - offset1 * 2 - offset2;
-    int C = idx - offset1 * 2;
-    int D = idx - offset1 - offset2 * 2;
     int E = idx - offset1 - offset2;
     int F = idx - offset1;
-    int G = idx - offset2 * 2;
     int H = idx - offset2;
     if ((*aux_quant_inds_ptr)[E] == 0 || (*aux_quant_inds_ptr)[F] == 0 ||
         (*aux_quant_inds_ptr)[H] == 0) {
       return 0;
     }
-    // int quant_A = (*aux_quant_inds_ptr)[A] - quantizer.get_radius();
-    // int quant_B = (*aux_quant_inds_ptr)[B] - quantizer.get_radius();
-    // int quant_C = (*aux_quant_inds_ptr)[C] - quantizer.get_radius();
-    // int quant_D = (*aux_quant_inds_ptr)[D] - quantizer.get_radius(); // be cautious about out-of-bound access
-    int quant_E = (*aux_quant_inds_ptr)[E] - quantizer.get_radius();
-    int quant_F = (*aux_quant_inds_ptr)[F] - quantizer.get_radius();
-    // int quant_G = (*aux_quant_inds_ptr)[G] - quantizer.get_radius();
-    int quant_H = (*aux_quant_inds_ptr)[H] - quantizer.get_radius();
-
+    int quant_E = (*aux_quant_inds_ptr)[E];
+    int quant_F = (*aux_quant_inds_ptr)[F];
+    int quant_H = (*aux_quant_inds_ptr)[H];
     int quant_compensate = 0;
-    if (quant_H > 0 && quant_F > 0) {
-      quant_compensate = (quant_H + quant_F - quant_E);
-      pred += quant_compensate * compensation;
-      // if(quant_E <0)
-      // {
-        // pred -= quantizer.get_eb()*0.5;
-      // }
+    if (quant_H > quantizer.get_radius()  && quant_F > quantizer.get_radius() ) {
+      return quant_F + quant_H - quant_E -  quantizer.get_radius();
+
     }
-    else if (quant_H < 0 && quant_F < 0) {
-      quant_compensate = (quant_H + quant_F - quant_E);
-      pred+= quant_compensate * compensation;
-      // if(quant_E >0)
-      // {
-        // pred += quantizer.get_eb()*0.5;
-      // }
+    else if (quant_H < quantizer.get_radius()  && quant_F < quantizer.get_radius()) {
+      return quant_F + quant_H - quant_E -  quantizer.get_radius();
     }
     else {
       return 0;
     }
-    return quant_compensate;
   }
 
 
@@ -682,27 +656,23 @@ class SZInterpolationCompressorOPT{
   }
 
 
-  inline void quant_pred_quantize(size_t idx, T &d, T &pred, size_t offset1, size_t offset2,  bool quant_record)
+  inline int quant_pred_quantize(size_t idx, T &d, T &pred, size_t offset1, size_t offset2,  bool quant_record)
   {
     int quant_compensation = 0;
+    quantize(idx, d, pred);
+    (*aux_quant_inds_ptr)[idx] = quant_inds.back();
+
+    // if(quant_inds.back()==0)
+    // {
+    //   return 0;
+    // }
+
     if(quant_record == false) 
     {
-    double compensation =
-                region_error_control_eb_compensation * quantizer.get_eb();
-    quant_compensation = backward_compensate_pred(
-        idx, offset1, offset2, pred, compensation);
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds.back() = quant_inds.back() - quant_compensation;
     }
-    
-    quantize(idx, d, pred);
-
-    if(quant_inds.back()==0)
-    {
-      (*aux_quant_inds_ptr)[idx] = 0;
-    }
-    else {
-      (*aux_quant_inds_ptr)[idx] = quant_inds.back() + quant_compensation;
-    }
-    
+    return 0;
   }
 
   inline void recover(size_t idx, T &d, T pred)
@@ -711,26 +681,21 @@ class SZInterpolationCompressorOPT{
   };
 
 
-  inline void quant_pred_recover(size_t idx, T &d, T pred,size_t offset1, size_t offset2,  bool quant_record)
-  {
-    int quant_compensation = 0;
-    if(quant_record == false)
-    {double  compensation =
-                region_error_control_eb_compensation * quantizer.get_eb();
-    quant_compensation = backward_compensate_pred(
-        idx, offset1, offset2, pred, compensation); 
-    }
-
-    recover(idx, d, pred);
-
-    if(quant_inds[quant_index-1]==0)
+  inline int quant_pred_recover(size_t idx, T &d, T pred,size_t offset1, size_t offset2,  bool quant_record)
+  { 
+    int quant_compensation = 0; 
+    if(quant_record == false) 
     {
-      (*aux_quant_inds_ptr)[idx] = 0;
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds[quant_index] = quant_inds[quant_index] + quant_compensation;
     }
-    else {
-      (*aux_quant_inds_ptr)[idx] = quant_inds[quant_index-1] + quant_compensation;
-    }
+    recover(idx, d, pred);
+    aux_quant_inds_ptr->at(idx) = quant_inds[quant_index]; 
+    return 0;
   }
+
+
+
 
   double block_interpolation_1d(T *data, size_t begin, size_t end, size_t stride,
                                 const std::string &interp_func,

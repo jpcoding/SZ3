@@ -48,9 +48,10 @@ namespace SZ3 {
             read(blocksize, buffer_pos, remaining_length);
             read(interpolator_id, buffer_pos, remaining_length);
             read(direction_sequence_id, buffer_pos, remaining_length);
+            std::cout << "direction = " << direction_sequence_id << std::endl;
 
             init();
-            // auto timer = SZ3::Timer();
+            auto timer = SZ3::Timer();
             // timer.start();
 
             quantizer.load(buffer_pos, remaining_length);
@@ -65,7 +66,7 @@ namespace SZ3 {
 
             *decData = quantizer.recover(0, quant_inds[quant_index++]);
 
-            // timer.start();
+            timer.start();
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
                 if (level >= 3) {
@@ -94,7 +95,6 @@ namespace SZ3 {
                 }
             }
             quantizer.postdecompress_data();
-            // std::cout <<" decompression loop = " <<timer.stop("Interpolation Decompress") << std::endl;
 
             return decData;
         }

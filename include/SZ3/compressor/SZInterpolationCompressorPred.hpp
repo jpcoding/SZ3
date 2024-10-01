@@ -66,6 +66,8 @@ class SZInterpolationCompressorPred{
     read(blocksize, buffer_pos, remaining_length);
     read(interpolator_id, buffer_pos, remaining_length);
     read(direction_sequence_id, buffer_pos, remaining_length);
+                std::cout << "direction = " << direction_sequence_id << std::endl;
+
 
     Timer timer;
     timer.start();
@@ -97,7 +99,7 @@ class SZInterpolationCompressorPred{
     // *decData = quantizer.recover(0, quant_inds[quant_index++]);
     recover(0, *decData, 0);
 
-
+    timer.start();
     for (uint level = interpolation_level;
          level > 0 && level <= interpolation_level; level--) {
       if (level >= 3) {
@@ -107,7 +109,7 @@ class SZInterpolationCompressorPred{
       }
       current_level = level;
     
-    { 
+     
       size_t stride = 1U << (level - 1);
       auto inter_block_range =
           std::make_shared<multi_dimensional_range<T, N>>(
@@ -128,7 +130,7 @@ class SZInterpolationCompressorPred{
             decData, block.get_global_index(), end_idx, PB_recover,
             interpolators[interpolator_id], direction_sequence_id, stride);
       }
-    }
+    
 
     }
     quantizer.postdecompress_data();
@@ -206,7 +208,7 @@ class SZInterpolationCompressorPred{
       }
     }
 
-    std::cout << "compression loop = " << timer.stop() << std::endl;
+    // std::cout << "compression loop = " << timer.stop() << std::endl;
 
     assert(quant_inds.size() <= num_elements);
 
@@ -234,7 +236,6 @@ class SZInterpolationCompressorPred{
     // write(use_cross_block_cubic, buffer_pos);
     // write(use_natural_cubic, buffer_pos);
 
-    if(tuning == false) quantizer.print();
     quantizer.save(buffer_pos);
     quantizer.postcompress_data();
     timer.start();
