@@ -168,28 +168,28 @@ class SZInterpolationCompressorOPTPred{
             // std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
 
     
-    { 
-      size_t stride = 1U << (level - 1);
-      auto inter_block_range =
-          std::make_shared<multi_dimensional_range<T, N>>(
-              decData, std::begin(global_dimensions),
-              std::end(global_dimensions), stride * blocksize, 0);
-      auto inter_begin = inter_block_range->begin();
-      auto inter_end = inter_block_range->end();
-      for (auto block = inter_begin; block != inter_end; ++block) {
-        auto end_idx = block.get_global_index();
-        for (int i = 0; i < N; i++) {
-          end_idx[i] += stride * blocksize;
-          if (end_idx[i] > global_dimensions[i] - 1) {
-            end_idx[i] = global_dimensions[i] - 1;
+      { 
+        size_t stride = 1U << (level - 1);
+        auto inter_block_range =
+            std::make_shared<multi_dimensional_range<T, N>>(
+                decData, std::begin(global_dimensions),
+                std::end(global_dimensions), stride * blocksize, 0);
+        auto inter_begin = inter_block_range->begin();
+        auto inter_end = inter_block_range->end();
+        for (auto block = inter_begin; block != inter_end; ++block) {
+          auto end_idx = block.get_global_index();
+          for (int i = 0; i < N; i++) {
+            end_idx[i] += stride * blocksize;
+            if (end_idx[i] > global_dimensions[i] - 1) {
+              end_idx[i] = global_dimensions[i] - 1;
+            }
           }
-        }
 
-        block_interpolation(
-            decData, block.get_global_index(), end_idx, PB_recover,
-            interpolators[interpolator_id], direction_sequence_id, stride);
+          block_interpolation(
+              decData, block.get_global_index(), end_idx, PB_recover,
+              interpolators[interpolator_id], direction_sequence_id, stride);
+        }
       }
-    }
 
 
 
@@ -283,7 +283,6 @@ class SZInterpolationCompressorOPTPred{
       // std::cout << "level = " << level << " eb = " << quantizer.get_eb() << "\n";
 
       // linear increase 
-      current_level = level; 
       // double current_eb = eb_input + (1e-32 - eb_input)/(interpolation_level -1)*(level-1);
       // quantizer.set_eb(current_eb);
 
@@ -472,9 +471,6 @@ class SZInterpolationCompressorOPTPred{
 
     lossless.postcompress_data(buffer);
 
-
-
-
       // free the error compression ptr 
 
 
@@ -620,6 +616,7 @@ class SZInterpolationCompressorOPTPred{
       size_t idx, size_t offset1, size_t offset2)
   {
     // pred_timer.start();
+    
     int radius = quantizer.get_radius();
     int E = idx - offset1 - offset2;
     int F = idx - offset1;
