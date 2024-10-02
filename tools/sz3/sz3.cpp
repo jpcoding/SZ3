@@ -204,6 +204,9 @@ int main(int argc, char *argv[]) {
     char *pwrErrorBound = nullptr;
     char *psnrErrorBound = nullptr;
     char *normErrorBound = nullptr;
+    bool quant_pred = false;
+    bool use_opt=false;
+    bool quant_pred_start_level=0;
 
     bool sz2mode = false;
 
@@ -357,6 +360,16 @@ int main(int argc, char *argv[]) {
                     usage();
                 psnrErrorBound = argv[i];
                 break;
+            case 'O':
+                use_opt = true;
+                break;
+            case 'Q':
+                quant_pred = true;
+                break;
+            case 'L':
+                if (++i == argc || sscanf(argv[i], "%d", &quant_pred_start_level) != 1)
+                    usage();
+                break;
             default:
                 usage();
                 break;
@@ -401,6 +414,11 @@ int main(int argc, char *argv[]) {
     } else {
         conf = SZ3::Config(r4, r3, r2, r1);
     }
+
+    conf.quantization_prediction_on = quant_pred;
+    conf.quantization_prediction_start_level = quant_pred_start_level;
+    conf.use_opt = use_opt;
+
     if (compression && conPath != nullptr) {
         conf.loadcfg(conPath);
     }
