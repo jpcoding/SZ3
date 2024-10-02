@@ -116,7 +116,7 @@ namespace SZ3 {
             quant_inds.push_back(quantizer.quantize_and_overwrite(*data, 0));
 
             Timer timer;
-            timer.start();
+            // timer.start();
 
             for (uint level = interpolation_level; level > 0 && level <= interpolation_level; level--) {
                 if (level >= 3) {
@@ -125,7 +125,6 @@ namespace SZ3 {
                     quantizer.set_eb(eb);
                 }
                 size_t stride = 1U << (level - 1);
-
                 auto inter_block_range = std::make_shared<
                         multi_dimensional_range<T, N>>(data, std::begin(global_dimensions),
                                                            std::end(global_dimensions),
@@ -146,6 +145,7 @@ namespace SZ3 {
                     block_interpolation(data, block.get_global_index(), end_idx, PB_predict_overwrite,
                                         interpolators[interpolator_id], direction_sequence_id, stride);
                 }
+    //   std::cout << "level = " << level << " block interpolation time = " << timer.stop() << std::endl;
             }
             assert(quant_inds.size() == num_elements);
             // std::cout << "compression loop " << timer.stop("Interpolation Compress") << std::endl;

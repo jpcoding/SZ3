@@ -31,6 +31,7 @@
 #include "SZ3/utils/Timer.hpp"
 
 
+
 namespace SZ3 {
 template <class T, uint N, class Quantizer, class Encoder, class Lossless>
 class SZInterpolationCompressorPred{
@@ -184,7 +185,8 @@ class SZInterpolationCompressorPred{
       current_level = level;
       size_t stride = 1U << (level - 1);
 
-      {
+      timer.start();  
+      
       auto inter_block_range =
           std::make_shared<multi_dimensional_range<T, N>>(
               data, std::begin(global_dimensions), std::end(global_dimensions),
@@ -205,15 +207,15 @@ class SZInterpolationCompressorPred{
             data, block.get_global_index(), end_idx, PB_predict_overwrite,
             interpolators[interpolator_id], direction_sequence_id, stride);
       }
-      }
+      
+      // std::cout << "level = " << level << " block interpolation time = " << timer.stop() << std::endl;
     }
 
-    // std::cout << "compression loop = " << timer.stop() << std::endl;
 
     assert(quant_inds.size() <= num_elements);
 
     encoder.preprocess_encode(quant_inds, 0);
-    size_t bufferSize = 1.5 * (quantizer.size_est() + encoder.size_est() +
+    size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() +
                                sizeof(T) * quant_inds.size());
 
     // TODO: change to smart pointer here
@@ -355,7 +357,9 @@ class SZInterpolationCompressorPred{
     // aux_quant_inds_ptr = std::make_shared<std::vector<int>>(aux_quant_inds.begin(), aux_quant_inds.end());
 
     aux_quant_inds_ptr = std::make_shared<std::vector<int>>();
-    if(quant_pred_on == true) aux_quant_inds_ptr->resize(num_elements, 0);
+    // if(quant_pred_on == true) aux_quant_inds_ptr->resize(num_elements, 0);
+    if(quant_pred_on == true) aux_quant_inds.resize(num_elements, 0);
+    else aux_quant_inds.resize(0);
 
     
 
@@ -379,96 +383,74 @@ class SZInterpolationCompressorPred{
   }
 
   inline int backward_compensate_pred(
-      size_t idx, size_t offset1, size_t offset2, T &pred,
-      const double compensation)
+      size_t idx, size_t offset1, size_t offset2)
   {
-    // return 0;
-    // compensation = ? * eb; 0.5, 1.1, 1.5, 2
-    //    0   1  2
-    // 0 *A  *B *C
-    // 1 *D  *E *F
-    // 2 *G  *H  X
-    // one layer is enough
-    int A = idx - offset1 * 2 - offset2 * 2;
-    int B = idx - offset1 * 2 - offset2;
-    int C = idx - offset1 * 2;
-    int D = idx - offset1 - offset2 * 2;
+    // pred_timer.start();
+    
+    int radius = quantizer.get_radius();
     int E = idx - offset1 - offset2;
     int F = idx - offset1;
-    int G = idx - offset2 * 2;
     int H = idx - offset2;
-    
-    if ((*aux_quant_inds_ptr)[E] == 0 || (*aux_quant_inds_ptr)[F] == 0 ||
-        (*aux_quant_inds_ptr)[H] == 0) {
+    // int quant_E = (*aux_quant_inds_ptr)[E];
+    // int quant_F = (*aux_quant_inds_ptr)[F];
+    // int quant_H = (*aux_quant_inds_ptr)[H];
+
+    int quant_E = aux_quant_inds[E];
+    int quant_F = aux_quant_inds[F];
+    int quant_H = aux_quant_inds[H];
+    if (quant_E == 0 || quant_F == 0 ||
+        quant_H == 0) {
+      // quant_pred_time+=pred_timer.stop();
       return 0;
     }
-    // int quant_A = (*aux_quant_inds_ptr)[A] - quantizer.get_radius();
-    // int quant_B = (*aux_quant_inds_ptr)[B] - quantizer.get_radius();
-    // int quant_C = (*aux_quant_inds_ptr)[C] - quantizer.get_radius();
-    // int quant_D = (*aux_quant_inds_ptr)[D] - quantizer.get_radius(); // be cautious about out-of-bound access
-    int quant_E = (*aux_quant_inds_ptr)[E] - quantizer.get_radius();
-    int quant_F = (*aux_quant_inds_ptr)[F] - quantizer.get_radius();
-    // int quant_G = (*aux_quant_inds_ptr)[G] - quantizer.get_radius();
-    int quant_H = (*aux_quant_inds_ptr)[H] - quantizer.get_radius();
 
     int quant_compensate = 0;
-    if (quant_H > 0 && quant_F > 0) {
-      quant_compensate = (quant_H + quant_F - quant_E);
-      pred += quant_compensate * compensation;
-    }
-    else if (quant_H < 0 && quant_F < 0) {
-      quant_compensate = (quant_H + quant_F - quant_E);
-      pred+= quant_compensate * compensation;
-
+    bool condition = (quant_E - radius) *(quant_H - radius) >0; 
+    // if ((quant_E > radius  && quant_H > radius)||
+    //     (quant_E < radius  && quant_H < radius)) 
+    if(condition) {
+      // quant_pred_time+=pred_timer.stop();
+      return quant_F + quant_H - quant_E -  radius;
     }
     else {
+      // quant_pred_time+=pred_timer.stop();
       return 0;
     }
-    return quant_compensate;
   }
-
-
 
   inline void quantize(size_t idx, T &d, T pred)
   {
     quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-    // (*aux_quant_inds_ptr)[idx] = quant_inds.back();
 #ifdef SZ_ANALYSIS
     // my_level[idx] = current_level;
-    my_quant_inds_copy[idx] = quant_inds.back(); // post quant index
+    my_quant_inds_copy[idx] = quant_inds.back();
     // my_pred[idx] = pred;
     // my_interp_direction[idx] = my_current_interp_direction;
 #endif
   }
 
 
-  inline void quant_pred_quantize(size_t idx, T &d, T &pred, size_t offset1, size_t offset2,  bool quant_record)
+  inline int quant_pred_quantize(size_t idx, T &d, T &pred, size_t offset1, size_t offset2,  bool quant_record_only)
   {
-    int quant_compensation = 0;
-    if(quant_record == false) 
-    {
-    double compensation =
-                region_error_control_eb_compensation * quantizer.get_eb();
-    quant_compensation = backward_compensate_pred(
-        idx, offset1, offset2, pred, compensation);
-    }
+    // return 0;
+  // CALLGRIND_START_INSTRUMENTATION;
+  // CALLGRIND_TOGGLE_COLLECT;
     
+    // int quant_compensation = 0;
+    // global_timer.start();
     quantize(idx, d, pred);
-
-    if(quant_inds.back()==0)
+    int quant_compensation = 0;
+    // quantize_time += global_timer.stop();
+    // (*aux_quant_inds_ptr)[idx] = quant_inds.back();
+    aux_quant_inds[idx] = quant_inds.back();
+    if(quant_record_only == false) 
     {
-      (*aux_quant_inds_ptr)[idx] = 0;
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds.back() = quant_inds.back() - quant_compensation;
     }
-    else {
-      (*aux_quant_inds_ptr)[idx] = quant_inds.back() + quant_compensation;
-    }
-    #ifdef SZ_ANALYSIS
-    // my_level[idx] = current_level;
-    // my_quant_inds_copy[idx] = quant_inds.back();
-    // my_pred[idx] = pred;
-    // my_interp_direction[idx] = my_current_interp_direction;
-    #endif
-    
+  // CALLGRIND_TOGGLE_COLLECT;
+  // CALLGRIND_STOP_INSTRUMENTATION;
+    return 0;
   }
 
   inline void recover(size_t idx, T &d, T pred)
@@ -477,28 +459,21 @@ class SZInterpolationCompressorPred{
   };
 
 
-  inline void quant_pred_recover(size_t idx, T &d, T pred,size_t offset1, size_t offset2,  bool quant_record)
-  {
-    int quant_compensation = 0;
-    if(quant_record == false)
-    {double  compensation =
-                region_error_control_eb_compensation * quantizer.get_eb();
-    quant_compensation = backward_compensate_pred(
-        idx, offset1, offset2, pred, compensation); 
-    }
-
-    recover(idx, d, pred);
-
-    if(quant_inds[quant_index-1]==0)
+  inline int quant_pred_recover(size_t idx, T &d, T pred,size_t offset1, size_t offset2,  bool quant_record_only)
+  { 
+    int quant_compensation = 0; 
+    if(quant_record_only == false) 
     {
-      (*aux_quant_inds_ptr)[idx] = 0;
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds[quant_index] = quant_inds[quant_index] + quant_compensation;
     }
-    else {
-      (*aux_quant_inds_ptr)[idx] = quant_inds[quant_index-1] + quant_compensation;
-    }
+    recover(idx, d, pred);
+    // (*aux_quant_inds_ptr)[idx] = quant_inds[quant_index-1]; 
+    aux_quant_inds[idx] = quant_inds[quant_index-1];
+    return 0;
   }
 
-  double block_interpolation_1d(
+  double block_interpolation_1d_2(
       T *data, size_t begin, size_t end, size_t stride,
       const std::string &interp_func, const PredictorBehavior pb,
       bool quant_pred = false, size_t offset1 = 0, size_t offset2 = 0, 
@@ -506,7 +481,6 @@ class SZInterpolationCompressorPred{
       bool use_begin_cross= false, 
       bool use_end_cubic = false)
   {
-    quant_pred = (quant_pred_on == true) && (current_level <= quant_pred_start_level);
     bool quant_record = (is_left_boundary == true) ;
     size_t n = (end - begin) / stride + 1;
     if (n <= 1) { return 0; }
@@ -697,6 +671,140 @@ class SZInterpolationCompressorPred{
     return predict_error;
   }
 
+
+ double block_interpolation_1d(
+      T *data, size_t begin, size_t end, size_t stride,
+      const std::string &interp_func, const PredictorBehavior pb,
+      bool quant_pred = false, size_t offset1 = 0, size_t offset2 = 0, 
+      bool is_left_boundary = true,
+      bool use_begin_cross= false, 
+      bool use_end_cubic = false)
+  {
+    bool quant_record = (is_left_boundary == true) ;
+    auto quantize_fn = [&](T* d, T pred) {
+        if (quant_pred) {
+            quant_pred_quantize(d - data, *d, pred, offset1, offset2, quant_record);
+        } else {
+            quantize(d - data, *d, pred);
+        }
+    };
+
+    auto recover_fn = [&](T* d, T pred) {
+        if (quant_pred) {
+            quant_pred_recover(d - data, *d, pred, offset1, offset2, quant_record);
+        } else {
+            recover(d - data, *d, pred);
+        }
+    };
+
+    size_t n = (end - begin) / stride + 1;
+    if (n <= 1) { return 0; }
+    double predict_error = 0;
+
+    size_t stride3x = 3 * stride;
+    size_t stride5x = 5 * stride;
+
+    if (interp_func == "linear" || n < 5) {
+      if (pb == PB_predict_overwrite) {
+        for (size_t i = 1; i + 1 < n; i += 2) {
+          T *d = data + begin + i * stride;
+          T pred = interp_linear(*(d - stride), *(d + stride));
+          quantize_fn(d, pred);
+        }
+        if (n % 2 == 0) {
+          T *d = data + begin + (n - 1) * stride;
+          T pred ; 
+          if(n<4) {pred = *(d - stride);}
+          else {pred = interp_linear1(*(d - stride3x), *(d - stride));}          
+          quantize_fn(d, pred);
+
+        }
+      }
+      else {
+        for (size_t i = 1; i + 1 < n; i += 2) {
+          T *d = data + begin + i * stride;
+          T pred = interp_linear(*(d - stride), *(d + stride));
+          recover_fn(d, pred);
+        }
+        if (n % 2 == 0) {
+          T *d = data + begin + (n - 1) * stride;
+          T pred ; 
+          if(n<4) {pred = *(d - stride);}
+          else {pred = interp_linear1(*(d - stride3x), *(d - stride));}
+          recover_fn(d, pred);
+        }
+      }
+    }
+    else {
+      if (pb == PB_predict_overwrite) {
+        T *d;
+        size_t i;
+        for (i = 3; i + 3 < n; i += 2) {
+          d = data + begin + i * stride;
+          T pred = interp_cubic(
+              *(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x),use_natural_cubic);
+          quantize_fn(d, pred);
+        }
+        T pred;
+        d = data + begin + stride;
+        pred = interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x));
+        quantize_fn(d, pred);
+        d = data + begin + i * stride;
+        // if(use_end_cubic == false)
+        pred = interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride));
+        // }
+        // else{ 
+        //   pred = interp_cubic(*(d - stride3x), *(d - stride), 
+        //                       *(d + stride), *(d + stride3x),
+        //                       use_natural_cubic);
+        // }         
+        quantize_fn(d, pred);
+        if (n % 2 == 0) {
+          d = data + begin + (n - 1) * stride;
+          T pred = interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride));
+          quantize_fn(d, pred);
+        }
+      }
+      else {
+        T *d;
+        size_t i;
+        for (i = 3; i + 3 < n; i += 2) {
+          d = data + begin + i * stride;
+          T pred = interp_cubic(
+              *(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x),use_natural_cubic);
+          recover_fn(d, pred);
+        }
+        T pred;
+        d = data + begin + stride;  
+        // if (use_begin_cross ==false) {
+        pred = interp_quad_1(*(d - stride), *(d + stride), *(d + stride3x));
+        //   }
+        // else {pred = interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x),use_natural_cubic);}
+        recover_fn(d, pred);  
+
+
+        d = data + begin + i * stride;
+
+        // if(use_end_cubic == false) 
+        // {
+        pred = interp_quad_2(*(d - stride3x), *(d - stride), *(d + stride));
+        // }
+        // else {
+        //   pred = interp_cubic(*(d - stride3x), *(d - stride), 
+        //                           *(d + stride), *(d + stride3x),use_natural_cubic);
+        // }
+        recover_fn(d, pred);
+        if (n % 2 == 0) {
+          d = data + begin + (n - 1) * stride;
+          T pred = interp_quad_3(*(d - stride5x), *(d - stride3x), *(d - stride));
+          recover_fn(d, pred);
+        } 
+      }
+    }
+    return predict_error;
+  }
+
+
   template <uint NN = N>
   typename std::enable_if<NN == 1, double>::type block_interpolation(
       T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
@@ -756,15 +864,14 @@ class SZInterpolationCompressorPred{
     my_current_interp_direction = 1;
 #endif
 
-
-
+    bool quant_pred = (quant_pred_on == true) && (current_level <= quant_pred_start_level);
     const std::array<int, N> dims = dimension_sequences[direction];
 
-    bool use_begin_cross = (begin[dims[0]] != 0) && (use_cross_block_cubic); 
-    bool is_cubic_end_boundary = (end[dims[0]]+1 == global_dimensions[dims[0]]);
-    bool is_next_to_bound = (end[dims[0]] + stride2x+1 > global_dimensions[dims[0]]);
-    bool is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
-    bool use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
+    // bool use_begin_cross = (begin[dims[0]] != 0) && (use_cross_block_cubic); 
+    // bool is_cubic_end_boundary = (end[dims[0]]+1 == global_dimensions[dims[0]]);
+    // bool is_next_to_bound = (end[dims[0]] + stride2x+1 > global_dimensions[dims[0]]);
+    // bool is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
+    // bool use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
 
 
 
@@ -776,17 +883,17 @@ class SZInterpolationCompressorPred{
                               j * dimension_offsets[dims[1]] +
                               k * dimension_offsets[dims[2]];
         bool is_left_boundary = (j==0) || (k==0);
-        use_end_cross =  (j%stride2x==0) && (k%stride2x==0) && use_end_cross;
-        bool is_cubic_end_boundary = (end[dims[0]] +1 == global_dimensions[dims[0]]) 
-                                      ||(end[dims[0]] +1 != global_dimensions[dims[0]] && end[dims[0]] +stride > global_dimensions[dims[0]]-1)
-                                      || !(use_cross_block_cubic);
+        // use_end_cross =  (j%stride2x==0) && (k%stride2x==0) && use_end_cross;
+        // bool is_cubic_end_boundary = (end[dims[0]] +1 == global_dimensions[dims[0]]) 
+        //                               ||(end[dims[0]] +1 != global_dimensions[dims[0]] && end[dims[0]] +stride > global_dimensions[dims[0]]-1)
+        //                               || !(use_cross_block_cubic);
         predict_error += block_interpolation_1d(
             data, begin_offset,
             begin_offset +
                 (end[dims[0]] - begin[dims[0]]) * dimension_offsets[dims[0]],
-            stride * dimension_offsets[dims[0]], interp_func, pb, quant_pred_on,
+            stride * dimension_offsets[dims[0]], interp_func, pb, quant_pred,
             dimension_offsets[dims[1]] * (stride2x),
-            dimension_offsets[dims[2]] * (stride2x), is_left_boundary, use_begin_cross, use_end_cross);
+            dimension_offsets[dims[2]] * (stride2x), is_left_boundary);
 
       }
     }
@@ -796,12 +903,12 @@ class SZInterpolationCompressorPred{
 #ifdef SZ_ANALYSIS
     my_current_interp_direction = 2;
 #endif
-    use_begin_cross = (begin[dims[1]] !=0) && (use_cross_block_cubic); 
-    is_cubic_end_boundary = (end[dims[1]]+1 == global_dimensions[dims[1]]);
-                                    // ||(!use_cross_block_cubic);
-    is_next_to_bound = (end[dims[1]] + stride2x+1 > global_dimensions[dims[1]]);
-    is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
-    use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
+    // use_begin_cross = (begin[dims[1]] !=0) && (use_cross_block_cubic); 
+    // is_cubic_end_boundary = (end[dims[1]]+1 == global_dimensions[dims[1]]);
+    //                                 // ||(!use_cross_block_cubic);
+    // is_next_to_bound = (end[dims[1]] + stride2x+1 > global_dimensions[dims[1]]);
+    // is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
+    // use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
 
     for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0);
          i <= end[dims[0]]; i += stride) {
@@ -812,14 +919,14 @@ class SZInterpolationCompressorPred{
                               k * dimension_offsets[dims[2]];
 
         bool is_left_boundary = (i==0) || (k==0); 
-        use_end_cross =  (i%stride2x==0) && (k%stride2x==0) && use_end_cross;
+        // use_end_cross =  (i%stride2x==0) && (k%stride2x==0) && use_end_cross;
         predict_error += block_interpolation_1d(
             data, begin_offset,
             begin_offset +
                 (end[dims[1]] - begin[dims[1]]) * dimension_offsets[dims[1]],
-            stride * dimension_offsets[dims[1]], interp_func, pb, quant_pred_on,
+            stride * dimension_offsets[dims[1]], interp_func, pb, quant_pred,
             dimension_offsets[dims[0]] * (stride),
-            dimension_offsets[dims[2]] * (stride2x),is_left_boundary, use_begin_cross, use_end_cross);
+            dimension_offsets[dims[2]] * (stride2x), is_left_boundary);
       }
     }
   
@@ -827,11 +934,11 @@ class SZInterpolationCompressorPred{
 #ifdef SZ_ANALYSIS
     my_current_interp_direction = 3;
 #endif
-    use_begin_cross = (begin[dims[2]] !=0) && (use_cross_block_cubic);
-    is_cubic_end_boundary = (end[dims[2]]+1 == global_dimensions[dims[2]]);
-    is_next_to_bound = (end[dims[2]] + stride2x+1 > global_dimensions[dims[2]]);
-    is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
-    use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
+    // use_begin_cross = (begin[dims[2]] !=0) && (use_cross_block_cubic);
+    // is_cubic_end_boundary = (end[dims[2]]+1 == global_dimensions[dims[2]]);
+    // is_next_to_bound = (end[dims[2]] + stride2x+1 > global_dimensions[dims[2]]);
+    // is_cubic_end_boundary_ = is_cubic_end_boundary || is_next_to_bound;
+    // use_end_cross = (!is_cubic_end_boundary_) && use_cross_block_cubic;
 
 
     for (size_t i = (begin[dims[0]] ? begin[dims[0]] + stride : 0);
@@ -842,14 +949,14 @@ class SZInterpolationCompressorPred{
                               j * dimension_offsets[dims[1]] +
                               begin[dims[2]] * dimension_offsets[dims[2]];
         bool is_left_boundary = (i==0) || (j==0); // this is for quant prediction.
-        use_end_cross =  (i%stride2x==0) && (j%stride2x==0) && use_end_cross;
+        // use_end_cross =  (i%stride2x==0) && (j%stride2x==0) && use_end_cross;
         predict_error += block_interpolation_1d(
             data, begin_offset,
             begin_offset +
                 (end[dims[2]] - begin[dims[2]]) * dimension_offsets[dims[2]],
-            stride * dimension_offsets[dims[2]], interp_func, pb, quant_pred_on,
+            stride * dimension_offsets[dims[2]], interp_func, pb, quant_pred,
             dimension_offsets[dims[0]] * stride,
-            dimension_offsets[dims[1]] * stride, is_left_boundary, use_begin_cross, use_end_cross);
+            dimension_offsets[dims[1]] * stride, is_left_boundary);
       }
     }
     return predict_error;
@@ -1003,7 +1110,7 @@ class SZInterpolationCompressorPred{
 
   // post_process utils 
 
-  // std::vector<int> aux_quant_inds;
+  std::vector<int> aux_quant_inds;
   std::shared_ptr<std::vector<int>> aux_quant_inds_ptr;
   double region_error_control_eb_compensation = 2.0; // for quant prediction 
   bool quant_pred_on = 0;

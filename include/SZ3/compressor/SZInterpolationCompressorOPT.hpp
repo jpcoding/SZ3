@@ -72,7 +72,7 @@ class SZInterpolationCompressorOPT{
     // read(num_detection_block, buffer_pos);
     // std::cout<<"num_detection_block = " << num_detection_block <<std::endl;
     Timer timer;
-    timer.start();
+    // timer.start();
 
     // if (block_flush_on == 1) {
     //   flushed_block_id = std::vector<uchar>(num_detection_block);
@@ -91,20 +91,20 @@ class SZInterpolationCompressorOPT{
     // }
 
     // read additional variable
-    read(original_max, buffer_pos);
-    read(original_min, buffer_pos);
+    // read(original_max, buffer_pos);
+    // read(original_min, buffer_pos);
 
     // read smoothing and pred quant
     read(quant_pred_on, buffer_pos);
     read(quant_pred_start_level, buffer_pos);
     // read(error_smoothing, buffer_pos);
     // read(post_process_on, buffer_pos);
-    read(use_cross_block_cubic, buffer_pos);
-    read(use_natural_cubic, buffer_pos);
+    // read(use_cross_block_cubic, buffer_pos);
+    // read(use_natural_cubic, buffer_pos);
     // std::cout << "detection_eb_rate = " << detection_eb_rate << std::endl;
     // std::cout << "noise_rate = " << noise_rate << std::endl;
 
-    original_range = original_max - original_min;
+    // original_range = original_max - original_min;
 
     init();
     // timer.stop("read auxilliary data");
@@ -203,8 +203,8 @@ class SZInterpolationCompressorOPT{
 
   uchar *compress(const Config &conf, T *data, size_t &compressed_size, bool tuning = false)
   {
-    auto compress_timer = SZ3::Timer(); 
-    compress_timer.start();
+    // auto compress_timer = SZ3::Timer(); 
+    // compress_timer.start();
     std::copy_n(conf.dims.begin(), N, global_dimensions.begin());
     blocksize = conf.interpBlockSize;
     interpolator_id = conf.interpAlgo;
@@ -227,17 +227,18 @@ class SZInterpolationCompressorOPT{
 
     init();
 
-    auto orig_min_max = std::minmax_element(data, data + num_elements);
-    original_min = *orig_min_max.first;
-    original_max = *orig_min_max.second;
+    // auto orig_min_max = std::minmax_element(data, data + num_elements);
+    // original_min = *orig_min_max.first;
+    // original_max = *orig_min_max.second;
     // if(tuning == false ) std::cout << "original max " << original_max << std::endl;
     // if(tuning == false ) std::cout << "original min " << original_min << std::endl;
     
-    original_range = original_max - original_min;
+    // original_range = original_max - original_min;
 
     Timer timer;
 
-    quant_inds.reserve(num_elements);
+    // quant_inds.reserve(num_elements);
+    quant_inds.resize(num_elements);
     size_t interp_compressed_size = 0;
 
 
@@ -250,7 +251,7 @@ class SZInterpolationCompressorOPT{
     quantize(0, *data, 0);
 
     // Timer timer;
-    timer.start();
+    // timer.start();
 
     
     for(int i = 0;i<level_abs_ebs.size(); i++)
@@ -372,12 +373,11 @@ class SZInterpolationCompressorOPT{
 
     }
 
-    std::cout << "compression loop = " << timer.stop() << std::endl;
 
     assert(quant_inds.size() <= num_elements);
 
     encoder.preprocess_encode(quant_inds, 0);
-    size_t bufferSize = 1.5 * (quantizer.size_est() + encoder.size_est() +
+    size_t bufferSize = 1.2 * (quantizer.size_est() + encoder.size_est() +
                                sizeof(T) * quant_inds.size());
 
     // TODO: change to smart pointer here
@@ -412,8 +412,8 @@ class SZInterpolationCompressorOPT{
     //       buffer_pos);
     // }
     // add additional variable
-    write(original_max, buffer_pos);
-    write(original_min, buffer_pos);
+    // write(original_max, buffer_pos);
+    // write(original_min, buffer_pos);
 
     // write smoothing and pred quant
     write(quant_pred_on, buffer_pos);
@@ -422,8 +422,8 @@ class SZInterpolationCompressorOPT{
     // write(post_process_on, buffer_pos);
 
     // write interps 
-    write(use_cross_block_cubic, buffer_pos);
-    write(use_natural_cubic, buffer_pos);
+    // write(use_cross_block_cubic, buffer_pos);
+    // write(use_natural_cubic, buffer_pos);
 
 
 
@@ -443,15 +443,13 @@ class SZInterpolationCompressorOPT{
     quantizer.save(buffer_pos);
     quantizer.postcompress_data();
 
-    timer.start();
     encoder.save(buffer_pos);
     encoder.encode(quant_inds, buffer_pos);
     encoder.postprocess_encode();
-    std::cout << "huffman encoding " << timer.stop("Coding") << std::endl;
+    // std::cout << "huffman encoding " << timer.stop("Coding") << std::endl;
     assert(buffer_pos - buffer < bufferSize);
     
     // writefile("compressed.dat",data, num_elements);
-    timer.start();
     uchar *lossless_data =
         lossless.compress(buffer, buffer_pos - buffer, compressed_size);
 
@@ -469,7 +467,7 @@ class SZInterpolationCompressorOPT{
     //   compressed_size += compressed_error_size + sizeof(compressed_error_size); 
     //   // std::memcpy(buffer_pos, compressed_error, compressed_error_size);
     // }
-    std::cout << "lossless time " << timer.stop("Lossless") << std::endl;
+    // std::cout << "lossless time " << timer.stop("Lossless") << std::endl;
 
     lossless.postcompress_data(buffer);
 
@@ -538,7 +536,6 @@ class SZInterpolationCompressorOPT{
 #endif
 
     compressed_size += interp_compressed_size;
-    std::cout << "compression time " << compress_timer.stop() << std::endl;
     return lossless_data;
 
   }
@@ -646,7 +643,8 @@ class SZInterpolationCompressorOPT{
 
   inline void quantize(size_t idx, T &d, T pred)
   {
-    quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+    // quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+    quant_inds[quant_index++] = quantizer.quantize_and_overwrite(d, pred);
 #ifdef SZ_ANALYSIS
     // my_level[idx] = current_level;
     my_quant_inds_copy[idx] = quant_inds.back();
