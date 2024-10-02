@@ -236,8 +236,8 @@ class SZInterpolationCompressorOPTPred{
 
     Timer timer;
 
-    // quant_inds.reserve(num_elements);
-    quant_inds.resize(num_elements);
+    quant_inds.reserve(num_elements);
+    // quant_inds.resize(num_elements);
 
     size_t interp_compressed_size = 0;
 
@@ -644,8 +644,8 @@ class SZInterpolationCompressorOPTPred{
 
   inline void quantize(size_t idx, T &d, T pred)
   {
-    // quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-    quant_inds[quant_index++] = quantizer.quantize_and_overwrite(d, pred);
+    quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+    // quant_inds[quant_index++] = quantizer.quantize_and_overwrite(d, pred);
 #ifdef SZ_ANALYSIS
     // my_level[idx] = current_level;
     my_quant_inds_copy[idx] = quant_inds.back();
@@ -663,13 +663,13 @@ class SZInterpolationCompressorOPTPred{
     quantize(idx, d, pred);
     // quantize_time += global_timer.stop();
     // (*aux_quant_inds_ptr)[idx] = quant_inds.back();
-    // aux_quant_inds[idx] = quant_inds.back();
-    aux_quant_inds[idx] = quant_inds[quant_index-1];
+    aux_quant_inds[idx] = quant_inds.back();
+    // aux_quant_inds[idx] = quant_inds[quant_index-1];
     if(quant_record_only == false) 
     {
       quant_compensation = backward_compensate_pred(idx, offset1, offset2);
-      // quant_inds.back() -= quant_compensation;
-      quant_inds[quant_index-1] -= quant_compensation;
+      quant_inds.back() -= quant_compensation;
+      // quant_inds[quant_index-1] -= quant_compensation;
     }
     return 0;
   }

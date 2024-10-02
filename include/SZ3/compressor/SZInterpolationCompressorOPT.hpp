@@ -237,8 +237,8 @@ class SZInterpolationCompressorOPT{
 
     Timer timer;
 
-    // quant_inds.reserve(num_elements);
-    quant_inds.resize(num_elements);
+    quant_inds.reserve(num_elements);
+    // quant_inds.resize(num_elements);
     size_t interp_compressed_size = 0;
 
 
@@ -643,8 +643,8 @@ class SZInterpolationCompressorOPT{
 
   inline void quantize(size_t idx, T &d, T pred)
   {
-    // quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
-    quant_inds[quant_index++] = quantizer.quantize_and_overwrite(d, pred);
+    quant_inds.push_back(quantizer.quantize_and_overwrite(d, pred));
+    // quant_inds[quant_index++] = quantizer.quantize_and_overwrite(d, pred);
 #ifdef SZ_ANALYSIS
     // my_level[idx] = current_level;
     my_quant_inds_copy[idx] = quant_inds.back();
