@@ -657,28 +657,22 @@ class SZInterpolationCompressorOPTPred{
 
   inline int quant_pred_quantize(size_t idx, T &d, T &pred, size_t offset1, size_t offset2,  bool quant_record_only)
   {
-    // return 0;
-  // CALLGRIND_START_INSTRUMENTATION;
-  // CALLGRIND_TOGGLE_COLLECT;
-    
-    // int quant_compensation = 0;
-    // global_timer.start();
-    quantize(idx, d, pred);
     
     int quant_compensation = 0;
+    // global_timer.start();
+    quantize(idx, d, pred);
     // quantize_time += global_timer.stop();
     // (*aux_quant_inds_ptr)[idx] = quant_inds.back();
     aux_quant_inds[idx] = quant_inds.back();
-    if(quant_inds.back() ==0 || quant_record_only == true) return 0; 
-
-    quant_compensation = backward_compensate_pred(idx, offset1, offset2);
-    quant_inds.back() = quant_inds.back() - quant_compensation;
-    
-  // CALLGRIND_TOGGLE_COLLECT;
-  // CALLGRIND_STOP_INSTRUMENTATION;
+    // aux_quant_inds[idx] = quant_inds[quant_index-1];
+    if(quant_record_only == false) 
+    {
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds.back() -= quant_compensation;
+      // quant_inds[quant_index-1] -= quant_compensation;
+    }
     return 0;
   }
-
 
   inline void recover(size_t idx, T &d, T pred)
   {
@@ -689,18 +683,17 @@ class SZInterpolationCompressorOPTPred{
   inline int quant_pred_recover(size_t idx, T &d, T pred,size_t offset1, size_t offset2,  bool quant_record_only)
   { 
     int quant_compensation = 0; 
-
-    aux_quant_inds[idx] = quant_inds[quant_index];
-
-    if(aux_quant_inds[idx] != 0 &&  quant_record_only == false){
-        quant_compensation = backward_compensate_pred(idx, offset1, offset2);
-        quant_inds[quant_index] = quant_inds[quant_index] + quant_compensation;
+    if(quant_record_only == false) 
+    {
+      quant_compensation = backward_compensate_pred(idx, offset1, offset2);
+      quant_inds[quant_index] = quant_inds[quant_index] + quant_compensation;
     }
     recover(idx, d, pred);
     // (*aux_quant_inds_ptr)[idx] = quant_inds[quant_index-1]; 
     aux_quant_inds[idx] = quant_inds[quant_index-1];
     return 0;
   }
+
 
 
 
