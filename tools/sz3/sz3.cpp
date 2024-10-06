@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
     char *normErrorBound = nullptr;
     bool quant_pred = false;
     bool use_opt=false;
-    bool quant_pred_start_level=0;
+    int quant_pred_start_level=0;
 
     bool sz2mode = false;
 
