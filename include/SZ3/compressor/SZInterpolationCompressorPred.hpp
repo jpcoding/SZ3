@@ -255,7 +255,7 @@ class SZInterpolationCompressorPred{
 
 #ifdef SZ_ANALYSIS
     // writefile("pred.dat", my_pred.data(), num_elements);
-    writefile("orig_quant.dat", aux_quant_inds_ptr->data(), num_elements);
+    writefile("orig_quant.dat", aux_quant_inds.data(), num_elements);
     writefile("processed_quant.dat", my_quant_inds_copy.data(), num_elements);
     writefile("decompressed.dat", data, num_elements);
     // writefile("level.dat", my_level.data(), num_elements);
