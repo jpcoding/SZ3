@@ -255,8 +255,8 @@ class SZInterpolationCompressorPred{
 
 #ifdef SZ_ANALYSIS
     // writefile("pred.dat", my_pred.data(), num_elements);
-    writefile("quant.dat", aux_quant_inds_ptr->data(), num_elements);
-    writefile("quant_processed.dat", my_quant_inds_copy.data(), num_elements);
+    writefile("orig_quant.dat", aux_quant_inds_ptr->data(), num_elements);
+    writefile("processed_quant.dat", my_quant_inds_copy.data(), num_elements);
     writefile("decompressed.dat", data, num_elements);
     // writefile("level.dat", my_level.data(), num_elements);
     // writefile(
@@ -363,14 +363,14 @@ class SZInterpolationCompressorPred{
     
 
 #ifdef SZ_ANALYSIS
-    my_level.resize(num_elements);
+    // my_level.resize(num_elements);
     my_quant_inds_copy.resize(num_elements);
-    my_pred.resize(num_elements);
-    my_pred[0] = 0;
-    my_level[0] = interpolation_level;
-    my_pred_noise.resize(num_elements, 0);
-    my_interp_direction.resize(num_elements, 0);
-    my_compensation_label.resize(num_elements, 0);
+    // my_pred.resize(num_elements);
+    // my_pred[0] = 0;
+    // my_level[0] = interpolation_level;
+    // my_pred_noise.resize(num_elements, 0);
+    // my_interp_direction.resize(num_elements, 0);
+    // my_compensation_label.resize(num_elements, 0);
 #endif
 
   }
@@ -447,6 +447,9 @@ class SZInterpolationCompressorPred{
       quant_compensation = backward_compensate_pred(idx, offset1, offset2);
       quant_inds.back() = quant_inds.back() - quant_compensation;
     }
+    #ifdef SZ_ANALYSIS
+    my_quant_inds_copy[idx] = quant_inds.back();
+    #endif
   // CALLGRIND_TOGGLE_COLLECT;
   // CALLGRIND_STOP_INSTRUMENTATION;
     return 0;
