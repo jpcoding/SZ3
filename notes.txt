@@ -1,0 +1,10 @@
+./test/sz -f -i $DATA/NYX_512x512x512/temperature.dat -3 512 512 512 -c ../test/sz.config -z test.z -o test.out -a -M REL 0.1
+./test/sz -f -i $DATA/NYX_512x512x512/temperature.dat -3 512 512 512 -c ../test/sz.config -z test.z -o test.out -a -M REL 0.01
+
+./test/sz -f -i $DATA/SCALE-98x1200x1200/PRES-98x1200x1200.f32  -3 1200 1200 98  -c ../test/sz.config -z test.z -o test.out -a -M REL 0.010
+
+
+./test/sz -f -i $DATA/SCALE-98x1200x1200/T-98x1200x1200.f32  -3 1200 1200 98  -c ../test/sz.config -z test.z -o test.out -a -M REL 0.01
+
+
+./test/sz -f -i $DATA/NYX_512x512x512/baryon_density.dat -3 512 512 512 -c ../test/sz.config -z test.z -o test.out -a -M REL 0.1

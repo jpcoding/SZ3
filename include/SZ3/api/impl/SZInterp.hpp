@@ -15,6 +15,8 @@
 #include "SZ3/utils/QuantOptimizatioin.hpp"
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/api/impl/SZLorenzoReg.hpp"
+#include <limits>
+
 #include <cmath>
 #include <memory>
 
@@ -71,10 +73,13 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
             double best_abs_eb = conf.absErrorBound;
             double best_ratio = current_ratio;
             // check smaller bounds
-            while(true){
+            int iter = 0;
+            int max_iter = 100; 
+            while(iter++<max_iter){
                 auto prev_eb = conf.absErrorBound;
                 prev_ratio = current_ratio;
                 conf.absErrorBound /= 2;
+                if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
                 qoi->set_global_eb(conf.absErrorBound);
                 size_t sampleOutSize;
                 memcpy(sampling_data, samples.data(), sampling_num * sizeof(T));
@@ -92,12 +97,26 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
                     }
                     break;
                 }
+                // if(conf.qoi == 2) // log function early termination.
+                // {
+                //     if(current_ratio <= prev_ratio )
+                //     {
+                //         if(prev_ratio >= best_ratio)
+                //         {
+                //             best_abs_eb = prev_eb;
+                //             best_ratio = prev_ratio;
+                //         }
+                //     }
+                //     break;
+                // }
+
             }
             // set error bound
             free(sampling_data);
             //std::cout << "Best abs eb / pre-set eb: " << best_abs_eb / tmp_abs_eb << std::endl; 
             //std::cout << best_abs_eb << " " << tmp_abs_eb << std::endl;
             conf.absErrorBound = best_abs_eb;
+            if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
             qoi->set_global_eb(best_abs_eb);
             conf.setDims(dims.begin(), dims.end());
             // reset dimensions and variables for average of square
@@ -109,7 +128,7 @@ char *SZ_compress_Interp(SZ::Config &conf, T *data, size_t &outSize) {
         char *cmpData = (char *) sz.compress(conf, data, outSize);
         return cmpData;
     }
-    auto sz = SZ::SZInterpolationCompressor<T, N, SZ::LinearQuantizer<T>, SZ::HuffmanEncoder<int>, SZ::Lossless_zstd>(
+    auto sz = SZ::SZInterpolationCompressor<T, N, SZ::LinearQuantizer<T>,SZ::HuffmanEncoder<int>, SZ::Lossless_zstd>(
             SZ::LinearQuantizer<T>(conf.absErrorBound),
             SZ::HuffmanEncoder<int>(),
             SZ::Lossless_zstd());
@@ -249,6 +268,10 @@ char *SZ_compress_Interp_lorenzo(SZ::Config &conf, T *data, size_t &outSize) {
             conf.qoiEBLogBase = 2;        
         // update eb base
         if(qoi != 4 && qoi != 7) conf.qoiEBBase = (max - min) * qoi_rel_eb / 1030;
+        if(qoi == 2) conf.qoiEBBase = (max - min) * qoi_rel_eb / 1030;
+        if(qoi == 2) conf.qoiEBBase = conf.qoi_rel_eb_for_log;
+;
+
         std::cout << conf.qoi << " " << conf.qoiEB << " " << conf.qoiEBBase << " " << conf.qoiEBLogBase << " " << conf.qoiQuantbinCnt << std::endl;
     }
     else{

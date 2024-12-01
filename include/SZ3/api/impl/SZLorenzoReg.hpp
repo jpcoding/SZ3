@@ -153,17 +153,20 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
             double best_abs_eb = conf.absErrorBound;
             double best_ratio = current_ratio;
             // check smaller bounds
-            while(true){
+            int iter = 0;
+            int max_iter = 100; 
+            while(iter++<max_iter){
                 auto prev_eb = conf.absErrorBound;
                 prev_ratio = current_ratio;
                 conf.absErrorBound /= 2;
+                if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
                 qoi->set_global_eb(conf.absErrorBound);
                 size_t sampleOutSize;
                 memcpy(sampling_data, samples.data(), sampling_num * sizeof(T));
                 auto cmprData = sz->compress(conf, sampling_data, sampleOutSize);
                 delete[]cmprData;
                 current_ratio = sampling_num * 1.0 * sizeof(T) / sampleOutSize;                
-                std::cout << "current_eb = " << conf.absErrorBound << ", current_ratio = " << current_ratio << std::endl;
+                std::cout << ",current_eb = " << conf.absErrorBound << ", current_ratio = " << current_ratio << std::endl;
                 if(current_ratio < prev_ratio){
                     if(prev_ratio > best_ratio){
                         best_abs_eb = prev_eb;
@@ -177,6 +180,7 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
             //std::cout << "Best abs eb / pre-set eb: " << best_abs_eb / tmp_abs_eb << std::endl; 
             //std::cout << best_abs_eb << " " << tmp_abs_eb << std::endl;
             conf.absErrorBound = best_abs_eb;
+            if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
             qoi->set_global_eb(best_abs_eb);
             conf.setDims(dims.begin(), dims.end());
         }
