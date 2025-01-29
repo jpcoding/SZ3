@@ -123,7 +123,7 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
         auto quantizer = SZ::VariableEBLinearQuantizer<T, T>(conf.quantbinCnt / 2);
         auto quantizer_eb = SZ::EBLogQuantizer<T>(conf.qoiEBBase, conf.qoiEBLogBase, conf.qoiQuantbinCnt / 2);
         auto qoi = SZ::GetQOI<T, N>(conf);
-        if(conf.qoi == 3){
+        if(conf.qoi == 3 || conf.qoi == 9) {
             conf.blockSize = conf.qoiRegionSize;
         }
         // use sampling to determine abs bound
@@ -159,7 +159,7 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
                 auto prev_eb = conf.absErrorBound;
                 prev_ratio = current_ratio;
                 conf.absErrorBound /= 2;
-                if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
+                if(conf.qoi == 3 || conf.qoi == 9 ) conf.qoiEBBase = conf.absErrorBound/1030;
                 qoi->set_global_eb(conf.absErrorBound);
                 size_t sampleOutSize;
                 memcpy(sampling_data, samples.data(), sampling_num * sizeof(T));
@@ -180,7 +180,7 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
             //std::cout << "Best abs eb / pre-set eb: " << best_abs_eb / tmp_abs_eb << std::endl; 
             //std::cout << best_abs_eb << " " << tmp_abs_eb << std::endl;
             conf.absErrorBound = best_abs_eb;
-            if(conf.qoi == 3) conf.qoiEBBase = conf.absErrorBound/1030;
+            if(conf.qoi == 3 || conf.qoi == 9) conf.qoiEBBase = conf.absErrorBound/1030;
             qoi->set_global_eb(best_abs_eb);
             conf.setDims(dims.begin(), dims.end());
         }

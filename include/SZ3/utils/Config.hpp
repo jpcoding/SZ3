@@ -125,6 +125,7 @@ namespace SZ {
             qoiRegionSize = cfg.GetInteger("QoISettings", "qoiRegionSize", blockSize);
             qoiIsoNum = cfg.GetInteger("QoISettings", "qoiIsoNum", 1);
             qoi_rel_eb_for_log = cfg.GetReal("QoISettings", "qoi_rel_eb_for_log", 0.001);
+            qoi_rel_eb = cfg.GetReal("QoISettings", "qoi_rel_eb", 0.001);
         }
 
         void save(unsigned char *&c) {
@@ -240,6 +241,7 @@ namespace SZ {
         int qoiNum = 0;
         std::vector<double> qoiEBs;
         double qoi_rel_eb_for_log =0.001;
+        double qoi_rel_eb = 0.001; 
     };
 
 

@@ -72,6 +72,10 @@ namespace SZ {
                 qois.push_back(std::make_shared<SZ::QoI_Isoline<T, N>>(conf.dims, values, conf.absErrorBound));
                 return std::make_shared<SZ::QoI_MultiQoIs<T, N>>(qois);            	
             }
+            case 9:{
+                if(!conf.lorenzo && !conf.lorenzo2) return std::make_shared<SZ::QoI_RegionalAverageInterp<T, N>>(conf.qoiEB, conf.absErrorBound, conf.qoiRegionSize, conf.dims);
+                else return std::make_shared<SZ::QoI_RegionalAverage<T, N>>(conf.qoiEB, conf.absErrorBound);
+            }
         }
         return NULL;
     }
