@@ -631,8 +631,8 @@ class SZInterpolationCompressorOPTPred{
     }
 
     int quant_compensate = 0;
-    if ((quant_E > radius  && quant_H > radius)||
-        (quant_E < radius  && quant_H < radius)) {
+    if ((quant_F> radius  && quant_H > radius)||
+        (quant_F < radius  && quant_H < radius)) {
       // quant_pred_time+=pred_timer.stop();
       return quant_F + quant_H - quant_E -  radius;
     }
