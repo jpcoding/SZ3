@@ -98,6 +98,9 @@ class ComposedPredictor : public concepts::PredictorInterface<T, N> {
         return predictors[sid]->predict(block, d, index);
     }
 
+    /// The predictor chosen for the current block.
+    concepts::PredictorInterface<T, N> *active() const { return predictors[sid].get(); }
+
     T estimate_error(const block_iter &block, T *d, const std::array<size_t, N> &index) override {
         return predictors[sid]->estimate_error(block, d, index);
     }

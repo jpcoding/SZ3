@@ -5,11 +5,16 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
 #include "Decomposition.hpp"
 #include "SZ3/def.hpp"
+#include "SZ3/encoder/BinStream.hpp"
 #include "SZ3/predictor/LorenzoPredictor.hpp"
 #include "SZ3/predictor/Predictor.hpp"
+#include "SZ3/predictor/RegressionPredictor.hpp"
 #include "SZ3/quantizer/LinearQuantizer.hpp"
 #include "SZ3/utils/BlockwiseIterator.hpp"
 #include "SZ3/utils/Config.hpp"
@@ -41,9 +46,11 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
                 predictor_withfallback = &fallback_predictor;
             }
             predictor_withfallback->precompress_block_commit();
-            Block_iter::foreach (block, [&](T *c, const std::array<size_t, N> &index) {
-                T pred = predictor_withfallback->predict(block, c, index);
-                quant_inds.push_back(quantizer.quantize_and_overwrite(*c, pred));
+            with_active(predictor_withfallback, [&](auto *p) {
+                Block_iter::foreach (block, [&](T *c, const std::array<size_t, N> &index) {
+                    T pred = predict(p, block, c, index);
+                    quant_inds.push_back(quantizer.quantize_and_overwrite(*c, pred));
+                });
             });
 
         } while (block.next());
@@ -54,23 +61,21 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
         if (quant_inds.size() < conf.num) {
             throw std::out_of_range("SZ3 blockwise: fewer bins than the grid consumes");
         }
-        int *quant_inds_pos = &quant_inds[0];
+        const int *q = quant_inds.data();
+        return decompress_impl(
+            conf, q, q + quant_inds.size(),
+            []() -> std::pair<const int *, const int *> {
+                throw std::out_of_range("SZ3 blockwise: fewer bins than the grid consumes");
+            },
+            dec_data);
+    }
 
-        auto data_with_padding = std::make_shared<block_data<T, N>>(dec_data, conf.dims, padding, false);
-        auto block = data_with_padding->block_iter(conf.blockSize);
-        do {
-            concepts::PredictorInterface<T, N> *predictor_withfallback = &predictor;
-            if (!predictor.predecompress(block)) {
-                predictor_withfallback = &fallback_predictor;
-            }
-            Block_iter::foreach (block, [&](T *c, const std::array<size_t, N> &index) {
-                T pred = predictor_withfallback->predict(block, c, index);
-                *c = quantizer.recover(pred, *(quant_inds_pos++));
-            });
-
-        } while (block.next());
-
-        return dec_data;
+    /// decompress() from bins decoded on demand.
+    T *decompress_stream(const Config &conf, BinStream<int> &bins, T *dec_data) {
+        if (bins.size() < conf.num) {
+            throw std::out_of_range("SZ3 blockwise: fewer bins than the grid consumes");
+        }
+        return decompress_impl(conf, nullptr, nullptr, [&bins]() { return bins.next_chunk(); }, dec_data);
     }
 
     size_t size_est() override { return fallback_predictor.size_est() + predictor.size_est() + quantizer.size_est(); }
@@ -90,6 +95,59 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
     std::pair<int, int> get_out_range() override { return quantizer.get_out_range(); }
 
    private:
+    // Bins come from [cur, end), then from each refill(); the position is a local, kept in a register.
+    template <class Refill>
+    T *decompress_impl(const Config &conf, const int *cur, const int *end, Refill &&refill, T *dec_data) {
+        auto data_with_padding = std::make_shared<block_data<T, N>>(dec_data, conf.dims, padding, false);
+        auto block = data_with_padding->block_iter(conf.blockSize);
+        do {
+            concepts::PredictorInterface<T, N> *predictor_withfallback = &predictor;
+            if (!predictor.predecompress(block)) {
+                predictor_withfallback = &fallback_predictor;
+            }
+            with_active(predictor_withfallback, [&](auto *p) {
+                Block_iter::foreach (block, [&](T *c, const std::array<size_t, N> &index) {
+                    T pred = predict(p, block, c, index);
+                    if (cur == end) std::tie(cur, end) = refill();
+                    *c = quantizer.recover(pred, *(cur++));
+                });
+            });
+        } while (block.next());
+        return dec_data;
+    }
+
+    template <class P, class = void>
+    struct has_active : std::false_type {};
+    template <class P>
+    struct has_active<P, std::void_t<decltype(std::declval<P &>().active())>> : std::true_type {};
+
+    // Calls f with the predictor that predicts the block, as its concrete type when it is one of SZ3's, so the
+    // per-point predict() is inlined instead of dispatched; a composed predictor resolves to its choice.
+    template <class F>
+    ALWAYS_INLINE void with_active(concepts::PredictorInterface<T, N> *p, F &&f) {
+        if constexpr (has_active<Predictor>::value) {
+            if (p == &predictor) p = predictor.active();
+        }
+        if (auto q = dynamic_cast<LorenzoPredictor<T, N, 1> *>(p)) {
+            f(q);
+        } else if (auto q = dynamic_cast<LorenzoPredictor<T, N, 2> *>(p)) {
+            f(q);
+        } else if (auto q = dynamic_cast<RegressionPredictor<T, N> *>(p)) {
+            f(q);
+        } else {
+            f(p);
+        }
+    }
+
+    template <class P>
+    static ALWAYS_INLINE T predict(P *p, const Block_iter &block, T *c, const std::array<size_t, N> &index) {
+        if constexpr (std::is_abstract_v<P>) {
+            return p->predict(block, c, index);
+        } else {
+            return p->P::predict(block, c, index);  // not virtual
+        }
+    }
+
     Predictor predictor;
     Quantizer quantizer;
     LorenzoPredictor<T, N, 1> fallback_predictor;
