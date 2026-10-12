@@ -125,7 +125,8 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                 }
                 interpolation(
                     dec_data, block.get_global_index(), end_idx, interpolators[interp_id],
-                    [&](size_t /*idx*/, T &d, T pred) {
+                    // the constants by value: Clang keeps what is captured by reference in memory
+                    [&, qeb, radius](size_t /*idx*/, T &d, T pred) {
                         if constexpr (std::is_same_v<Quantizer, LinearQuantizer<T>>) {
                             // LinearQuantizer::recover with its constants in registers
                             if (cur == end) std::tie(cur, end) = refill();
