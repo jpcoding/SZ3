@@ -128,7 +128,8 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                     [&](size_t /*idx*/, T &d, T pred) {
                         if constexpr (std::is_same_v<Quantizer, LinearQuantizer<T>>) {
                             // LinearQuantizer::recover with its constants in registers
-                            const int b = next_bin();
+                            if (cur == end) std::tie(cur, end) = refill();
+                            const int b = *cur++;
                             d = b ? pred + nofma(2 * (static_cast<int64_t>(b) - radius) * qeb)
                                   : quantizer.recover_unpred();
                         } else {
