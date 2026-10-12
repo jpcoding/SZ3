@@ -26,7 +26,10 @@ ALWAYS_INLINE T nofma(T x) {
     // An empty asm keeps the value in a register the compiler cannot see through, which a volatile would do only
     // through a store and a load per call.
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || (defined(__i386__) && defined(__SSE2__)))
+#if defined(__FMA__) || defined(__FMA4__)
     __asm__("" : "+x"(x));
+#endif
+    // without FMA instructions there is nothing to contract into, and the value stays free to vectorize
     return x;
 #elif (defined(__GNUC__) || defined(__clang__)) && defined(__aarch64__)
     __asm__("" : "+w"(x));

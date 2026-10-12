@@ -207,14 +207,21 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                     const double qeb = quantizer.get_eb(), rcp = quantizer.get_eb_reciprocal();
                     const int radius = quantizer.get_radius();
                     int *qp = quant_inds + quant_index;
-                    interpolation(
-                        data, block.get_global_index(), end_idx, interpolators[interp_id],
-                        [&](size_t /*idx*/, T &d, T pred) {
-                            const int b = LinearQuantizer<T>::quantize_with(d, pred, qeb, rcp, radius);
-                            if (!b) quantizer.save_unpred(d);
-                            *qp++ = b;
-                        },
-                        direction_sequence_id, stride);
+                    if constexpr (N >= 3) {
+                        BatchQuantizer batch{quantizer, qp, qeb, rcp, radius};
+                        interpolation(data, block.get_global_index(), end_idx, interpolators[interp_id], batch,
+                                      direction_sequence_id, stride);
+                        batch.flush();
+                    } else {
+                        interpolation(
+                            data, block.get_global_index(), end_idx, interpolators[interp_id],
+                            [&](size_t /*idx*/, T &d, T pred) {
+                                const int b = LinearQuantizer<T>::quantize_with(d, pred, qeb, rcp, radius);
+                                if (!b) quantizer.save_unpred(d);
+                                *qp++ = b;
+                            },
+                            direction_sequence_id, stride);
+                    }
                     quant_index = qp - quant_inds;
                 } else {
                     interpolation(
@@ -341,6 +348,60 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
             });
     }
 
+    // A quantize function with a flush() holds points back; the kernels call it once a pass is done, as later
+    // passes read what it writes.
+    template <class F, class = void>
+    struct has_flush : std::false_type {};
+    template <class F>
+    struct has_flush<F, std::void_t<decltype(std::declval<F &>().flush())>> : std::true_type {};
+    template <class F>
+    static ALWAYS_INLINE void flush(F &f) {
+        if constexpr (has_flush<std::remove_reference_t<F>>::value) f.flush();
+    }
+
+    // Compression through LinearQuantizer in batches: the points of a pass are collected, quantized over arrays
+    // with no branch (which the compiler vectorizes, and the processor overlaps), and then written back, their bins
+    // and unpredictable values in point order. Points of one pass never predict each other.
+    struct BatchQuantizer {
+        static constexpr size_t B = 64;
+        LinearQuantizer<T> &quantizer;
+        int *&qp;
+        double eb, rcp;
+        int radius;
+        size_t n = 0;
+        T *ptr[B];
+        T val[B], pred[B], dec[B];
+
+        ALWAYS_INLINE void operator()(size_t /*idx*/, T &d, T p) {
+            ptr[n] = &d;
+            val[n] = d;
+            pred[n] = p;
+            if (++n == B) flush();
+        }
+
+        // Out of line, every B points. Floating-point exception flags are not part of SZ3's results; without
+        // tracking them GCC turns the selects into vector blends.
+#if defined(__GNUC__) && !defined(__clang__)
+        __attribute__((noinline, optimize("no-trapping-math"))) void flush() {
+#else
+        __attribute__((noinline)) void flush() {
+#endif
+            const double eb_ = eb, rcp_ = rcp;
+            const int r = radius;
+            int *__restrict q = qp;
+            for (size_t t = 0; t < n; t++)
+                q[t] = LinearQuantizer<T>::quantize_branchless(val[t], pred[t], eb_, rcp_, r, dec[t]);
+            for (size_t t = 0; t < n; t++) {
+                if (q[t])
+                    *ptr[t] = dec[t];
+                else
+                    quantizer.save_unpred(val[t]);
+            }
+            qp = q + n;
+            n = 0;
+        }
+    };
+
     /**
      * Do interpolations along a certain dimension, and move through that dimension only.
      * This is the original API, described in the ICDE'21 paper.
@@ -429,6 +490,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
             foreach
                 <T, N>(data, offset, begins, ends, strides, dim_offsets,
                        [&](T *d) { quantize_func(d - data, *d, interp_linear(*(d - stride), *(d + stride))); });
+            flush(quantize_func);
             if (n % 2 == 0) {
                 begins[direction] = n - 1;
                 ends[direction] = n;
@@ -439,6 +501,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                         else
                             quantize_func(d - data, *d, interp_linear1(*(d - stride2x), *(d - stride)));
                     });
+                flush(quantize_func);
             }
         } else {
             size_t stride3x = 3 * stride;
@@ -451,6 +514,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                     quantize_func(d - data, *d,
                                   interp_cubic(*(d - stride3x), *(d - stride), *(d + stride), *(d + stride3x)));
                 });
+            flush(quantize_func);
             std::vector<size_t> boundaries;
             boundaries.push_back(1);
             if (n % 2 == 1 && n > 3) {
@@ -487,6 +551,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                                 quantize_func(d - data, *d, *(d - stride));
                         }
                     });
+                flush(quantize_func);
             }
         }
         return predict_error;

@@ -89,6 +89,23 @@ public:
         return 0;
     }
 
+    /// quantize_with() without branches, for loops the compiler vectorizes: the bin, or 0 when data is
+    /// unpredictable; dec receives the decompressed value, which is data's replacement only when the bin is not 0.
+    static ALWAYS_INLINE int quantize_branchless(T data, T pred, double error_bound, double error_bound_reciprocal,
+                                                 int radius, T &dec) {
+        const T diff = data - pred;
+        const double scaled = fabs(diff) * error_bound_reciprocal;
+        const bool in = scaled < radius * 2 - 1;
+        // in range, the int32_t conversion is the int64_t one quantize_with() makes; out of range it is not made
+        const int32_t half = (static_cast<int32_t>(in ? scaled : 0.0) + 1) >> 1;
+        const int32_t shifted = diff < 0 ? radius - half : radius + half;
+        // 2 * (shifted - radius) is +-2 half, exact in int32_t and in double
+        const T d = pred + nofma(static_cast<double>(2 * (shifted - radius)) * error_bound);
+        dec = d;
+        const bool ok = in & (fabs(static_cast<double>(d) - data) <= error_bound);
+        return ok ? shifted : 0;
+    }
+
     /// Stores an unpredictable value; out of line, so the loops calling it keep their state in registers.
     __attribute__((noinline)) void save_unpred(T data) { unpred.push_back(data); }
 
