@@ -23,8 +23,18 @@ typedef unsigned char uchar;
 template <class T>
 ALWAYS_INLINE T nofma(T x) {
     // Not __builtin_assoc_barrier: GCC 13 and 14 drop it when they vectorize the loop, and fuse the product anyway.
+    // An empty asm keeps the value in a register the compiler cannot see through, which a volatile would do only
+    // through a store and a load per call.
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || (defined(__i386__) && defined(__SSE2__)))
+    __asm__("" : "+x"(x));
+    return x;
+#elif (defined(__GNUC__) || defined(__clang__)) && defined(__aarch64__)
+    __asm__("" : "+w"(x));
+    return x;
+#else
     volatile T r = x;
     return r;
+#endif
 }
 
 // Refuses x87 extended precision and GCC's fast math, which cannot be turned off for part of a program; otherwise
