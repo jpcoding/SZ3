@@ -300,36 +300,32 @@ template <class T, uint N, typename Func>
 ALWAYS_INLINE void foreach (T *data, size_t offset, const std::array<size_t, N> &begins,
                             const std::array<size_t, N> &ends, const std::array<size_t, N> &strides,
                             const std::array<size_t, N> &dim_offsets, Func && func) {
+    // The innermost loop steps a pointer: no multiply per element, and fewer values live in the loop.
+    const size_t b = begins[N - 1], e = ends[N - 1], s = strides[N - 1];
+    if (b >= e) return;
+    const size_t count = (e - b + s - 1) / s;
+    const size_t step = s * dim_offsets[N - 1];
+    auto row = [&](T *d) {
+        for (size_t k = 0; k < count; k++, d += step) func(d);
+    };
+    T *base = data + offset + b * dim_offsets[N - 1];
     if constexpr (N == 1) {
-        for (size_t i = begins[0]; i < ends[0]; i += strides[0]) {
-            T *d = data + offset + i * dim_offsets[0];
-            func(d);
-        }
+        row(base);
     } else if constexpr (N == 2) {
         for (size_t i = begins[0]; i < ends[0]; i += strides[0]) {
-            for (size_t j = begins[1]; j < ends[1]; j += strides[1]) {
-                T *d = data + offset + i * dim_offsets[0] + j * dim_offsets[1];
-                func(d);
-            }
+            row(base + i * dim_offsets[0]);
         }
     } else if constexpr (N == 3) {
         for (size_t i = begins[0]; i < ends[0]; i += strides[0]) {
             for (size_t j = begins[1]; j < ends[1]; j += strides[1]) {
-                for (size_t k = begins[2]; k < ends[2]; k += strides[2]) {
-                    T *d = data + offset + i * dim_offsets[0] + j * dim_offsets[1] + k * dim_offsets[2];
-                    func(d);
-                }
+                row(base + i * dim_offsets[0] + j * dim_offsets[1]);
             }
         }
     } else if constexpr (N == 4) {
         for (size_t i = begins[0]; i < ends[0]; i += strides[0]) {
             for (size_t j = begins[1]; j < ends[1]; j += strides[1]) {
                 for (size_t k = begins[2]; k < ends[2]; k += strides[2]) {
-                    for (size_t l = begins[3]; l < ends[3]; l += strides[3]) {
-                        T *d = data + offset + i * dim_offsets[0] + j * dim_offsets[1] + k * dim_offsets[2] +
-                               l * dim_offsets[3];
-                        func(d);
-                    }
+                    row(base + i * dim_offsets[0] + j * dim_offsets[1] + k * dim_offsets[2]);
                 }
             }
         }

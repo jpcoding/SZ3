@@ -68,6 +68,32 @@ public:
         return 0;
     }
 
+    /// quantize_and_overwrite() with the quantizer's constants passed in, for loops that keep them in registers.
+    /// Returns 0 when data is unpredictable, which the caller then hands to save_unpred().
+    static ALWAYS_INLINE int quantize_with(T &data, T pred, double error_bound, double error_bound_reciprocal,
+                                           int radius) {
+        T diff = data - pred;
+        double scaled = fabs(diff) * error_bound_reciprocal;
+        if (scaled < radius * 2 - 1) {
+            int64_t quant_index = static_cast<int64_t>(scaled) + 1;
+            quant_index >>= 1;
+            int half_index = quant_index;
+            int quant_index_shifted = diff < 0 ? radius - half_index : radius + half_index;
+            T decompressed_data = pred + nofma(2 * (static_cast<int64_t>(quant_index_shifted) - radius) * error_bound);
+            double err = fabs(static_cast<double>(decompressed_data) - data);
+            if (err <= error_bound) {
+                data = decompressed_data;
+                return quant_index_shifted;
+            }
+        }
+        return 0;
+    }
+
+    /// Stores an unpredictable value; out of line, so the loops calling it keep their state in registers.
+    __attribute__((noinline)) void save_unpred(T data) { unpred.push_back(data); }
+
+    double get_eb_reciprocal() const { return error_bound_reciprocal; }
+
     // recover the data using the quantization index
     ALWAYS_INLINE T recover(T pred, int quant_index) override {
         if (quant_index) {

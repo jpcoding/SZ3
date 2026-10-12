@@ -14,13 +14,27 @@
 namespace SZ3 {
 template <class T>
 T data_range(const T *data, size_t num) {
-    T max = data[0];
-    T min = data[0];
-    for (size_t i = 1; i < num; i++) {
-        if (max < data[i]) max = data[i];
-        if (min > data[i]) min = data[i];
+    // Eight independent lanes, so the loop vectorizes. The result is the sequential one: a lane can hold NaN only
+    // if data[0] is NaN, as the sequential max then does, and which of +0 and -0 a lane keeps cannot change max - min.
+    constexpr size_t L = 8;
+    T max[L], min[L];
+    for (size_t k = 0; k < L; k++) max[k] = min[k] = data[0];
+    size_t i = 1;
+    for (; i + L <= num; i += L) {
+        for (size_t k = 0; k < L; k++) {
+            max[k] = max[k] < data[i + k] ? data[i + k] : max[k];
+            min[k] = min[k] > data[i + k] ? data[i + k] : min[k];
+        }
     }
-    return max - min;
+    for (; i < num; i++) {
+        max[0] = max[0] < data[i] ? data[i] : max[0];
+        min[0] = min[0] > data[i] ? data[i] : min[0];
+    }
+    for (size_t k = 1; k < L; k++) {
+        max[0] = max[0] < max[k] ? max[k] : max[0];
+        min[0] = min[0] > min[k] ? min[k] : min[0];
+    }
+    return max[0] - min[0];
 }
 
 inline int factorial(int n) { return (n == 0) || (n == 1) ? 1 : n * factorial(n - 1); }

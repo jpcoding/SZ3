@@ -202,12 +202,28 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                     }
                 }
 
-                interpolation(
-                    data, block.get_global_index(), end_idx, interpolators[interp_id],
-                    [&](size_t /*idx*/, T &d, T pred) {
-                        quant_inds[quant_index++] = (quantizer.quantize_and_overwrite(d, pred));
-                    },
-                    direction_sequence_id, stride);
+                if constexpr (std::is_same_v<Quantizer, LinearQuantizer<T>>) {
+                    // the quantizer's constants and the bin position in locals, kept in registers
+                    const double qeb = quantizer.get_eb(), rcp = quantizer.get_eb_reciprocal();
+                    const int radius = quantizer.get_radius();
+                    int *qp = quant_inds + quant_index;
+                    interpolation(
+                        data, block.get_global_index(), end_idx, interpolators[interp_id],
+                        [&](size_t /*idx*/, T &d, T pred) {
+                            const int b = LinearQuantizer<T>::quantize_with(d, pred, qeb, rcp, radius);
+                            if (!b) quantizer.save_unpred(d);
+                            *qp++ = b;
+                        },
+                        direction_sequence_id, stride);
+                    quant_index = qp - quant_inds;
+                } else {
+                    interpolation(
+                        data, block.get_global_index(), end_idx, interpolators[interp_id],
+                        [&](size_t /*idx*/, T &d, T pred) {
+                            quant_inds[quant_index++] = (quantizer.quantize_and_overwrite(d, pred));
+                        },
+                        direction_sequence_id, stride);
+                }
             }
         }
         quantizer.set_eb(eb);
