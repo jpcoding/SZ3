@@ -18,6 +18,14 @@ typedef unsigned char uchar;
 #define ALWAYS_INLINE inline
 #endif
 
+// Inlines the calls of the statement it precedes. For the per-element calls of SZ3's iterators: Clang otherwise
+// leaves a large lambda out of line and calls it per element, which GCC inlines.
+#if defined(__clang__) && __clang_major__ >= 15
+#define SZ3_INLINE_CALLS [[clang::always_inline]]
+#else
+#define SZ3_INLINE_CALLS
+#endif
+
 // In nofma(a * b) + c the product is rounded before the add, so the compiler cannot merge them into one
 // FMA instruction, which rounds only once; otherwise a build with FMA and one without decompress different values.
 template <class T>

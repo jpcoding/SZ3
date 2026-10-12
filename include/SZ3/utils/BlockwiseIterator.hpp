@@ -109,13 +109,13 @@ class block_data : public std::enable_shared_from_this<block_data<T, N>> {
             if constexpr (N == 1) {
                 T *d = block.get_block_data(0);
                 for (size_t i = 0; i < range[0].second - range[0].first; i++) {
-                    func(d++, {i});
+                    SZ3_INLINE_CALLS func(d++, {i});
                 }
             } else if constexpr (N == 2) {
                 for (size_t i = 0; i < range[0].second - range[0].first; i++) {
                     T *d = block.get_block_data(i, 0);
                     for (size_t j = 0; j < range[1].second - range[1].first; j++) {
-                        func(d++, {i, j});
+                        SZ3_INLINE_CALLS func(d++, {i, j});
                     }
                 }
             } else if constexpr (N == 3) {
@@ -123,7 +123,7 @@ class block_data : public std::enable_shared_from_this<block_data<T, N>> {
                     for (size_t j = 0; j < range[1].second - range[1].first; j++) {
                         T *d = block.get_block_data(i, j, 0);
                         for (size_t k = 0; k < range[2].second - range[2].first; k++) {
-                            func(d++, {i, j, k});
+                            SZ3_INLINE_CALLS func(d++, {i, j, k});
                         }
                     }
                 }
@@ -133,7 +133,7 @@ class block_data : public std::enable_shared_from_this<block_data<T, N>> {
                         for (size_t k = 0; k < range[2].second - range[2].first; k++) {
                             T *d = block.get_block_data(i, j, k, 0);
                             for (size_t t = 0; t < range[3].second - range[3].first; t++) {
-                                func(d++, {i, j, k, t});
+                                SZ3_INLINE_CALLS func(d++, {i, j, k, t});
                             }
                         }
                     }
@@ -157,28 +157,28 @@ class block_data : public std::enable_shared_from_this<block_data<T, N>> {
                 min_size = std::min(min_size, r.second - r.first);
             }
             if constexpr (N == 1) {
-                func(block.get_block_data(0), {0});
-                func(block.get_block_data(min_size - 1), {min_size - 1});
+                SZ3_INLINE_CALLS func(block.get_block_data(0), {0});
+                SZ3_INLINE_CALLS func(block.get_block_data(min_size - 1), {min_size - 1});
             } else if constexpr (N <= 4) {
                 for (size_t i = 0; i < min_size; i++) {
                     size_t j = min_size - 1 - i;
                     if constexpr (N == 2) {
-                        func(block.get_block_data(i, i), {i, i});
-                        func(block.get_block_data(i, j), {i, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i), {i, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j), {i, j});
                     } else if constexpr (N == 3) {
-                        func(block.get_block_data(i, i, i), {i, i, i});
-                        func(block.get_block_data(i, i, j), {i, i, j});
-                        func(block.get_block_data(i, j, i), {i, j, i});
-                        func(block.get_block_data(i, j, j), {i, j, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, i), {i, i, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, j), {i, i, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, i), {i, j, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, j), {i, j, j});
                     } else if constexpr (N == 4) {
-                        func(block.get_block_data(i, i, i, i), {i, i, i, i});
-                        func(block.get_block_data(i, i, i, j), {i, i, i, j});
-                        func(block.get_block_data(i, i, j, i), {i, i, j, i});
-                        func(block.get_block_data(i, i, j, j), {i, i, j, j});
-                        func(block.get_block_data(i, j, i, i), {i, j, i, i});
-                        func(block.get_block_data(i, j, i, j), {i, j, i, j});
-                        func(block.get_block_data(i, j, j, i), {i, j, j, i});
-                        func(block.get_block_data(i, j, j, j), {i, j, j, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, i, i), {i, i, i, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, i, j), {i, i, i, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, j, i), {i, i, j, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, i, j, j), {i, i, j, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, i, i), {i, j, i, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, i, j), {i, j, i, j});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, j, i), {i, j, j, i});
+                        SZ3_INLINE_CALLS func(block.get_block_data(i, j, j, j), {i, j, j, j});
                     }
                 }
             } else {
@@ -306,7 +306,9 @@ ALWAYS_INLINE void foreach (T *data, size_t offset, const std::array<size_t, N> 
     const size_t count = (e - b + s - 1) / s;
     const size_t step = s * dim_offsets[N - 1];
     auto row = [&](T *d) {
-        for (size_t k = 0; k < count; k++, d += step) func(d);
+        for (size_t k = 0; k < count; k++, d += step) {
+            SZ3_INLINE_CALLS func(d);
+        }
     };
     T *base = data + offset + b * dim_offsets[N - 1];
     if constexpr (N == 1) {
