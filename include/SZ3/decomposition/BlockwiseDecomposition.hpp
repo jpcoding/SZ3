@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "Decomposition.hpp"
+#include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/def.hpp"
 #include "SZ3/encoder/BinStream.hpp"
 #include "SZ3/predictor/LorenzoPredictor.hpp"
@@ -36,10 +37,11 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
     }
 
     std::vector<int> compress(const Config &conf, T *data) override {
+        kinds_used = 0;  // the cache holds pointers of this run only
         auto data_with_padding = std::make_shared<block_data<T, N>>(data, conf.dims, padding, true);
         auto block = data_with_padding->block_iter(conf.blockSize);
         std::vector<int> quant_inds;
-        quant_inds.reserve(conf.num);
+        reserve_huge(quant_inds, conf.num);
         do {
             concepts::PredictorInterface<T, N> *predictor_withfallback = &predictor;
             if (!predictor.precompress(block)) {
@@ -98,6 +100,7 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
     // Bins come from [cur, end), then from each refill(); the position is a local, kept in a register.
     template <class Refill>
     T *decompress_impl(const Config &conf, const int *cur, const int *end, Refill &&refill, T *dec_data) {
+        kinds_used = 0;  // the cache holds pointers of this run only
         auto data_with_padding = std::make_shared<block_data<T, N>>(dec_data, conf.dims, padding, false);
         auto block = data_with_padding->block_iter(conf.blockSize);
         do {
@@ -128,16 +131,43 @@ class BlockwiseDecomposition : public concepts::DecompositionInterface<T, int, N
         if constexpr (has_active<Predictor>::value) {
             if (p == &predictor) p = predictor.active();
         }
-        if (auto q = dynamic_cast<LorenzoPredictor<T, N, 1> *>(p)) {
-            f(q);
-        } else if (auto q = dynamic_cast<LorenzoPredictor<T, N, 2> *>(p)) {
-            f(q);
-        } else if (auto q = dynamic_cast<RegressionPredictor<T, N> *>(p)) {
-            f(q);
-        } else {
-            f(p);
+        switch (kind_of(p)) {
+            case 1:
+                f(static_cast<LorenzoPredictor<T, N, 1> *>(p));
+                break;
+            case 2:
+                f(static_cast<LorenzoPredictor<T, N, 2> *>(p));
+                break;
+            case 3:
+                f(static_cast<RegressionPredictor<T, N> *>(p));
+                break;
+            default:
+                f(p);
         }
     }
+
+    // The concrete type of a predictor, by dynamic_cast once per object: a block resolves to one of a few
+    // predictors, and dynamic_cast compares type names.
+    int kind_of(concepts::PredictorInterface<T, N> *p) {
+        for (size_t i = 0; i < kinds_used; i++)
+            if (kind_ptr[i] == p) return kind[i];
+        int k = 0;
+        if (dynamic_cast<LorenzoPredictor<T, N, 1> *>(p))
+            k = 1;
+        else if (dynamic_cast<LorenzoPredictor<T, N, 2> *>(p))
+            k = 2;
+        else if (dynamic_cast<RegressionPredictor<T, N> *>(p))
+            k = 3;
+        if (kinds_used < kKinds) {
+            kind_ptr[kinds_used] = p;
+            kind[kinds_used++] = k;
+        }
+        return k;
+    }
+    static constexpr size_t kKinds = 8;
+    concepts::PredictorInterface<T, N> *kind_ptr[kKinds] = {};
+    int kind[kKinds] = {};
+    size_t kinds_used = 0;
 
     template <class P>
     static ALWAYS_INLINE T predict(P *p, const Block_iter &block, T *c, const std::array<size_t, N> &index) {
