@@ -8,6 +8,7 @@
 
 #include "Decomposition.hpp"
 #include "SZ3/def.hpp"
+#include "SZ3/encoder/BinStream.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
 #include "SZ3/utils/BlockwiseIterator.hpp"
 #include "SZ3/utils/Config.hpp"
@@ -29,6 +30,19 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
     }
 
     T *decompress(const Config &conf, std::vector<int> &quant_inds_, T *dec_data) override {
+        const int *q = quant_inds_.data();
+        size_t k = 0;
+        return decompress_impl(conf, quant_inds_.size(), [q, &k]() { return q[k++]; }, dec_data);
+    }
+
+    /// decompress() from bins decoded on demand.
+    T *decompress_stream(const Config &conf, BinStream<int> &bins, T *dec_data) {
+        return decompress_impl(conf, bins.size(), [&bins]() { return bins.next(); }, dec_data);
+    }
+
+   private:
+    template <class Next>
+    T *decompress_impl(const Config &conf, size_t nbins, Next &&next_bin, T *dec_data) {
         // load() read original_dimensions from the payload, and the grid walk below is sized by it while
         // dec_data and quant_inds are sized by conf. A tampered value runs off both.
         if (conf.dims.size() != N) {
@@ -42,16 +56,23 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
 
         init();
 
-        if (quant_inds_.size() < num_elements) {
+        if (nbins < num_elements) {
             throw std::out_of_range("SZ3 interpolation: fewer bins than the grid consumes");
         }
-        this->quant_inds = quant_inds_.data();
         double eb = quantizer.get_eb();
 
-        if (anchor_stride == 0) {                                               // check whether used anchor points
-            *dec_data = quantizer.recover(0, this->quant_inds[quant_index++]);  // no anchor points
+        if (anchor_stride == 0) {                            // check whether used anchor points
+            *dec_data = quantizer.recover(0, next_bin());  // no anchor points
         } else {
-            recover_anchor_grid(dec_data);  // recover anchor points
+            // recover anchor points, stored losslessly
+            std::array<size_t, N> strides;
+            std::array<size_t, N> begins{0};
+            std::fill(strides.begin(), strides.end(), anchor_stride);
+            foreach
+                <T, N>(dec_data, 0, begins, original_dimensions, strides, original_dim_offsets, [&](T *d) {
+                    *d = quantizer.recover_unpred();
+                    next_bin();
+                });
             interp_level--;
         }
 
@@ -86,13 +107,15 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                 }
                 interpolation(
                     dec_data, block.get_global_index(), end_idx, interpolators[interp_id],
-                    [&](size_t /*idx*/, T &d, T pred) { d = quantizer.recover(pred, quant_inds_[quant_index++]); },
+                    [&](size_t /*idx*/, T &d, T pred) { d = quantizer.recover(pred, next_bin()); },
                     direction_sequence_id, stride);
             }
         }
         quantizer.postdecompress_data();
         return dec_data;
     }
+
+   public:
 
     // compress given the error bound
     std::vector<int> compress(const Config &conf, T *data) override {

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "SZ3/def.hpp"
+#include "SZ3/encoder/BinStream.hpp"
 #include "SZ3/encoder/Encoder.hpp"
 #include "SZ3/utils/ByteUtil.hpp"
 #include "SZ3/utils/MemoryUtil.hpp"
@@ -178,14 +179,48 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
                 throw std::out_of_range("SZ3 Huffman: payload does not match the value count");
             out.resize(targetLength);
             // A one-bit code is all zeros, so a run of zero bits is a run of its symbol.
+            uint64_t pos = 0;
             if (count_[1])
-                decode_payload<true>(p, nbytes, bits, out.data(), targetLength);
+                decode_payload<true>(p, nbytes, out.data(), targetLength, pos);
             else
-                decode_payload<false>(p, nbytes, bits, out.data(), targetLength);
+                decode_payload<false>(p, nbytes, out.data(), targetLength, pos);
+            if (pos != bits) throw std::out_of_range("SZ3 Huffman: payload length does not match its codes");
         }
         bytes = p + nbytes;
         remaining_length = rem - nbytes;
         return out;
+    }
+
+    /// decode() as a stream decoded on demand; the payload must outlive it.
+    BinStream<T> decode_stream(const uchar *&bytes, size_t targetLength, size_t &remaining_length) {
+        const uchar *p = bytes;
+        size_t rem = remaining_length;
+        uint64_t bits = 0;
+        read(bits, p, rem);
+        if (bits > static_cast<uint64_t>(rem) * 8) throw std::out_of_range("SZ3 Huffman: payload exceeds the buffer");
+        const size_t nbytes = static_cast<size_t>((bits + 7) / 8);
+        bytes = p + nbytes;
+        remaining_length = rem - nbytes;
+        if (syms_.size() < 2) {
+            if (bits != 0 || (syms_.empty() && targetLength != 0))
+                throw std::out_of_range("SZ3 Huffman: payload does not match the code table");
+            const T off = offset_;
+            return BinStream<T>(targetLength, [off](T *out, size_t m) { std::fill(out, out + m, off); });
+        }
+        if (bits < targetLength || bits / kMaxLen > targetLength)
+            throw std::out_of_range("SZ3 Huffman: payload does not match the value count");
+        uint64_t pos = 0;
+        size_t left = targetLength;
+        const bool zero_runs = count_[1] != 0;
+        return BinStream<T>(targetLength, [this, p, nbytes, bits, pos, left, zero_runs](T *out, size_t m) mutable {
+            if (zero_runs)
+                decode_payload<true>(p, nbytes, out, m, pos);
+            else
+                decode_payload<false>(p, nbytes, out, m, pos);
+            left -= m;
+            if (left == 0 && pos != bits)
+                throw std::out_of_range("SZ3 Huffman: payload length does not match its codes");
+        });
     }
 
     void postprocess_decode() override {}
@@ -485,6 +520,15 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
         uint8_t len;  // 0: the code is longer than the table, or is not a code
     };
 
+    // Up to three whole codes in the next kMultiBits bits: their ranks in sorted_, how many, and their total length.
+    // count 0: the first code is longer than kTableBits.
+    static constexpr unsigned kMultiBits = 12;
+    struct Multi {
+        uint16_t ranks[3];
+        uint8_t count;
+        uint8_t len;
+    };
+
     void build_decoder() {
         const size_t d = syms_.size();
         if (d < 2) return;
@@ -511,6 +555,23 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
                 std::fill(table_.begin() + lo, table_.begin() + lo + (size_t(1) << (table_bits_ - l)),
                           Entry{sorted_[base_[l] + k], static_cast<uint8_t>(l)});
             }
+        // The ranks fit in 16 bits: they number the codes of at most kTableBits bits.
+        const unsigned tb = table_bits_, mb = kMultiBits;
+        multi_.assign(size_t(1) << mb, Multi{{0, 0, 0}, 0, 0});
+        for (size_t idx = 0; idx < (size_t(1) << mb); idx++) {
+            Multi m{{0, 0, 0}, 0, 0};
+            unsigned used = 0;
+            while (m.count < 3) {
+                const size_t w = (idx << used) & ((size_t(1) << mb) - 1);
+                const unsigned l = table_[w >> (mb - tb)].len;
+                if (l == 0 || used + l > mb) break;
+                const uint64_t code = w >> (mb - l);
+                m.ranks[m.count++] = static_cast<uint16_t>(base_[l] + (code - first_[l]));
+                used += l;
+            }
+            m.len = static_cast<uint8_t>(used);
+            multi_[idx] = m;
+        }
     }
 
     // A code longer than the table, with its bits at the top of acc.
@@ -524,19 +585,25 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
         sym = sorted_[base_[len] + ((w >> (32 - len)) - first_[len])];
     }
 
+    // Decodes n symbols from bit pos of p, advancing pos.
     template <bool ZeroRuns>
-    void decode_payload(const uchar *p, size_t nbytes, uint64_t bits, T *out, size_t n) const {
+    void decode_payload(const uchar *p, size_t nbytes, T *out, size_t n, uint64_t &pos_io) const {
         const Entry *tab = table_.data();
+        const Multi *multi = multi_.data();
+        const T *sorted = sorted_.data();
         const unsigned tb = table_bits_, ml = max_len_;
+        // a lookup reads kMultiBits bits and a code may be ml long; both must be loaded
+        const unsigned need = std::max(ml, kMultiBits);
         const T zero_sym = sorted_[0];
         // With two one-bit codes, a run of ones is a run of the second symbol.
         const bool one_runs = count_[1] == 2;
-        uint64_t pos = 0;
+        uint64_t pos = pos_io;
         size_t i = 0;
         // Whole 8-byte reads while they stay inside the payload; each gives at least 57 bits.
-        while (i < n && (pos >> 3) + 8 <= nbytes) {
+        while (i + 3 <= n && (pos >> 3) + 8 <= nbytes) {
             uint64_t acc = static_cast<uint64_t>(bytesToInt64_bigEndian(p + (pos >> 3))) << (pos & 7);
-            unsigned avail = 64 - static_cast<unsigned>(pos & 7);
+            const unsigned start = 64 - static_cast<unsigned>(pos & 7);
+            unsigned avail = start;
             do {
                 unsigned len;
                 // Only runs of eight or more, which are likely long; shorter ones would mispredict each time.
@@ -549,20 +616,26 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
                     acc = len < 64 ? acc << len : 0;
                     i += len;
                 } else {
-                    const Entry e = tab[acc >> (64 - tb)];
-                    len = e.len;
-                    if (len)
-                        out[i] = e.sym;
-                    else
+                    const Multi m = multi[acc >> (64 - kMultiBits)];
+                    if (m.count) {
+                        // all three slots are written; the ones past count are overwritten next
+                        out[i] = sorted[m.ranks[0]];
+                        out[i + 1] = sorted[m.ranks[1]];
+                        out[i + 2] = sorted[m.ranks[2]];
+                        len = m.len;
+                        i += m.count;
+                    } else {
                         decode_long(acc, out[i], len);
+                        i++;
+                    }
                     acc <<= len;
-                    i++;
                 }
                 avail -= len;
-                pos += len;
-            } while (avail >= ml && i < n);
+            } while (avail >= need && i + 3 <= n);
+            pos += start - avail;
         }
-        while (i < n && pos <= bits) {
+        while (i < n) {
+            if ((pos >> 3) >= nbytes) throw std::out_of_range("SZ3 Huffman: payload length does not match its codes");
             uchar tail[8] = {0};
             memcpy(tail, p + (pos >> 3), std::min<size_t>(8, nbytes - (pos >> 3)));
             const uint64_t acc = static_cast<uint64_t>(bytesToInt64_bigEndian(tail)) << (pos & 7);
@@ -575,7 +648,7 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
             pos += len;
             i++;
         }
-        if (pos != bits) throw std::out_of_range("SZ3 Huffman: payload length does not match its codes");
+        pos_io = pos;
     }
 
     // encoder and decoder
@@ -594,6 +667,7 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
     uint64_t first_[kMaxLen + 1] = {0}, base_[kMaxLen + 1] = {0}, limit_[kMaxLen + 1] = {0};
     std::vector<T> sorted_;  // bins in code order
     std::vector<Entry> table_;
+    std::vector<Multi> multi_;
 };
 
 }  // namespace SZ3

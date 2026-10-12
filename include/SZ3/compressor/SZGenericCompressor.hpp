@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 #include "SZ3/compressor/Compressor.hpp"
 #include "SZ3/decomposition/Decomposition.hpp"
@@ -82,6 +83,13 @@ class SZGenericCompressor : public concepts::CompressorInterface<T> {
 
         uint64_t quant_inds_size = 0;
         read(quant_inds_size, bufferPos, bufferSize);
+        if constexpr (has_stream<Decomposition, Encoder>::value) {
+            // bins decoded on demand while the buffer they come from is alive
+            auto bins = encoder.decode_stream(bufferPos, quant_inds_size, bufferSize);
+            decomposition.decompress_stream(conf, bins, decData);
+            bins.finish();
+            return decData;
+        }
         auto quant_inds = encoder.decode(bufferPos, quant_inds_size, bufferSize);
         encoder.postprocess_decode();
 
@@ -93,6 +101,17 @@ class SZGenericCompressor : public concepts::CompressorInterface<T> {
     }
 
    private:
+    template <class D, class E, class = void>
+    struct has_stream : std::false_type {};
+    template <class D, class E>
+    struct has_stream<D, E,
+                      std::void_t<decltype(std::declval<D &>().decompress_stream(
+                                      std::declval<const Config &>(),
+                                      std::declval<decltype(std::declval<E &>().decode_stream(
+                                          std::declval<const uchar *&>(), size_t(), std::declval<size_t &>()))
+                                                       &>(),
+                                      std::declval<T *>()))>> : std::true_type {};
+
     Decomposition decomposition;
     Encoder encoder;
     Lossless lossless;
