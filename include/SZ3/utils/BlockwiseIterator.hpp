@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/def.hpp"
 
 namespace SZ3 {
@@ -209,6 +210,7 @@ class block_data : public std::enable_shared_from_this<block_data<T, N>> {
         cal_dim_strides();
 
         if (padding > 0) {
+            reserve_huge(internal_buffer, num_padding);
             internal_buffer.resize(num_padding);
             size_t offset = std::accumulate(ds_padding.begin(), ds_padding.end(), static_cast<size_t>(0));
             data_padding = &internal_buffer[padding * offset];

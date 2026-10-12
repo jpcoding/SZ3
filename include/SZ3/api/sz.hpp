@@ -24,6 +24,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/api/impl/SZImpl.hpp"
 #include "SZ3/version.hpp"
 
@@ -98,6 +99,7 @@ char* SZ_compress(const SZ3::Config& config, const T* data, size_t& cmpSize) {
 
     size_t bufferLen = SZ_compress_size_bound<T>(config);
     std::unique_ptr<char[]> buffer(new char[bufferLen]);
+    SZ3::huge_pages(buffer.get(), bufferLen);
     cmpSize = SZ_compress(config, data, buffer.get(), bufferLen);
 
     return buffer.release();
@@ -157,6 +159,11 @@ void SZ_decompress(SZ3::Config& config, const char* cmpData, size_t cmpSize, T*&
 
     if (decData == nullptr) {
         decData = new T[config.num];
+        // Interpolation writes its output scattered, coarse levels first, where huge pages measure slower; the
+        // other algorithms write it in order.
+        if (config.cmprAlgo != SZ3::ALGO_INTERP && config.cmprAlgo != SZ3::ALGO_INTERP_LORENZO) {
+            SZ3::huge_pages(decData, config.num * sizeof(T));
+        }
     }
     if (config.N == 1) {
         SZ_decompress_impl<T, 1>(config, cmpDataPos, cmpDataSize, decData);

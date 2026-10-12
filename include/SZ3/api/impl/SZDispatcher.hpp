@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/api/impl/SZAlgoBioMD.hpp"
 #include "SZ3/api/impl/SZAlgoInterp.hpp"
 #include "SZ3/api/impl/SZAlgoLorenzoReg.hpp"
@@ -41,7 +42,9 @@ size_t SZ_compress_dispatcher(Config &conf, const T *data, uchar *cmpData, size_
                 cmpSize = SZ_compress_LorenzoReg<T, N>(conf, const_cast<T *>(data), cmpData, cmpCap);
             } else {
                 // the others write their reconstruction into the data they are given, so they get a copy
-                std::vector<T> dataCopy(data, data + conf.num);
+                std::vector<T> dataCopy;
+                reserve_huge(dataCopy, conf.num);
+                dataCopy.assign(data, data + conf.num);
                 if (conf.cmprAlgo == ALGO_INTERP) {
                     cmpSize = SZ_compress_Interp<T, N>(conf, dataCopy.data(), cmpData, cmpCap);
                 } else if (conf.cmprAlgo == ALGO_INTERP_LORENZO) {
@@ -75,6 +78,7 @@ size_t SZ_compress_dispatcher(Config &conf, const T *data, uchar *cmpData, size_
         auto zstd = Lossless_zstd();
         // No bigger than the lossy stream: zstd gives up as soon as its output could not be smaller.
         std::unique_ptr<uchar[]> zstdCmpData(new uchar[cmpSize]);
+        huge_pages(zstdCmpData.get(), cmpSize);
         try {
             size_t zstdCmpSize =
                 zstd.compress(reinterpret_cast<const uchar *>(data), conf.num * sizeof(T), zstdCmpData.get(), cmpSize);

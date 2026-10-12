@@ -9,9 +9,38 @@
 #include <cstring>
 #include <stdexcept>
 
+#if defined(__linux__)
+#include <sys/mman.h>
+#endif
+
 #include "SZ3/def.hpp"
 
 namespace SZ3 {
+
+/**
+ * Asks Linux to back a large buffer with transparent huge pages, before anything is written to it. With the usual
+ * "madvise" setting, a fresh buffer otherwise takes one page fault per 4 KiB, which costs as much as SZ3's own
+ * work on large data. A hint only: the inner 2 MiB-aligned part is advised; elsewhere this does nothing.
+ */
+inline void huge_pages(const void *p, size_t bytes) {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+    constexpr uintptr_t kHuge = uintptr_t(2) << 20;
+    if (p == nullptr || bytes < 2 * kHuge) return;
+    const uintptr_t a = (reinterpret_cast<uintptr_t>(p) + kHuge - 1) & ~(kHuge - 1);
+    const uintptr_t e = (reinterpret_cast<uintptr_t>(p) + bytes) & ~(kHuge - 1);
+    if (e > a) madvise(reinterpret_cast<void *>(a), e - a, MADV_HUGEPAGE);
+#else
+    (void)p;
+    (void)bytes;
+#endif
+}
+
+/// Reserves room for n elements in v and hints it to huge pages, before anything is written.
+template <class V>
+inline void reserve_huge(V &v, size_t n) {
+    v.reserve(n);
+    huge_pages(v.data(), v.capacity() * sizeof(typename V::value_type));
+}
 
 // Endianness detection: SZ3 always stores data in little-endian format
 // On big-endian systems, byte-swapping is performed during read/write

@@ -75,6 +75,7 @@ class Lossless_zstd : public concepts::LosslessInterface {
         std::unique_ptr<uchar, void (*)(void *)> owner(nullptr, &free);
         if (dst == nullptr) {
             owner.reset(static_cast<uchar *>(malloc(dstLen)));
+            huge_pages(owner.get(), dstLen);
             if (owner == nullptr) {
                 throw std::runtime_error("SZ3 lossless: can not allocate the decompression buffer");
             }

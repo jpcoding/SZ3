@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "SZ3/utils/MemoryUtil.hpp"
 #include "SZ3/compressor/Compressor.hpp"
 #include "SZ3/decomposition/Decomposition.hpp"
 #include "SZ3/def.hpp"
@@ -53,6 +54,7 @@ class SZGenericCompressor : public concepts::CompressorInterface<T> {
 
         // Owned, because the encoder and the lossless layer below can throw.
         std::unique_ptr<uchar[]> buffer_owner(new uchar[bufferSize]);
+        huge_pages(buffer_owner.get(), bufferSize);
         uchar *const buffer = buffer_owner.get();
         uchar *buffer_pos = buffer;
 

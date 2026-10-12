@@ -158,7 +158,9 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
         eb_beta = conf.interpBeta;
 
         init();
-        std::vector<int> quant_inds_vec(num_elements);
+        std::vector<int> quant_inds_vec;
+        reserve_huge(quant_inds_vec, num_elements);
+        quant_inds_vec.resize(num_elements);
         quant_inds = quant_inds_vec.data();
         double eb = quantizer.get_eb();
         if (anchor_stride == 0) {  // check whether to use anchor points

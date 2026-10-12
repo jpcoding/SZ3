@@ -213,6 +213,7 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
         } else {
             if (bits < targetLength || bits / kMaxLen > targetLength)
                 throw std::out_of_range("SZ3 Huffman: payload does not match the value count");
+            reserve_huge(out, targetLength);
             out.resize(targetLength);
             // A one-bit code is all zeros, so a run of zero bits is a run of its symbol.
             uint64_t pos = 0;
