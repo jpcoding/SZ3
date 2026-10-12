@@ -33,6 +33,8 @@ public:
 
     double get_eb() const { return error_bound; }
 
+    int get_radius() const { return radius; }
+
     void set_eb(double eb) {
         error_bound = eb;
         error_bound_reciprocal = 1.0 / eb;

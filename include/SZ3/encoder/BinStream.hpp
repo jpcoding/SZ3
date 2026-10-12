@@ -30,6 +30,20 @@ class BinStream {
         return refill_next();
     }
 
+    /// The next chunk as [first, second), all of it consumed; throws at the end of the stream. For loops that keep
+    /// their position in locals rather than calling next().
+    __attribute__((noinline)) std::pair<const T *, const T *> next_chunk() {
+        if (at_ < end_) {
+            const size_t a = at_;
+            at_ = end_;
+            return {buf_.data() + a, buf_.data() + end_};
+        }
+        if (decoded_ == total_) throw std::out_of_range("SZ3: fewer bins than the decomposition consumes");
+        refill();
+        at_ = end_;
+        return {buf_.data(), buf_.data() + end_};
+    }
+
     /// Decodes what is left, so a damaged tail is still found.
     void finish() {
         while (decoded_ < total_) refill();

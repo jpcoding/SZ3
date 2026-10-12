@@ -4,11 +4,14 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include "Decomposition.hpp"
 #include "SZ3/def.hpp"
 #include "SZ3/encoder/BinStream.hpp"
+#include "SZ3/quantizer/LinearQuantizer.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
 #include "SZ3/utils/BlockwiseIterator.hpp"
 #include "SZ3/utils/Config.hpp"
@@ -31,18 +34,30 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
 
     T *decompress(const Config &conf, std::vector<int> &quant_inds_, T *dec_data) override {
         const int *q = quant_inds_.data();
-        size_t k = 0;
-        return decompress_impl(conf, quant_inds_.size(), [q, &k]() { return q[k++]; }, dec_data);
+        return decompress_impl(
+            conf, quant_inds_.size(), q, q + quant_inds_.size(),
+            []() -> std::pair<const int *, const int *> {
+                throw std::out_of_range("SZ3 interpolation: fewer bins than the grid consumes");
+            },
+            dec_data);
     }
 
     /// decompress() from bins decoded on demand.
     T *decompress_stream(const Config &conf, BinStream<int> &bins, T *dec_data) {
-        return decompress_impl(conf, bins.size(), [&bins]() { return bins.next(); }, dec_data);
+        return decompress_impl(conf, bins.size(), nullptr, nullptr, [&bins]() { return bins.next_chunk(); },
+                               dec_data);
     }
 
    private:
-    template <class Next>
-    T *decompress_impl(const Config &conf, size_t nbins, Next &&next_bin, T *dec_data) {
+    // Bins come from [cur, end), then from each refill(). The position and the quantizer's constants are locals:
+    // the loop calls refill(), so the compiler would reload members after every store to the data.
+    template <class Refill>
+    T *decompress_impl(const Config &conf, size_t nbins, const int *cur, const int *end, Refill &&refill,
+                       T *dec_data) {
+        auto next_bin = [&]() -> int {
+            if (cur == end) std::tie(cur, end) = refill();
+            return *cur++;
+        };
         // load() read original_dimensions from the payload, and the grid walk below is sized by it while
         // dec_data and quant_inds are sized by conf. A tampered value runs off both.
         if (conf.dims.size() != N) {
@@ -76,6 +91,8 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
             interp_level--;
         }
 
+        int64_t radius = 0;
+        if constexpr (std::is_same_v<Quantizer, LinearQuantizer<T>>) radius = quantizer.get_radius();
         for (int level = interp_level; level > 0 && level <= interp_level; level--) {
             // set level-wise error bound
             if (eb_alpha < 0) {
@@ -91,6 +108,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                 }
                 quantizer.set_eb(eb / cur_ratio);
             }
+            const double qeb = quantizer.get_eb();
             size_t stride = 1U << (level - 1);
             auto interp_block_size = blocksize * stride;
             auto inter_block_range = std::make_shared<multi_dimensional_range<T, N>>(
@@ -107,7 +125,16 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
                 }
                 interpolation(
                     dec_data, block.get_global_index(), end_idx, interpolators[interp_id],
-                    [&](size_t /*idx*/, T &d, T pred) { d = quantizer.recover(pred, next_bin()); },
+                    [&](size_t /*idx*/, T &d, T pred) {
+                        if constexpr (std::is_same_v<Quantizer, LinearQuantizer<T>>) {
+                            // LinearQuantizer::recover with its constants in registers
+                            const int b = next_bin();
+                            d = b ? pred + nofma(2 * (static_cast<int64_t>(b) - radius) * qeb)
+                                  : quantizer.recover_unpred();
+                        } else {
+                            d = quantizer.recover(pred, next_bin());
+                        }
+                    },
                     direction_sequence_id, stride);
             }
         }
@@ -303,7 +330,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
      * This is the original API, described in the ICDE'21 paper.
      */
     template <class QuantizeFunc>
-    double interpolation_1d(T *data, size_t begin, size_t end, size_t stride, const std::string &interp_func,
+    ALWAYS_INLINE double interpolation_1d(T *data, size_t begin, size_t end, size_t stride, const std::string &interp_func,
                             QuantizeFunc &&quantize_func) {
         size_t n = (end - begin) / stride + 1;
         if (n <= 1) {
@@ -355,7 +382,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
      * This is the new API, described in the SIGMOD'24 paper.
      */
     template <class QuantizeFunc>
-    double interpolation_1d_fastest_dim_first(T *data, const std::array<size_t, N> &begin_idx,
+    ALWAYS_INLINE double interpolation_1d_fastest_dim_first(T *data, const std::array<size_t, N> &begin_idx,
                                               const std::array<size_t, N> &end_idx, const size_t &direction,
                                               std::array<size_t, N> &strides, const size_t &math_stride,
                                               const std::string &interp_func, QuantizeFunc &&quantize_func) {
@@ -450,7 +477,7 @@ class InterpolationDecomposition : public concepts::DecompositionInterface<T, in
     }
 
     template <class QuantizeFunc>
-    double interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
+    ALWAYS_INLINE double interpolation(T *data, std::array<size_t, N> begin, std::array<size_t, N> end,
                          const std::string &interp_func, QuantizeFunc &&quantize_func, const int direction,
                          size_t stride = 1) {
         if constexpr (N == 1) {  // old API
