@@ -114,8 +114,44 @@ class HuffmanEncoder : public concepts::EncoderInterface<T> {
         if (dense_) {
             const uint64_t *tab = code_.data();
             const uint64_t size = code_.size();
-            for (const T b : bins) {
-                const uint64_t s = static_cast<U>(static_cast<U>(b) - off);
+            const T *b = bins.data();
+            const size_t n = bins.size();
+            size_t i = 0;
+            // the symbol whose code is the single bit 0; eight of it append a zero byte
+            uint64_t zs = size;
+            if (count_[1]) {
+                for (uint64_t k = 0; k < size; k++) {
+                    if (tab[k] == 1) {  // (code 0 << 8) | length 1
+                        zs = k;
+                        break;
+                    }
+                }
+            }
+            if (zs < size) {
+                const T z = static_cast<T>(static_cast<U>(off + zs));
+                while (i + 8 <= n) {
+                    if (((b[i] == z) & (b[i + 1] == z) & (b[i + 2] == z) & (b[i + 3] == z) & (b[i + 4] == z) &
+                         (b[i + 5] == z) & (b[i + 6] == z) & (b[i + 7] == z))) {
+                        acc <<= 8;
+                        nb += 8;
+                        if (nb >= 32) {
+                            nb -= 32;
+                            int32ToBytes_bigEndian(p, static_cast<uint32_t>(acc >> nb));
+                            p += 4;
+                        }
+                        i += 8;
+                        continue;
+                    }
+                    const size_t stop = i + 8;
+                    for (; i < stop; i++) {
+                        const uint64_t s = static_cast<U>(static_cast<U>(b[i]) - off);
+                        if (s >= size) throw std::invalid_argument("SZ3 Huffman: bin not seen by preprocess_encode");
+                        put(tab[s]);
+                    }
+                }
+            }
+            for (; i < n; i++) {
+                const uint64_t s = static_cast<U>(static_cast<U>(b[i]) - off);
                 if (s >= size) throw std::invalid_argument("SZ3 Huffman: bin not seen by preprocess_encode");
                 put(tab[s]);
             }
